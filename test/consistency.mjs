@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SUITES = ['sim', 'smoke'];
+const SUITES = ['sim', 'net', 'smoke', 'multiplayer', 'gamepad'];
 
 let total = 0;
 const parts = [];

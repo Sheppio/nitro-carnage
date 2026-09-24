@@ -11,7 +11,7 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status:** M1 and M2 are built (see README). Where M1 changed a decision, this plan has been
+> **Status:** M1, M2 and M3 are built (see README). Where M1 changed a decision, this plan has been
 > updated to match and the change is marked *(M1)*.
 
 ---

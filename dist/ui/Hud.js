@@ -33,7 +33,7 @@ export class Hud {
         this.session = session;
         this.minimap = new Minimap($('hud-minimap'), session.world.track);
         this.arrows = new RivalArrows($('hud-arrows'));
-        const race = session.mode === 'race';
+        const race = session.mode !== 'free';
         $('hud-race').hidden = !race;
         $('hud-minimap').hidden = !race;
         $('hud-debug').hidden = !debug;
@@ -44,11 +44,12 @@ export class Hud {
         $('hud-turbo').style.transform = `scaleX(${Math.max(0, hud.turbo / SIM.car.turboCapacity)})`;
         // Countdown: 3, 2, 1, GO — GO lingers for a second after the lights.
         const cd = $('hud-countdown');
-        if (hud.mode === 'race' && hud.countdown > 0) {
+        const racing = hud.mode !== 'free';
+        if (racing && hud.countdown > 0) {
             cd.textContent = String(Math.ceil(hud.countdown));
             cd.classList.remove('go');
         }
-        else if (hud.mode === 'race' && hud.raceTime < 1) {
+        else if (racing && hud.raceTime < 1 && hud.raceTime > -0.5) {
             cd.textContent = 'GO';
             cd.classList.add('go');
         }
@@ -59,6 +60,10 @@ export class Hud {
         if (hud.wrongWay) {
             bannerEl.textContent = 'WRONG WAY';
             bannerEl.classList.add('warn');
+        }
+        else if (hud.spectating) {
+            bannerEl.textContent = 'SPECTATING · YOU RACE NEXT';
+            bannerEl.classList.remove('warn');
         }
         else if (now < this.bannerUntil) {
             bannerEl.textContent = this.bannerText;
@@ -81,7 +86,7 @@ export class Hud {
                 screen.push({ id, css: info.css, ...p });
             }
         }
-        if (hud.mode === 'race')
+        if (racing)
             this.minimap.draw(cars);
         const rect = s.view.renderer.domElement.getBoundingClientRect();
         this.arrows.update(screen, rect.width, rect.height);
@@ -91,7 +96,7 @@ export class Hud {
         this.textAt = now;
         $('hud-speed').textContent = String(Math.round(hud.speedKmh));
         $('hud-auto').hidden = !hud.autopilot;
-        if (hud.mode === 'race') {
+        if (racing) {
             $('hud-pos').textContent = String(hud.position);
             $('hud-of').textContent = `/${hud.of}`;
             $('hud-lap').textContent = String(hud.lap);
@@ -105,14 +110,15 @@ export class Hud {
     /** React to a race event: lap banners, the final lap, the finish. */
     event(ev) {
         const w = this.session.world;
-        if (ev.kind === 'lap' && ev.id === 'you') {
+        const me = this.session.playerId;
+        if (ev.kind === 'lap' && ev.id === me) {
             const next = ev.lap + 1;
             if (next === w.laps)
                 this.banner('FINAL LAP', 2.2);
             else if (next < w.laps)
                 this.banner(`LAP ${next}  ·  ${formatTime(ev.lapTime)}`, 2.2);
         }
-        else if (ev.kind === 'finish' && ev.id === 'you') {
+        else if (ev.kind === 'finish' && ev.id === me) {
             const pos = this.session.results().findIndex((r) => r.car.you) + 1;
             this.banner(`FINISHED ${ordinal(pos)}`, 8);
         }
@@ -122,7 +128,7 @@ export class Hud {
             if (info && done === 1)
                 this.banner(`${info.name} WINS`, 2.5);
         }
-        else if (ev.kind === 'respawn' && ev.id === 'you') {
+        else if (ev.kind === 'respawn' && ev.id === me) {
             this.banner('BACK ON TRACK', 1.5, true);
         }
     }

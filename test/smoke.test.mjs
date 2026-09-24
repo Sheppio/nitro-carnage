@@ -97,11 +97,21 @@ try {
   await page.keyboard.up('ArrowUp');
   r.check('the car actually moved from the grid', Math.hypot((moving?.x ?? 0) - start.x, (moving?.z ?? 0) - start.z) > 5);
 
-  // Leaving tears the race down completely.
+  // Esc opens the pause menu, and offline that stops the world.
   await page.keyboard.press('Escape');
+  await page.waitForSelector('#pause-veil:not([hidden])');
+  const paused = await page.evaluate(async () => {
+    const w = window.nitro.session.world;
+    const s0 = w.steps;
+    await new Promise((res) => setTimeout(res, 400));
+    return w.steps === s0;
+  });
+  r.check('Esc pauses a solo drive: the world stops', paused);
+  // Leaving tears the race down completely.
+  await page.click('#btn-pause-leave');
   await page.waitForSelector('#screen-menu:not([hidden])');
   const torn = await page.evaluate(() => ({ canvases: document.querySelectorAll('canvas.game-canvas').length, session: window.nitro.session }));
-  r.check('Esc returns to the menu and disposes the renderer', torn.canvases === 0 && torn.session === null);
+  r.check('leaving returns to the menu and disposes the renderer', torn.canvases === 0 && torn.session === null);
   await page.close();
 
   /* ----------------------------------------------------------- occlusion */

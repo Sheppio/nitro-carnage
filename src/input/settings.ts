@@ -1,4 +1,5 @@
 import { SLUG } from '../brand.js';
+import { BROKERS } from '../config.js';
 import type { QualityId } from '../config.js';
 import { Emitter } from '../util.js';
 
@@ -19,6 +20,8 @@ export interface InputSettings {
   autopilot: boolean;
   sfxVolume: number;
   musicVolume: number;
+  /** Which public MQTT broker rooms meet on; see `BROKERS`. */
+  broker: string;
 }
 
 /** Numeric settings and the range each is clamped to when read back. */
@@ -40,6 +43,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   autopilot: false,
   sfxVolume: 1,
   musicVolume: 0.8,
+  broker: BROKERS[0]!.id,
 };
 
 export interface SettingsEvents extends Record<string, unknown> {
@@ -71,10 +75,20 @@ export class SettingsStore {
   }
 }
 
-/** A phone gets the lighter graphics preset out of the box. */
+/**
+ * Out-of-the-box graphics: Medium on a Steam Deck (its GPU is a laptop iGPU at
+ * 1280x800, and it runs cooler and longer on Medium), Low on a phone.
+ */
 function detectDefaults(): Partial<InputSettings> {
+  if (isSteamDeck()) return { quality: 'medium' };
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   return coarse ? { quality: 'low' } : {};
+}
+
+/** Steam's browser and Gaming Mode say so in the user agent. */
+export function isSteamDeck(): boolean {
+  const ua = typeof navigator === 'object' ? navigator.userAgent : '';
+  return /Steam Deck|SteamOS|Valve Steam/i.test(ua);
 }
 
 function load(): Partial<InputSettings> {
@@ -96,6 +110,7 @@ function coerce(state: InputSettings): InputSettings {
   }
   if (!QUALITIES.includes(out.quality)) out.quality = DEFAULT_SETTINGS.quality;
   if (!['auto', 'on', 'off'].includes(out.touchControls)) out.touchControls = 'auto';
+  if (!BROKERS.some((b) => b.id === out.broker)) out.broker = BROKERS[0]!.id;
   for (const key of ['vibration', 'reduceMotion', 'autopilot'] as const) out[key] = Boolean(out[key]);
   return out;
 }

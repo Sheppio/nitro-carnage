@@ -1,0 +1,59 @@
+import { PumpedClock, startTicker } from './clock.js';
+import { encodePresence } from './net/codec.js';
+import { MqttNet } from './net/MqttNet.js';
+import { NetRace } from './net/NetRace.js';
+import { Topics } from './net/topics.js';
+import { TRACKS } from './sim/track/index.js';
+import { VERSION } from './version.js';
+/**
+ * One networked room, in the browser: the broker connection, the room and
+ * race logic (`NetRace`), and the clock that keeps both running when the tab
+ * is hidden.
+ *
+ * The race session calls `net.update()` every frame while the tab is in
+ * front. When it is not, the page's own timers are throttled to a crawl and
+ * rAF stops altogether, so a Worker ticker takes over: it pumps the room's
+ * timers (heartbeat, presence, clock pings) and steps the race, which keeps a
+ * backgrounded host hosting and its bots driving.
+ */
+export class RoomClient {
+    roomId;
+    playerId;
+    clock = new PumpedClock();
+    mqtt = new MqttNet();
+    net;
+    stopTicker = null;
+    constructor(roomId, playerId, name, colour) {
+        this.roomId = roomId;
+        this.playerId = playerId;
+        this.net = new NetRace({
+            transport: this.mqtt, clock: this.clock, roomId, playerId, name, colour, ver: VERSION, tracks: TRACKS,
+        });
+    }
+    get status() {
+        return this.mqtt.status;
+    }
+    /**
+     * Connect, then join. The Last Will is registered first — it has to go in
+     * the CONNECT packet — but the room is only joined once the broker answers,
+     * so a slow connection cannot leave this client alone long enough to elect
+     * itself host of a room that already has one.
+     */
+    async connect(url) {
+        this.mqtt.setWill(Topics.presence(this.roomId, this.playerId), encodePresence({ name: '', colour: '', host: 0, alive: 0, ready: 0, ver: VERSION }));
+        await this.mqtt.connect(url, `nc-${this.playerId}`);
+        this.net.start();
+        this.stopTicker = startTicker(() => {
+            this.clock.pump();
+            if (document.hidden)
+                this.net.update();
+        });
+    }
+    leave() {
+        this.stopTicker?.();
+        this.stopTicker = null;
+        this.net.stop();
+        this.mqtt.disconnect();
+    }
+}
+//# sourceMappingURL=RoomClient.js.map

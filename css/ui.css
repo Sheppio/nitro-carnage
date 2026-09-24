@@ -55,7 +55,11 @@ html, body {
 
 .screen.menu {
   display: grid;
-  place-items: center;
+  /* "safe": a card taller than the window starts at the top and scrolls,
+     rather than being centred off both ends with its buttons unreachable
+     (the lobby at 640x400, or any phone held landscape). */
+  place-items: safe center;
+  overflow-y: auto;
   pointer-events: auto;
   background:
     radial-gradient(ellipse at 30% 20%, rgba(255, 77, 46, 0.18), transparent 60%),
@@ -436,3 +440,121 @@ select {
 
 .menu-note.keys b { color: var(--text); font-weight: 600; }
 @media (pointer: coarse) { .menu-note.keys { display: none; } }
+
+/* ------------------------------------------------------- lobby and rooms */
+
+.field.stacked { flex-direction: column; align-items: stretch; gap: 6px; }
+
+input[type='text'] {
+  font: 600 18px var(--display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: #241f33;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.btn-row { display: flex; gap: 10px; }
+.btn-row > .btn { flex: 1; }
+
+.lobby-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.room-code { font-family: var(--display); letter-spacing: 0.18em; color: var(--accent-2); }
+.menu-note.share { margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.menu-note .link { color: var(--text); word-break: break-all; }
+
+.pill {
+  font: 600 11px var(--body);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 9px;
+  border-radius: 99px;
+  border: 1px solid var(--edge);
+  color: var(--muted);
+}
+.pill.online { color: #5cff8a; border-color: rgba(92, 255, 138, 0.4); }
+.pill.offline, .pill.error { color: #ff5a4a; border-color: rgba(255, 90, 74, 0.4); }
+
+.roster { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 6px; }
+.roster li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--edge);
+}
+.roster .swatch { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.roster .name { font: 600 15px var(--display); letter-spacing: 0.04em; flex: 1; }
+.roster .badge { font: 700 10px var(--body); letter-spacing: 0.08em; color: var(--muted); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 6px; }
+.roster .badge.host { color: var(--accent-2); border-color: rgba(255, 179, 0, 0.5); }
+.roster li.bot { opacity: 0.6; }
+
+.lobby-grid { display: grid; gap: 4px; margin-bottom: 6px; }
+body:not(.is-host) .host-only { display: none !important; }
+
+.console-banner {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  background: rgba(0, 229, 255, 0.07);
+  font-size: 13px;
+  color: var(--muted);
+}
+.console-banner b { color: var(--text); }
+.console-sub { display: block; margin-top: 4px; }
+.glyph { color: var(--focus); font-weight: 700; }
+.console-banner[hidden] { display: none; }
+
+/* ----------------------------------------------------- overlays */
+
+.pause-veil, .keyboard-veil {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 8, 18, 0.72);
+  pointer-events: auto;
+  z-index: 20;
+}
+.pause-veil[hidden], .keyboard-veil[hidden] { display: none !important; }
+
+.keyboard-preview {
+  font: 700 26px var(--display);
+  letter-spacing: 0.12em;
+  text-align: center;
+  padding: 10px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: #241f33;
+  min-height: 1.6em;
+}
+
+.keyboard-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.keyboard-grid .key {
+  font: 700 16px var(--display);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 10px 0;
+  min-width: 0;
+}
+
+/* Steam Deck and other 1280x800 screens: everything fits without scrolling. */
+@media (max-height: 820px) and (min-width: 1000px) {
+  .menu-card { padding: 20px 22px; }
+  .title { font-size: 44px; }
+  .tagline { margin-bottom: 14px; }
+  .btn { padding: 11px 16px; }
+}

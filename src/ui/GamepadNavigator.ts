@@ -298,7 +298,11 @@ export class GamepadNavigator {
   }
 
   private focus(el: HTMLElement): void {
-    if (this.lastFocus === el) return;
+    // Skip only if it really still has focus. An element that was hidden and
+    // shown again (the pause menu's Resume, reopened) lost the browser's focus
+    // while we still remembered it as ours, and skipping left nothing focused:
+    // the next D-pad press only put the ring back where it started.
+    if (this.lastFocus === el && document.activeElement === el) return;
     this.lastFocus?.classList.remove('nav-focus');
     this.lastFocus = el;
     el.classList.add('nav-focus');
@@ -320,7 +324,7 @@ export class GamepadNavigator {
       // a controller, which is the whole game behind two text boxes. The UI
       // owns an on-screen keyboard; this asks for it.
       el.focus();
-      document.dispatchEvent(new CustomEvent('gb:text-entry', { detail: { id: el.id } }));
+      document.dispatchEvent(new CustomEvent('nc:text-entry', { detail: { id: el.id } }));
       return;
     }
     if (el instanceof HTMLSelectElement) {
@@ -370,7 +374,7 @@ export class GamepadNavigator {
       });
     }
     this.focusFirst();
-    document.dispatchEvent(new CustomEvent('gb:focus-locked'));
+    document.dispatchEvent(new CustomEvent('nc:focus-locked'));
   }
 }
 

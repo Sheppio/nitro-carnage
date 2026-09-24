@@ -1,4 +1,5 @@
 import { SLUG } from '../brand.js';
+import { BROKERS } from '../config.js';
 import { Emitter } from '../util.js';
 /** Numeric settings and the range each is clamped to when read back. */
 export const RANGES = {
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS = {
     autopilot: false,
     sfxVolume: 1,
     musicVolume: 0.8,
+    broker: BROKERS[0].id,
 };
 /**
  * Persisted player settings. Read back through `coerce`, because storage
@@ -40,10 +42,20 @@ export class SettingsStore {
         this.events.emit('change', { settings: this.state });
     }
 }
-/** A phone gets the lighter graphics preset out of the box. */
+/**
+ * Out-of-the-box graphics: Medium on a Steam Deck (its GPU is a laptop iGPU at
+ * 1280x800, and it runs cooler and longer on Medium), Low on a phone.
+ */
 function detectDefaults() {
+    if (isSteamDeck())
+        return { quality: 'medium' };
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     return coarse ? { quality: 'low' } : {};
+}
+/** Steam's browser and Gaming Mode say so in the user agent. */
+export function isSteamDeck() {
+    const ua = typeof navigator === 'object' ? navigator.userAgent : '';
+    return /Steam Deck|SteamOS|Valve Steam/i.test(ua);
 }
 function load() {
     try {
@@ -66,6 +78,8 @@ function coerce(state) {
         out.quality = DEFAULT_SETTINGS.quality;
     if (!['auto', 'on', 'off'].includes(out.touchControls))
         out.touchControls = 'auto';
+    if (!BROKERS.some((b) => b.id === out.broker))
+        out.broker = BROKERS[0].id;
     for (const key of ['vibration', 'reduceMotion', 'autopilot'])
         out[key] = Boolean(out[key]);
     return out;

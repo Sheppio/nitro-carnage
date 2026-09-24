@@ -43,6 +43,12 @@ export interface Entrant {
   offCourse: number;
   /** The intent used in the last step, for the HUD and tests. */
   intent: DriveIntent;
+  /**
+   * Driven by another client (M3): posed each step from dead reckoning by
+   * whoever owns the world, never stepped by this world's physics, and never
+   * lap-tracked here — its owner reports its laps.
+   */
+  remote: boolean;
 }
 
 export type RaceEvent =
@@ -50,13 +56,22 @@ export type RaceEvent =
   | { kind: 'lap'; id: string; lap: number; time: number; lapTime: number }
   | { kind: 'finish'; id: string; time: number }
   | { kind: 'respawn'; id: string; time: number }
-  | { kind: 'bump'; a: string; b: string; closing: number };
+  /**
+   * Two cars touched. With a remote car only the local one was moved, and
+   * `dvx, dvz` is the velocity change the remote car's owner should apply.
+   */
+  | { kind: 'bump'; a: string; b: string; closing: number; remote: string | null; dvx: number; dvz: number };
 
 export interface WorldOptions {
   /** Race length in laps; 0 is a free drive. */
   laps: number;
   /** Seconds from now until GO. 0 starts immediately. */
   countdown: number;
+  /**
+   * Seconds of race already gone when this world is built — a spectator
+   * arriving mid-race — so its clock lines up with everybody else's.
+   */
+  elapsed?: number;
 }
 
 /**
@@ -82,11 +97,19 @@ export class World {
   private events: RaceEvent[] = [];
   private accumulator = 0;
   private wentGreen = false;
+  /** When each pair of cars last touched, world seconds, keyed `a|b` with a < b. */
+  private contacts = new Map<string, number>();
+  /**
+   * Called at the start of every step with the world time the step will end
+   * at, after the previous poses are saved: the moment to pose remote cars.
+   */
+  onStep: ((endTime: number) => void) | null = null;
 
   constructor(def: TrackDef | Track, opts: WorldOptions = { laps: 0, countdown: 0 }) {
     this.track = def instanceof Track ? def : new Track(def);
     this.laps = opts.laps;
     this.goTime = opts.countdown;
+    this.steps = Math.round((opts.elapsed ?? 0) / STEP);
   }
 
   /** Simulated seconds since the world began. */
@@ -112,10 +135,23 @@ export class World {
     const entrant: Entrant = {
       id, car, prev: { ...car }, stats, drive,
       lap: createLapState(this.track, p.s, this.goTime),
-      s: p.s, d: p.d, ghost: 0, respawns: 0, safeS: p.s, stuck: 0, offCourse: 0, intent: { ...IDLE_INTENT },
+      s: p.s, d: p.d, ghost: 0, respawns: 0, safeS: p.s, stuck: 0, offCourse: 0, intent: { ...IDLE_INTENT }, remote: false,
     };
     this.entrants.push(entrant);
     return entrant;
+  }
+
+  /** Put a car driven by another client on the grid. */
+  addRemote(id: string, slot: number): Entrant {
+    const e = this.addCar(id, slot, () => IDLE_INTENT);
+    e.remote = true;
+    return e;
+  }
+
+  /** Did these two cars touch within the last `seconds`? */
+  touchedRecently(a: string, b: string, seconds: number): boolean {
+    const at = this.contacts.get(a < b ? `${a}|${b}` : `${b}|${a}`);
+    return at !== undefined && this.time - at <= seconds;
   }
 
   /** Put a self-driving car on the grid. */
@@ -173,8 +209,11 @@ export class World {
     const end = (this.steps + 1) * STEP;
     const track = this.track;
 
+    for (const e of this.entrants) Object.assign(e.prev, e.car);
+    this.onStep?.(end);
+
     for (const e of this.entrants) {
-      Object.assign(e.prev, e.car);
+      if (e.remote) continue;
       // Before GO the cars sit on the grid; nobody's driver is asked anything.
       e.intent = racing ? e.drive() : { ...IDLE_INTENT };
       stepCar(e.car, e.intent, track, STEP, e.stats);
@@ -186,8 +225,10 @@ export class World {
     for (const e of this.entrants) {
       const c = e.car;
       const p = track.project(c.x, c.z, c.hint);
+      c.hint = p.i;
       e.s = p.s;
       e.d = p.d;
+      if (e.remote) continue;
       const tx = track.line.tx[p.i]!, tz = track.line.tz[p.i]!;
       const along = c.vx * tx + c.vz * tz;
       const ev = stepLaps(e.lap, track, p.s, end, STEP, along, this.laps);
@@ -246,8 +287,21 @@ export class World {
         const dx = a.car.x - b.car.x, dz = a.car.z - b.car.z;
         if (dx * dx + dz * dz > 36) continue;
         if (Math.abs(a.car.y - b.car.y) > 1.2) continue; // one is flying over the other
-        const hit = resolveCarPair(a.car, b.car, CAR_SHAPE);
-        if (hit && hit.closing > 2) this.events.push({ kind: 'bump', a: a.id, b: b.id, closing: hit.closing });
+        if (a.remote && b.remote) continue; // their owners settle that between them
+        // Each client moves only the cars it drives; the other side's share
+        // goes to its owner as an event (see NetRace).
+        const hit = resolveCarPair(a.car, b.car, CAR_SHAPE, !a.remote, !b.remote);
+        if (!hit) continue;
+        this.contacts.set(a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`, this.time);
+        const remote = a.remote ? a : b.remote ? b : null;
+        // The impulse returned acts on A; the remote car's share is its negation if it is B.
+        const sign = remote === b ? -1 : 1;
+        if (hit.closing > 0.5) {
+          this.events.push({
+            kind: 'bump', a: a.id, b: b.id, closing: hit.closing, remote: remote?.id ?? null,
+            dvx: remote ? (sign * hit.jx) / CAR_SHAPE.mass : 0, dvz: remote ? (sign * hit.jz) / CAR_SHAPE.mass : 0,
+          });
+        }
       }
     }
   }

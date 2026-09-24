@@ -137,3 +137,66 @@ export const CAMERA = {
   traumaDecay: 1.5,
   shakeMetres: 1.6,
 };
+
+export interface BrokerDef {
+  readonly id: string;
+  readonly label: string;
+  readonly url: string;
+}
+
+/**
+ * Public, unauthenticated brokers. Anyone can subscribe — do not put secrets
+ * on these topics. Pages is HTTPS, so every endpoint must be `wss://`: a
+ * plaintext `ws://` connection is blocked as mixed content.
+ */
+export const BROKERS: readonly BrokerDef[] = [
+  { id: 'hivemq', label: 'HiveMQ (public)', url: 'wss://broker.hivemq.com:8884/mqtt' },
+  { id: 'emqx', label: 'EMQX (public)', url: 'wss://broker.emqx.io:8084/mqtt' },
+  { id: 'mosquitto', label: 'Eclipse Mosquitto (public)', url: 'wss://test.mosquitto.org:8081/mqtt' },
+];
+
+/** Networking. Election timings are glitchburst's, which were tuned the hard way. */
+export const NET = {
+  /** Root of the topic tree: `nc/room/<room>/…`. */
+  topicRoot: 'nc',
+  /** Room size, humans. A seventh arrival works out that it is the overflow and backs out. */
+  maxPlayers: 6,
+  /** Each car's state, baseline. */
+  carHz: 20,
+  /** Ceiling for dead-reckoning-triggered extra sends. */
+  carMaxHz: 30,
+  /** Sender re-publishes early once its own prediction is this far off. */
+  drPositionError: 0.35,
+  drYawError: (4 * Math.PI) / 180,
+  /** Car events are batched and flushed this often. */
+  eventFlushMs: 50,
+  /** Host proves it is alive this often. */
+  heartbeatHz: 2,
+  /** No heartbeat for this long => the host is presumed dead and an election runs. */
+  hostTimeoutMs: 2500,
+  /** Presence ping interval. */
+  presenceMs: 1000,
+  /**
+   * Silence for this long drops a peer. A backstop, not the mechanism: real
+   * departures arrive instantly as the Last Will or an explicit `alive: 0`,
+   * and five seconds of quiet is something a browser hands out for free.
+   */
+  presenceTimeoutMs: 15000,
+  /** A gap this long between roster ticks means *we* slept; forgive everyone. */
+  stallForgivenessMs: 2000,
+  /** Clock pings: fast after a join or a host change, slow after. */
+  clockFastMs: 500,
+  clockFastForMs: 4000,
+  clockSlowMs: 5000,
+  /** Seconds between GO being announced and GO happening. */
+  countdownMs: 4000,
+  /** After the first car finishes, how long the rest get. */
+  finishGraceMs: 30000,
+  /** How long the results stay up before the room returns to the lobby. */
+  resultsMs: 12000,
+  /** A car silent this long mid-race is treated as gone (did not finish). */
+  carSilenceMs: 5000,
+  keepaliveSec: 30,
+  connectTimeoutMs: 8000,
+  reconnectMs: 2000,
+};
