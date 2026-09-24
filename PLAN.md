@@ -11,7 +11,7 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status:** M1 is built (see README). Where M1 changed a decision, this plan has been
+> **Status:** M1 and M2 are built (see README). Where M1 changed a decision, this plan has been
 > updated to match and the change is marked *(M1)*.
 
 ---
@@ -99,8 +99,9 @@ src/
 └── main.ts           wiring
 ```
 
-*(M1: `DriveSession.ts` at the top level owns the frame loop for a free drive; it grows
-into the race client in M2.)*
+*(M2: `RaceSession.ts` at the top level owns the frame loop for a local race or free drive,
+and `ui/Hud.ts`, `ui/Minimap.ts` and `ui/RivalArrows.ts` draw the race HUD; M3 turns the
+session into the networked race client.)*
 
 The rule for `sim/` is that it's deterministic given its inputs. It advances only in
 fixed steps of `1/60` s, draws randomness only from seeded `mulberry32`, and never calls

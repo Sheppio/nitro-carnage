@@ -30,10 +30,12 @@
           <h1 class="title" data-brand>NITRO CARNAGE</h1>
           <p class="tagline">Top-down combat racing. Up to six players, no server.</p>
           <nav class="menu-actions">
-            <button class="btn primary" id="btn-free-drive" data-nav-default>Free drive</button>
+            <button class="btn primary" id="btn-race" data-nav-default>Quick race</button>
+            <button class="btn" id="btn-free-drive">Free drive</button>
             <button class="btn" id="btn-settings">Settings</button>
           </nav>
-          <p class="menu-note">Multiplayer rooms, rivals and weapons arrive in later milestones.</p>
+          <p class="menu-note">Three laps of Neon Downtown against five bots. Multiplayer rooms and weapons arrive in later milestones.</p>
+          <p class="menu-note keys"><b>Drive</b> ↑↓ / WS · <b>Steer</b> ←→ / AD · <b>Handbrake</b> Space · <b>Turbo</b> Shift · Pad: RT / LT, stick, A, B</p>
           <p class="version" id="version"></p>
         </div>
       </section>
@@ -60,6 +62,7 @@
           </label>
           <label class="field check"><input type="checkbox" id="set-vibration" /> <span>Vibration</span></label>
           <label class="field check"><input type="checkbox" id="set-motion" /> <span>Reduce camera shake</span></label>
+          <label class="field check"><input type="checkbox" id="set-autopilot" /> <span>Autopilot (drives when you don't)</span></label>
           <p class="menu-note">Graphics changes apply from the next drive.</p>
           <nav class="menu-actions">
             <button class="btn primary" id="btn-settings-back" data-nav-default>Back</button>
@@ -73,15 +76,43 @@
           <button class="btn small" id="btn-leave" aria-label="Back to menu">☰ Menu</button>
           <div class="hud-track" id="hud-track"></div>
         </div>
+        <div class="hud-race" id="hud-race">
+          <div class="hud-pos"><b id="hud-pos">1</b><small id="hud-of">/6</small></div>
+          <div class="hud-lapbox">
+            <div class="hud-lap">LAP <b id="hud-lap">1</b><small id="hud-laps">/3</small></div>
+            <div class="hud-time" id="hud-time">0:00.00</div>
+            <div class="hud-splits">LAST <span id="hud-last">—</span> · BEST <span id="hud-best">—</span></div>
+          </div>
+        </div>
+        <canvas class="hud-minimap" id="hud-minimap" aria-hidden="true"></canvas>
+        <div class="hud-arrows" id="hud-arrows" aria-hidden="true"></div>
+        <div class="hud-countdown" id="hud-countdown" aria-live="assertive"></div>
+        <div class="hud-banner" id="hud-banner" aria-live="polite"></div>
         <div class="hud-bottom">
           <div class="speedo"><span id="hud-speed">0</span><small>km/h</small></div>
           <div class="turbo" aria-label="Turbo"><div class="turbo-fill" id="hud-turbo"></div></div>
+          <div class="hud-auto" id="hud-auto" hidden>AUTOPILOT</div>
         </div>
         <div class="hud-help" id="hud-help">
           <b>Drive</b> ↑↓ / WS &nbsp; <b>Steer</b> ←→ / AD &nbsp; <b>Handbrake</b> Space &nbsp; <b>Turbo</b> Shift
           <br />Pad: RT / LT, left stick, A handbrake, B turbo
         </div>
         <div class="hud-debug" id="hud-debug"></div>
+      </section>
+
+      <!-- --------------------------------------------------------- RESULTS -->
+      <section class="screen menu results" id="screen-results" hidden>
+        <div class="menu-card wide">
+          <h2 id="results-title">Results</h2>
+          <table class="results-table">
+            <thead><tr><th>Pos</th><th>Driver</th><th>Time</th><th>Best lap</th></tr></thead>
+            <tbody id="results-body"></tbody>
+          </table>
+          <nav class="menu-actions">
+            <button class="btn primary" id="btn-again" data-nav-default>Race again</button>
+            <button class="btn" id="btn-results-menu">Menu</button>
+          </nav>
+        </div>
       </section>
     </div>
 

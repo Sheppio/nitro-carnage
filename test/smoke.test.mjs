@@ -100,7 +100,7 @@ try {
   // Leaving tears the race down completely.
   await page.keyboard.press('Escape');
   await page.waitForSelector('#screen-menu:not([hidden])');
-  const torn = await page.evaluate(() => ({ canvases: document.querySelectorAll('canvas').length, session: window.nitro.session }));
+  const torn = await page.evaluate(() => ({ canvases: document.querySelectorAll('canvas.game-canvas').length, session: window.nitro.session }));
   r.check('Esc returns to the menu and disposes the renderer', torn.canvases === 0 && torn.session === null);
   await page.close();
 
@@ -191,6 +191,55 @@ try {
       `${counts.on}/${counts.total} car pixels visible`);
   }
   await occ.close();
+
+  /* ---------------------------------------------------------------- race */
+  // A one-lap race against five bots, with the player's car on autopilot.
+  const race = await openPage('quality=potato&race&autopilot&laps=1');
+  const countdown = await until(() => race.evaluate(() => {
+    const t = document.getElementById('hud-countdown').textContent;
+    return ['3', '2', '1'].includes(t) ? t : null;
+  }), { timeout: 20000 });
+  const held = await race.evaluate(() => {
+    const s = window.nitro.session;
+    return s.world.countdown > 0 ? s.world.entrants.every((e) => Math.hypot(e.car.vx, e.car.vz) < 0.01) : null;
+  });
+  r.check('the race opens on a countdown with every car held on the grid', Boolean(countdown) && held !== false, `showing "${countdown}"`);
+
+  const going = await until(() => race.evaluate(() => {
+    const s = window.nitro.session;
+    return s.world.time > s.world.goTime + 3 && s.world.entrants.every((e) => Math.hypot(e.car.vx, e.car.vz) > 5);
+  }), { timeout: 30000 });
+  const hudText = await race.evaluate(() => ({
+    of: document.getElementById('hud-of').textContent,
+    lap: document.getElementById('hud-lap').textContent + document.getElementById('hud-laps').textContent,
+    pos: Number(document.getElementById('hud-pos').textContent),
+  }));
+  r.check('after GO all six cars race, and the HUD shows position and lap', Boolean(going) && hudText.of === '/6' && hudText.lap === '1/1' && hudText.pos >= 1 && hudText.pos <= 6,
+    `P${hudText.pos}${hudText.of}, lap ${hudText.lap}`);
+
+  const map = await race.evaluate(() => {
+    const c = document.getElementById('hud-minimap');
+    const g = c.getContext('2d');
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let lit = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) lit++;
+    return lit / (c.width * c.height);
+  });
+  r.check('the minimap draws the circuit', map > 0.05, `${(map * 100).toFixed(0)}% of it drawn on`);
+
+  const arrows = await until(() => race.evaluate(() => document.querySelectorAll('.rival-arrow').length || null), { timeout: 60000 });
+  r.check('rivals out of view get an arrow at the screen edge', Boolean(arrows), `${arrows ?? 0} arrows at once`);
+
+  await race.waitForSelector('#screen-results:not([hidden])', { timeout: 240000 });
+  const results = await race.evaluate(() => ({
+    rows: document.querySelectorAll('#results-body tr').length,
+    you: document.querySelectorAll('#results-body tr.you').length,
+    title: document.getElementById('results-title').textContent,
+    canvases: document.querySelectorAll('canvas.game-canvas').length,
+  }));
+  r.check('the race ends on a results table with the player marked', results.rows === 6 && results.you === 1 && /^You finished/.test(results.title) && results.canvases === 0,
+    results.title);
+  await race.close();
 
   /* ------------------------------------------------------ draw-call budget */
   // Small viewport: the count does not depend on resolution, and SwiftShader

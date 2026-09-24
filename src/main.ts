@@ -1,8 +1,8 @@
 import { GAME_NAME } from './brand.js';
-import { SIM } from './config.js';
 import type { QualityId } from './config.js';
-import { DriveSession } from './DriveSession.js';
-import type { HudSnapshot } from './DriveSession.js';
+import { RaceSession } from './RaceSession.js';
+import type { SessionMode } from './RaceSession.js';
+import { Hud } from './ui/Hud.js';
 import { InputManager } from './input/InputManager.js';
 import { SettingsStore } from './input/settings.js';
 import { DOWNTOWN } from './sim/track/downtown.js';
@@ -11,7 +11,7 @@ import { VERSION } from './version.js';
 
 /*
  * Wiring. Everything interesting lives elsewhere; this file only connects the
- * menus to a drive session and exposes a debug handle for the test rig.
+ * menus to a race session and exposes a debug handle for the test rig.
  */
 
 const params = new URLSearchParams(location.search);
@@ -32,7 +32,7 @@ const settings = new SettingsStore();
 const input = new InputManager(document.body, settings);
 const nav = new GamepadNavigator(input.gamepad, $('ui-root'));
 
-const screens = ['screen-menu', 'screen-settings', 'screen-hud'] as const;
+const screens = ['screen-menu', 'screen-settings', 'screen-hud', 'screen-results'] as const;
 type ScreenId = (typeof screens)[number];
 
 function show(id: ScreenId): void {
@@ -45,16 +45,38 @@ function show(id: ScreenId): void {
   }
 }
 
-let session: DriveSession | null = null;
+let session: RaceSession | null = null;
+let hud: Hud | null = null;
 let helpTimer = 0;
+let lastMode: SessionMode = 'race';
 
-function startDrive(): void {
-  session?.stop();
+/** `?laps=1` shortens races, for tests and for trying things quickly. */
+const lapsOverride = Number(params.get('laps')) || 0;
+
+function start(mode: SessionMode): void {
+  stopSession();
+  lastMode = mode;
   const quality = qualityOverride ?? settings.current.quality;
-  session = new DriveSession(gameRoot, DOWNTOWN, input, settings, quality, 'vermilion');
-  session.onHud = renderHud;
+  session = new RaceSession(
+    gameRoot,
+    { mode, track: DOWNTOWN, quality, colourId: 'vermilion', bots: 5, laps: lapsOverride || DOWNTOWN.laps },
+    input,
+    settings,
+  );
+  if (params.has('autopilot')) session.autopilot = true;
+  hud = new Hud(session, params.has('debug'));
+  session.onHud = (h) => hud?.update(h);
+  session.onEvent = (ev) => hud?.event(ev);
+  session.onOver = (rows) => {
+    Hud.results(rows);
+    stopSession();
+    show('screen-results');
+  };
   $('hud-track').textContent = DOWNTOWN.name;
+  // The controls hint is for free drive; in a race it would sit on the race
+  // panel, and the menu already says what the keys are.
   const help = $('hud-help');
+  help.hidden = mode === 'race';
   help.classList.remove('gone');
   clearTimeout(helpTimer);
   helpTimer = window.setTimeout(() => help.classList.add('gone'), 9000);
@@ -62,30 +84,29 @@ function startDrive(): void {
   session.start();
 }
 
-function leave(): void {
+function stopSession(): void {
   session?.stop();
+  hud?.dispose();
   session = null;
+  hud = null;
+}
+
+function leave(): void {
+  stopSession();
   show('screen-menu');
 }
 
-let hudTick = 0;
-function renderHud(hud: HudSnapshot): void {
-  // Text updates at 10 Hz; the turbo bar is a transform and can go every frame.
-  $('hud-turbo').style.transform = `scaleX(${Math.max(0, hud.turbo / SIM.car.turboCapacity)})`;
-  const now = performance.now();
-  if (now - hudTick < 100) return;
-  hudTick = now;
-  $('hud-speed').textContent = String(Math.round(hud.speedKmh));
-  if (params.has('debug')) $('hud-debug').textContent = `${hud.fps.toFixed(0)} fps\n${hud.drawCalls} draws`;
-}
-
-$('btn-free-drive').addEventListener('click', startDrive);
+$('btn-race').addEventListener('click', () => start('race'));
+$('btn-free-drive').addEventListener('click', () => start('free'));
+$('btn-again').addEventListener('click', () => start(lastMode));
+$('btn-results-menu').addEventListener('click', leave);
 $('btn-leave').addEventListener('click', leave);
 $('btn-settings').addEventListener('click', () => {
   $<HTMLSelectElement>('set-quality').value = settings.current.quality === 'potato' ? 'low' : settings.current.quality;
   $<HTMLSelectElement>('set-touch').value = settings.current.touchControls;
   $<HTMLInputElement>('set-vibration').checked = settings.current.vibration;
   $<HTMLInputElement>('set-motion').checked = settings.current.reduceMotion;
+  $<HTMLInputElement>('set-autopilot').checked = settings.current.autopilot;
   show('screen-settings');
 });
 $('btn-settings-back').addEventListener('click', () => show('screen-menu'));
@@ -95,18 +116,26 @@ $('set-touch').addEventListener('change', (e) =>
 );
 $('set-vibration').addEventListener('change', (e) => settings.set('vibration', (e.target as HTMLInputElement).checked));
 $('set-motion').addEventListener('change', (e) => settings.set('reduceMotion', (e.target as HTMLInputElement).checked));
+$('set-autopilot').addEventListener('change', (e) => settings.set('autopilot', (e.target as HTMLInputElement).checked));
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Escape' && session) leave();
 });
 
 show('screen-menu');
-if (params.has('drive')) startDrive();
+if (params.has('drive')) start('free');
+if (params.has('race')) start('race');
 
 /** Debug handle for the test rig and the console. Not part of the game. */
 declare global {
   interface Window {
-    nitro: { settings: SettingsStore; input: InputManager; readonly session: DriveSession | null; startDrive: () => void; leave: () => void };
+    nitro: {
+      settings: SettingsStore;
+      input: InputManager;
+      readonly session: RaceSession | null;
+      start: (mode: SessionMode) => void;
+      leave: () => void;
+    };
   }
 }
 window.nitro = {
@@ -115,6 +144,6 @@ window.nitro = {
   get session() {
     return session;
   },
-  startDrive,
+  start,
   leave,
 };

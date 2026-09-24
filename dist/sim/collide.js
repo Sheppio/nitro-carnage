@@ -138,4 +138,83 @@ function applyImpulse(body, shape, rcx, rcz, nx, nz) {
     body.w += (jt * rt) / shape.inertia;
     return -vn;
 }
+const pairTmp = { ax: 0, az: 0, bx: 0, bz: 0 };
+/**
+ * Car against car: two capsules. Pushes them apart and exchanges an impulse.
+ *
+ * `applyA` / `applyB` choose which side is actually moved. Offline both are;
+ * in a networked race (M3) each client resolves only its own car and sends
+ * the other side's impulse as an event, so the same function serves both.
+ *
+ * @returns the impulse applied to A (world frame, N·s), or null if they did not touch
+ */
+export function resolveCarPair(a, b, shape, applyA = true, applyB = true, bounce = 0.3) {
+    const afx = Math.sin(a.yaw), afz = Math.cos(a.yaw);
+    const bfx = Math.sin(b.yaw), bfz = Math.cos(b.yaw);
+    const h = shape.half;
+    const d2 = closestSegSeg(a.x + afx * h, a.z + afz * h, a.x - afx * h, a.z - afz * h, b.x + bfx * h, b.z + bfz * h, b.x - bfx * h, b.z - bfz * h, pairTmp);
+    const reach = shape.radius * 2;
+    if (d2 >= reach * reach)
+        return null;
+    const dist = Math.sqrt(d2);
+    // Normal from B to A. Degenerate (cores crossing): fall back to centre to centre.
+    let nx = pairTmp.ax - pairTmp.bx;
+    let nz = pairTmp.az - pairTmp.bz;
+    if (dist > 1e-6) {
+        nx /= dist;
+        nz /= dist;
+    }
+    else {
+        nx = a.x - b.x;
+        nz = a.z - b.z;
+        const l = Math.hypot(nx, nz);
+        if (l > 1e-6) {
+            nx /= l;
+            nz /= l;
+        }
+        else {
+            // Exactly on top of each other (two respawns onto one spot): there is
+            // no "away" to push along, and a zero normal pushed them nowhere, so
+            // they stayed welded together. Separate them sideways, A to its left.
+            nx = afz;
+            nz = -afx;
+        }
+    }
+    const pen = reach - dist;
+    const share = applyA && applyB ? 0.5 : 1;
+    if (applyA) {
+        a.x += nx * pen * share;
+        a.z += nz * pen * share;
+    }
+    if (applyB) {
+        b.x -= nx * pen * share;
+        b.z -= nz * pen * share;
+    }
+    // Contact point: midway between the two closest points.
+    const cx = (pairTmp.ax + pairTmp.bx) / 2;
+    const cz = (pairTmp.az + pairTmp.bz) / 2;
+    const rax = cx - a.x, raz = cz - a.z;
+    const rbx = cx - b.x, rbz = cz - b.z;
+    // perp(r) = (rz, -rx): the velocity a unit yaw rate gives a point at r.
+    const vax = a.vx + a.w * raz, vaz = a.vz - a.w * rax;
+    const vbx = b.vx + b.w * rbz, vbz = b.vz - b.w * rbx;
+    const vn = (vax - vbx) * nx + (vaz - vbz) * nz;
+    if (vn >= 0)
+        return { jx: 0, jz: 0, closing: 0 };
+    const ra = raz * nx - rax * nz;
+    const rb = rbz * nx - rbx * nz;
+    const k = 2 / shape.mass + (ra * ra + rb * rb) / shape.inertia;
+    const j = (-(1 + bounce) * vn) / k;
+    if (applyA) {
+        a.vx += (j * nx) / shape.mass;
+        a.vz += (j * nz) / shape.mass;
+        a.w += (j * ra) / shape.inertia;
+    }
+    if (applyB) {
+        b.vx -= (j * nx) / shape.mass;
+        b.vz -= (j * nz) / shape.mass;
+        b.w -= (j * rb) / shape.inertia;
+    }
+    return { jx: j * nx, jz: j * nz, closing: -vn };
+}
 //# sourceMappingURL=collide.js.map

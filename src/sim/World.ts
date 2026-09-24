@@ -1,9 +1,25 @@
 import { STEP } from '../config.js';
 import type { DriveIntent } from '../types.js';
-import { createCar, stepCar, STOCK } from './car.js';
+import { IDLE_INTENT } from '../types.js';
+import { autopilot, createAutopilot } from './autopilot.js';
+import type { Rival, Skill } from './autopilot.js';
+import { CAR_SHAPE, createCar, stepCar, STOCK } from './car.js';
 import type { CarState, CarStats } from './car.js';
+import { resolveCarPair } from './collide.js';
+import { createLapState, stepLaps } from './race.js';
+import type { LapState } from './race.js';
+import { racingLine } from './racingLine.js';
 import { Track } from './track/buildTrack.js';
 import type { TrackDef } from './track/TrackDef.js';
+
+/** Seconds a car may crawl while its driver is trying to go before it is put back on the road. */
+export const STUCK_RESPAWN = 3;
+/** Seconds off the course before a respawn. */
+export const OFF_COURSE_RESPAWN = 1;
+/** Seconds a respawned car passes through others. */
+export const GHOST_TIME = 2;
+/** How far back from its last good spot a respawned car is placed, metres. */
+const RESPAWN_BACK = 12;
 
 /** One car on track, and what it is driven by. */
 export interface Entrant {
@@ -12,8 +28,35 @@ export interface Entrant {
   /** The car as it was one step ago, for render interpolation. */
   prev: CarState;
   stats: CarStats;
-  /** Asked once per fixed step. */
+  /** Asked once per fixed step once the race is on. */
   drive: () => DriveIntent;
+  lap: LapState;
+  /** Arc length and lateral offset after the last step. */
+  s: number;
+  d: number;
+  /** Seconds of ghosting left after a respawn. */
+  ghost: number;
+  respawns: number;
+  /** Arc length of the last place the car was on the road and heading the right way. */
+  safeS: number;
+  stuck: number;
+  offCourse: number;
+  /** The intent used in the last step, for the HUD and tests. */
+  intent: DriveIntent;
+}
+
+export type RaceEvent =
+  | { kind: 'go'; time: number }
+  | { kind: 'lap'; id: string; lap: number; time: number; lapTime: number }
+  | { kind: 'finish'; id: string; time: number }
+  | { kind: 'respawn'; id: string; time: number }
+  | { kind: 'bump'; a: string; b: string; closing: number };
+
+export interface WorldOptions {
+  /** Race length in laps; 0 is a free drive. */
+  laps: number;
+  /** Seconds from now until GO. 0 starts immediately. */
+  countdown: number;
 }
 
 /**
@@ -28,24 +71,77 @@ export interface Entrant {
 export class World {
   readonly track: Track;
   readonly entrants: Entrant[] = [];
+  readonly laps: number;
+  /** Race time at which the lights go green. */
+  readonly goTime: number;
   /** Fixed steps taken since the world was created. */
   steps = 0;
   /** Time handed to `advance` after the stall clamp: what the world was asked to simulate. */
   clockTime = 0;
+  /** Events since the last `drain`, for the HUD and (M3) the network. */
+  private events: RaceEvent[] = [];
   private accumulator = 0;
+  private wentGreen = false;
 
-  constructor(def: TrackDef | Track) {
+  constructor(def: TrackDef | Track, opts: WorldOptions = { laps: 0, countdown: 0 }) {
     this.track = def instanceof Track ? def : new Track(def);
+    this.laps = opts.laps;
+    this.goTime = opts.countdown;
+  }
+
+  /** Simulated seconds since the world began. */
+  get time(): number {
+    return this.steps * STEP;
+  }
+
+  get started(): boolean {
+    return this.time >= this.goTime;
+  }
+
+  /** Seconds until GO, or 0 once racing. */
+  get countdown(): number {
+    return Math.max(0, this.goTime - this.time);
   }
 
   /** Put a car on the grid. */
   addCar(id: string, slot: number, drive: () => DriveIntent, stats: CarStats = STOCK): Entrant {
     const pose = this.track.gridSlot(slot);
     const car = createCar(pose.x, pose.z, pose.yaw);
-    car.hint = this.track.project(car.x, car.z).i;
-    const entrant: Entrant = { id, car, prev: { ...car }, stats, drive };
+    const p = this.track.project(car.x, car.z);
+    car.hint = p.i;
+    const entrant: Entrant = {
+      id, car, prev: { ...car }, stats, drive,
+      lap: createLapState(this.track, p.s, this.goTime),
+      s: p.s, d: p.d, ghost: 0, respawns: 0, safeS: p.s, stuck: 0, offCourse: 0, intent: { ...IDLE_INTENT },
+    };
     this.entrants.push(entrant);
     return entrant;
+  }
+
+  /** Put a self-driving car on the grid. */
+  addBot(id: string, slot: number, skill: Skill, seed: number, stats: CarStats = STOCK): Entrant {
+    const state = createAutopilot(seed, skill);
+    const line = racingLine(this.track);
+    const entrant = this.addCar(id, slot, () => IDLE_INTENT, stats);
+    entrant.drive = () => autopilot(state, entrant.car, this.track, line, this.rivalsOf(entrant.id), this.time, STEP);
+    return entrant;
+  }
+
+  /** Every other car, as the autopilot sees them. */
+  rivalsOf(id: string): Rival[] {
+    const out: Rival[] = [];
+    for (const e of this.entrants) {
+      if (e.id === id || e.ghost > 0) continue;
+      out.push({ id: e.id, x: e.car.x, z: e.car.z, vx: e.car.vx, vz: e.car.vz, s: e.s, d: e.d });
+    }
+    return out;
+  }
+
+  /** Take the events since the last call. */
+  drain(): RaceEvent[] {
+    const out = this.events;
+    this.events = [];
+    return out;
   }
 
   /**
@@ -69,10 +165,90 @@ export class World {
 
   /** Exactly one fixed step. */
   step(): void {
+    const racing = this.started;
+    if (racing && !this.wentGreen) {
+      this.wentGreen = true;
+      this.events.push({ kind: 'go', time: this.goTime });
+    }
+    const end = (this.steps + 1) * STEP;
+    const track = this.track;
+
     for (const e of this.entrants) {
       Object.assign(e.prev, e.car);
-      stepCar(e.car, e.drive(), this.track, STEP, e.stats);
+      // Before GO the cars sit on the grid; nobody's driver is asked anything.
+      e.intent = racing ? e.drive() : { ...IDLE_INTENT };
+      stepCar(e.car, e.intent, track, STEP, e.stats);
+      if (e.ghost > 0) e.ghost = Math.max(0, e.ghost - STEP);
+    }
+
+    this.collideCars();
+
+    for (const e of this.entrants) {
+      const c = e.car;
+      const p = track.project(c.x, c.z, c.hint);
+      e.s = p.s;
+      e.d = p.d;
+      const tx = track.line.tx[p.i]!, tz = track.line.tz[p.i]!;
+      const along = c.vx * tx + c.vz * tz;
+      const ev = stepLaps(e.lap, track, p.s, end, STEP, along, this.laps);
+      if (ev?.kind === 'lap') {
+        this.events.push({ kind: 'lap', id: e.id, lap: ev.lap, time: ev.time, lapTime: e.lap.lapTimes[e.lap.lapTimes.length - 1]! });
+      } else if (ev?.kind === 'finish') {
+        this.events.push({ kind: 'lap', id: e.id, lap: ev.lap, time: ev.time, lapTime: e.lap.lapTimes[e.lap.lapTimes.length - 1]! });
+        this.events.push({ kind: 'finish', id: e.id, time: ev.time });
+      }
+
+      if (!racing) continue;
+      const speed = Math.hypot(c.vx, c.vz);
+      if (Math.abs(p.d) < track.halfWidth && along > 3 && !c.airborne) e.safeS = p.s;
+
+      const trying = e.intent.throttle > 0.1 || e.intent.brake > 0.1;
+      e.stuck = speed < 1 && trying ? e.stuck + STEP : 0;
+      e.offCourse = Math.abs(p.d) > track.wallOffset + 3 ? e.offCourse + STEP : 0;
+      if (e.stuck >= STUCK_RESPAWN || e.offCourse >= OFF_COURSE_RESPAWN) this.respawn(e);
     }
     this.steps++;
+  }
+
+  /**
+   * Put a car back on the centreline a little behind where it was last
+   * doing well, pointing the right way, stationary, and briefly a ghost so it
+   * cannot be respawned into somebody.
+   */
+  respawn(e: Entrant): void {
+    const pose = this.track.poseAt(e.safeS - RESPAWN_BACK);
+    const fresh = createCar(pose.x, pose.z, pose.yaw);
+    const c = e.car;
+    // Keep the counters and the turbo: a respawn is a penalty, not a pit stop.
+    Object.assign(c, fresh, {
+      turbo: c.turbo, landings: c.landings, lastLanding: c.lastLanding, impacts: c.impacts, lastImpact: c.lastImpact, hint: pose.i,
+    });
+    Object.assign(e.prev, c);
+    e.ghost = GHOST_TIME;
+    e.respawns++;
+    e.stuck = 0;
+    e.offCourse = 0;
+    const p = this.track.project(c.x, c.z, c.hint);
+    stepLaps(e.lap, this.track, p.s, this.time, STEP, 0, this.laps, true);
+    e.s = p.s;
+    e.d = p.d;
+    this.events.push({ kind: 'respawn', id: e.id, time: this.time });
+  }
+
+  private collideCars(): void {
+    const list = this.entrants;
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i]!;
+      if (a.ghost > 0) continue;
+      for (let j = i + 1; j < list.length; j++) {
+        const b = list[j]!;
+        if (b.ghost > 0) continue;
+        const dx = a.car.x - b.car.x, dz = a.car.z - b.car.z;
+        if (dx * dx + dz * dz > 36) continue;
+        if (Math.abs(a.car.y - b.car.y) > 1.2) continue; // one is flying over the other
+        const hit = resolveCarPair(a.car, b.car, CAR_SHAPE);
+        if (hit && hit.closing > 2) this.events.push({ kind: 'bump', a: a.id, b: b.id, closing: hit.closing });
+      }
+    }
   }
 }

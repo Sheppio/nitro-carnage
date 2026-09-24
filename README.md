@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.4**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.5**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -9,9 +9,10 @@ Everything here is original: the name, the tracks, the meshes and the sound.
 
 **[▶ Play](https://sheppio.github.io/nitro-carnage/)**
 
-> **Milestone 1 of 6: one car, one 3D track.** You can free-drive Neon Downtown with
-> the full camera, parallax and occlusion cut-away. Laps and bots arrive in M2,
-> multiplayer rooms in M3, weapons in M4, and the shop and championship in M5.
+> **Milestone 2 of 6: racing against bots.** Choose *Quick race* for three laps of
+> Neon Downtown against five self-driving rivals, with a countdown, laps and times,
+> race order, a minimap and a results table. *Free drive* is still there. Multiplayer
+> rooms arrive in M3, weapons in M4, and the shop and championship in M5.
 > [`PLAN.md`](PLAN.md) has the whole design: the topic map, codec byte counts and
 > milestones.
 
@@ -42,7 +43,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 59 checks: simulation (Node) and a real browser
+npm test           # 84 checks: simulation (Node) and a real browser
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -63,7 +64,7 @@ src/
 ├── render/   everything three.js: camera, track mesh, instanced scenery, cars, effects
 ├── ui/       DOM overlay and gamepad menu navigation (ported)
 ├── net/      (M3) MQTT transport, rooms, codecs
-├── DriveSession.ts   one car on one track: read input, step, draw
+├── RaceSession.ts    one race (or free drive) on this machine: read input, step, draw
 └── main.ts   wiring
 ```
 
@@ -168,6 +169,68 @@ discovered. With a fillet it is written down, and a test checks every corner lea
 room for its wall.
 
 Scenery is scattered from the track's seed, so every client will build the same city.
+
+### Racing: laps you cannot cheat, and an order that never jumps
+
+A lap is tracked from each car's arc length along the centreline (`sim/race.ts`,
+pure). Cars start on the grid *behind* the line, so a car begins on lap "−1
+completed": crossing the line the first time starts lap 1 and finishes nothing.
+After that a lap only counts once every checkpoint has been passed in order, and
+**reversing over a checkpoint or the line un-passes it**. Driving back over the line
+and forwards again gains nothing, and a test does exactly that three times.
+
+Lap times are interpolated *inside* the step. The crossing happens somewhere between
+two 60 Hz steps, and the tracker works out where from the distance either side. A
+16 ms quantum would decide photo finishes by rounding.
+
+Race order is finishers by finish time, then everyone else by **distance covered**:
+a running total of metres, continuous across the line and across respawns. The
+obvious `laps × length + s` jumps a whole lap if a car is respawned behind the line
+it just crossed, and the order would flicker. Ties break on id, so every client
+sorting the same data (from M3) gets the same order.
+
+**Respawns.** A car that has crawled for 3 s while its driver is trying to go, or has
+been off the course for 1 s, goes back on the centreline 12 m behind the last place
+it was on the road and heading the right way. It is placed stationary and pointing
+along the track, and it is a **ghost for 2 s**, so it cannot be dropped into
+somebody. WRONG WAY shows after 1.5 s of going backwards.
+
+**Cars touch.** Car-against-car is capsule against capsule, with the impulse applied
+to each side separately, because in M3 each client will resolve only its own car.
+
+### The racing line and the autopilot
+
+The bots, the self-driving test clients and the player's optional autopilot all use
+one pure policy (`sim/autopilot.ts`):
+
+- **The line** (`sim/racingLine.ts`) is a minimum-curvature line. Each point relaxes
+  towards the midpoint of its neighbours while clamped inside the road, which cuts
+  apexes and runs wide on entry and exit. It runs on a 3 m grid, because relaxation
+  spreads a correction one point per iteration and a 1 m grid would need nine times
+  as long to settle the long bends. On Neon Downtown the line sits over 5 m to the
+  inside of the tight corners.
+- **The speed profile** is what the car can corner at each point, followed by a
+  backwards pass from every slow corner that brakes into it in time. It is planned at
+  10.5 m/s² of cornering and 11 of braking, below what the car can do, because a
+  line that assumes the limit leaves nothing for a bump or a late turn-in.
+- **Steering** is pure pursuit: aim at a point on the line a speed-scaled distance
+  ahead, and steer the arc that reaches it. The output is eased, because pure pursuit
+  re-decides every step and a 60 Hz twitch reads on screen as a car vibrating.
+- **Overtaking and room.** A slower car close ahead in our lane gets passed on the
+  side with more road. A car *alongside* gets a lane's width. Without that, the two
+  cars in every grid row turned into each other the moment the lights went green:
+  a six-bot start produced shunts at 8–13 m/s, and now produces 2–4 m/s rubs.
+- **Recovery.** Crawling or pointing the wrong way, it reverses out steering the
+  opposite way, before the respawn rule would have to step in.
+- **Skill** is three numbers per bot: pace (a fraction of the profile's speed), wander
+  (how far it strays off the line), and whether it uses the turbo on straights.
+
+A solo bot laps Neon Downtown in 66.5 s. Six bots race three laps in under half a
+second of CPU in Node.
+
+**Laps are long.** 66 s on a 1.6 km lap of right-angle corners is longer than the
+plan's 35–45 s, and a three-lap race runs about 3½ minutes. Worth deciding once the
+race has been played: fewer laps, a shorter circuit, or more grip.
 
 ### The camera
 
@@ -295,10 +358,10 @@ picking up a controller mid-race just works.
 npm test
 ```
 
-59 checks across two suites. The browser suite swaps the CDN for a local three.js and a
+84 checks across two suites. The browser suite swaps the CDN for a local three.js and a
 loopback MQTT stub (ready for M3), and runs Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (42, Node):
+- **`sim.test.mjs`** (62, Node):
   - **Tracks:** lap length; corner radius against the wall offset; no wall crossing
     another; the centreline clear of every wall; projection round-trips; ordered
     checkpoints; s = 0 at the start line; deterministic scenery; no tower on the road;
@@ -309,11 +372,21 @@ loopback MQTT stub (ready for M3), and runs Chromium on SwiftShader.
     full throttle through a corner never spins; an ordinary corner keeps most of the
     lock you asked for; at speed, full lock still turns the car.
   - **Collisions:** no tunnelling at 5× top speed into any wall; head-on bounces.
+  - **Laps and order:** the grid run-up is not a lap; a full lap counts with its time;
+    a missed checkpoint voids it; reversing over the line gains nothing; reversing over
+    a checkpoint un-passes it; sub-step lap timing; wrong way; race order; a respawn
+    behind the line costs metres, not a lap.
+  - **Racing line and autopilot:** the line stays on the road and takes the inside;
+    braking stays within plan; the autopilot laps cleanly inside par; six bots finish
+    three laps with no respawns and no hard shunts; a bot backs out of a wall.
+  - **Race rules:** nobody moves before GO; a car pinned against a wall is respawned
+    after 3 s; a respawned car is a ghost for 2 s, then solid; car-to-car contact
+    conserves momentum, and a one-sided resolve moves only its own car.
   - **Determinism:** identical worlds; 144 Hz against 24 Hz; stall clamping; a
     line-follower lapping cleanly and taking the ramp.
   - **Helpers:** interpolation, deadzones, framerate-independent smoothing, colour
     clash resolution.
-- **`smoke.test.mjs`** (17, browser):
+- **`smoke.test.mjs`** (22, browser):
   - **Boot and driving:** the name comes from the one constant; nothing invisible
     covers the menu; the world takes exactly 60 steps per second of (clamped) clock; ↑
     drives and ← steers left; the HUD shows speed.
@@ -321,10 +394,23 @@ loopback MQTT stub (ready for M3), and runs Chromium on SwiftShader.
   - **Teardown:** Esc tears the renderer down.
   - **Occlusion pixel test:** a car hidden by a tower shows 0 of 25 pixels without the
     cut-away and 19 of 25 with it.
+  - **Race:** a countdown with every car held; after GO six cars race, with position
+    and lap shown; the minimap draws the circuit; rivals out of view get arrows; a
+    one-lap autopilot race ends on a results table with the player marked.
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
 These caught real bugs:
+
+- **Two cars on the same spot stayed welded together.** Car contact pushes along the
+  line between the closest points of the two capsules, falling back to centre to
+  centre. Two cars exactly on top of each other have neither, so the push was zero and
+  they never separated. That could happen with two respawns onto one spot. Found by
+  the ghosting test, which parks a car on a respawned one and waits for the ghost to
+  wear off. They now separate sideways.
+- **The bots crashed at every start** (see *The racing line and the autopilot*),
+  found by the first screenshot of a race, where the player's car was sideways and
+  last.
 
 - **The car was hard to steer**, reported from the first playable build: it pushed
   wide off the throttle, and on the throttle the tail came round and it spun. Both
@@ -356,6 +442,10 @@ These caught real bugs:
   that into 31 steps a second, exactly as designed. The check now measures steps
   against the clamped clock, which is what the World guarantees, and reports the
   wall rate alongside.
+- **Test bugs, again.** The first "bot backs out of a wall" check counted the test's
+  own teleport as 300 m of progress (492 m in 12 s from a standstill), and the first
+  ghosting check only compared a constant with itself. Both were rewritten before
+  they could vouch for anything.
 - **Two bugs in the tests themselves**, both worth recording because they looked like
   physics bugs:
   - The first grip test measured yaw rate times speed and declared oil the grippiest

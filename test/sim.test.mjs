@@ -7,7 +7,12 @@ import { STEP, SIM } from '../dist/config.js';
 import { createCar, stepCar, steerLimit, STOCK } from '../dist/sim/car.js';
 import { Surface } from '../dist/sim/surfaces.js';
 import { Track } from '../dist/sim/track/buildTrack.js';
-import { closestSegSeg } from '../dist/sim/collide.js';
+import { closestSegSeg, resolveCarPair } from '../dist/sim/collide.js';
+import { CAR_SHAPE } from '../dist/sim/car.js';
+import { createLapState, stepLaps, standings, displayLap, WRONG_WAY_AFTER } from '../dist/sim/race.js';
+import { racingLine } from '../dist/sim/racingLine.js';
+import { SKILLS } from '../dist/sim/autopilot.js';
+import { STUCK_RESPAWN, GHOST_TIME } from '../dist/sim/World.js';
 import { TRACKS } from '../dist/sim/track/index.js';
 import { World } from '../dist/sim/World.js';
 import { interpolateCar } from '../dist/sim/interpolate.js';
@@ -384,6 +389,233 @@ for (const def of TRACKS) {
   const away = car.vx * nx + car.vz * nz;
   check('a head-on wall hit bounces back and is recorded', car.impacts > 0 && car.lastImpact > 25 && away > 0 && away < 12,
     `impact ${car.lastImpact.toFixed(1)} m/s, rebound ${away.toFixed(1)} m/s`);
+}
+
+/* ------------------------------------------------------------------ laps */
+
+console.log('\nlaps and race order');
+
+{
+  const t = new Track(TRACKS[0]);
+  const L = t.length;
+  /** Drive a lap state along the track from s0 by `metres`, one metre per step. */
+  const drive = (st, from, metres, laps = 3, t0 = 0) => {
+    let time = t0;
+    let ev = null;
+    const dir = Math.sign(metres);
+    for (let k = 1; k <= Math.abs(metres); k++) {
+      time += STEP;
+      const e = stepLaps(st, t, t.wrapS(from + dir * k), time, STEP, dir * 20, laps);
+      if (e) ev = e;
+    }
+    return { time, ev };
+  };
+
+  let st = createLapState(t, L - 20, 0);
+  drive(st, L - 20, 25);
+  check('leaving the grid over the line starts lap 1 without counting a lap', st.completed === 0 && st.lapTimes.length === 0 && displayLap(st, 3) === 1);
+
+  const lap = drive(st, 5, L);
+  check('a full lap past every checkpoint counts, with its time', st.completed === 1 && st.lapTimes.length === 1 && lap.ev?.kind === 'lap',
+    `lap time ${st.lapTimes[0]?.toFixed(2)} s`);
+
+  // Skip a checkpoint by teleporting past it: the line then does not count.
+  st = createLapState(t, L - 20, 0);
+  drive(st, L - 20, 25);
+  const cp0 = t.checkpoints[0];
+  stepLaps(st, t, cp0 + 30, 1, STEP, 20, 3, true);
+  drive(st, cp0 + 30, L - cp0 - 25);
+  check('a lap that missed a checkpoint does not count', st.completed === 0, `completed ${st.completed}`);
+
+  // Back and forth over the line.
+  st = createLapState(t, L - 20, 0);
+  drive(st, L - 20, 25);
+  drive(st, 5, L);
+  const before = st.completed;
+  for (let k = 0; k < 3; k++) {
+    drive(st, t.wrapS(5 + L), -12);
+    drive(st, t.wrapS(5 + L - 12), 12);
+  }
+  check('reversing over the line and back again gains nothing', st.completed === before, `${before} -> ${st.completed}`);
+
+  st = createLapState(t, L - 20, 0);
+  drive(st, L - 20, 25);
+  drive(st, 5, cp0 + 5 - 5);
+  const passed = st.nextCp;
+  drive(st, cp0 + 5, -10);
+  check('reversing back over a checkpoint un-passes it', passed === 1 && st.nextCp === 0);
+
+  // Sub-step timing: cross the line exactly a quarter of the way through a step.
+  st = createLapState(t, L - 20, 0);
+  drive(st, L - 20, 25);
+  drive(st, 5, L - 6);
+  const sBefore = t.wrapS(L - 0.75);
+  stepLaps(st, t, sBefore, 50, STEP, 20, 3);
+  const at = 50 + STEP;
+  stepLaps(st, t, t.wrapS(0.25 + 2), at, STEP, 20, 3);
+  const expect = at - STEP + STEP * (0.75 / 3);
+  check('lap times are interpolated inside the step', Math.abs(st.lapStart - expect) < 1e-9, `${st.lapStart.toFixed(5)} vs ${expect.toFixed(5)}`);
+
+  st = createLapState(t, 100, 0);
+  let wrong = false;
+  for (let k = 0; k < Math.ceil(WRONG_WAY_AFTER / STEP) + 2; k++) stepLaps(st, t, t.wrapS(100 - k * 0.1), k * STEP, STEP, -5, 3);
+  wrong = st.wrongWay;
+  stepLaps(st, t, 99, 9, STEP, 5, 3);
+  check('driving backwards shows WRONG WAY, and driving on clears it', wrong && !st.wrongWay);
+
+  // Order: finishers by time, the rest by distance; ties by id.
+  const mk = (id, finishTime, progress) => ({ id, lap: { finishTime, progress } });
+  const order = standings([mk('c', null, 900), mk('a', 120, 3000), mk('d', null, 950), mk('b', 118, 3000), mk('e', null, 950)]).map((e) => e.id);
+  check('race order: finishers by time, then distance, ties by id', order.join('') === 'badec', order.join(''));
+
+  // Respawned back behind the line it just crossed: no lap jump in the order.
+  st = createLapState(t, L - 20, 0);
+  drive(st, L - 20, 25);
+  const p0 = st.progress;
+  stepLaps(st, t, t.wrapS(-7), 3, STEP, 0, 3, true);
+  check('a respawn behind the line moves a car back metres, not a lap', Math.abs(st.progress - (p0 - 12)) < 1e-6 && st.completed === 0,
+    `progress ${p0.toFixed(1)} -> ${st.progress.toFixed(1)}`);
+}
+
+/* ----------------------------------------------------------- racing line */
+
+console.log('\nracing line and autopilot');
+
+for (const def of TRACKS) {
+  const t = new Track(def);
+  const line = racingLine(t);
+  const inside = line.offset.every((o) => Math.abs(o) <= t.halfWidth - 1.6);
+  check(`${def.name}: the racing line stays on the road`, inside);
+
+  // Cutting apexes: where the road bends hardest, the line sits on the inside.
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < t.n; i++) {
+    const k = t.line.curvature[i];
+    if (Math.abs(k) < 1 / 30) continue;
+    sum += Math.sign(k) * line.offset[i];
+    n++;
+  }
+  check(`${def.name}: the line takes the inside of tight corners`, n > 0 && sum / n > 1.5, `mean ${(sum / n).toFixed(2)} m to the inside`);
+
+  let worst = 0;
+  const sp = t.length / t.n;
+  for (let i = 0; i < t.n; i++) {
+    const a = line.speed[i];
+    const b = line.speed[(i + 1) % t.n];
+    worst = Math.max(worst, (a * a - b * b) / (2 * sp));
+  }
+  check(`${def.name}: the speed profile never asks for more braking than planned`, worst <= 11 + 1e-6, `${worst.toFixed(2)} m/s^2`);
+
+  const w = new World(def, { laps: 2, countdown: 0 });
+  const bot = w.addBot('b', 0, SKILLS[0], 1);
+  while (!bot.lap.finished && w.steps < 60 * 400) w.step();
+  const best = bot.lap.best ?? Infinity;
+  check(`${def.name}: the autopilot laps cleanly, inside par`, bot.lap.finished && bot.respawns === 0 && bot.car.impacts <= 1 && best < line.parTime,
+    `best ${best.toFixed(1)} s vs par ${line.parTime.toFixed(1)} s, ${bot.car.impacts} wall hits, ${bot.respawns} respawns`);
+}
+
+{
+  const w = new World(TRACKS[0], { laps: 3, countdown: 3 });
+  for (let i = 0; i < 6; i++) w.addBot(`b${i}`, i, SKILLS[i], 100 + i);
+  let finite = true;
+  let hardBumps = 0;
+  while (w.entrants.some((e) => !e.lap.finished) && w.steps < 60 * 900) {
+    w.step();
+    for (const ev of w.drain()) if (ev.kind === 'bump' && ev.closing > 8) hardBumps++;
+    if (!w.entrants.every((e) => Number.isFinite(e.car.x) && Number.isFinite(e.car.z))) finite = false;
+  }
+  const done = w.entrants.filter((e) => e.lap.finished).length;
+  const respawns = w.entrants.reduce((a, e) => a + e.respawns, 0);
+  const times = w.entrants.map((e) => e.lap.finishTime ?? Infinity);
+  const ordered = standings(w.entrants).every((e, i, arr) => i === 0 || (arr[i - 1].lap.finishTime ?? 0) <= (e.lap.finishTime ?? 0));
+  check('six bots race three laps: all finish, nobody respawns, no hard shunts', done === 6 && respawns === 0 && hardBumps === 0 && finite && ordered,
+    `${done}/6 finished, spread ${(Math.max(...times) - Math.min(...times)).toFixed(1)} s, ${respawns} respawns, ${hardBumps} bumps over 8 m/s`);
+}
+
+{
+  // Parked across the road facing a wall: the bot must back out and get going.
+  const w = new World(TRACKS[0], { laps: 1, countdown: 0 });
+  const bot = w.addBot('b', 0, SKILLS[0], 3);
+  const pose = w.track.poseAt(300);
+  const [x, z] = w.track.offsetPoint(pose.i, w.track.halfWidth + 1.5);
+  Object.assign(bot.car, { x, z, yaw: pose.yaw + Math.PI / 2, vx: 0, vz: 0, w: 0, hint: pose.i });
+  // One step to let the lap tracker catch up with the move, so the move itself is not counted.
+  w.step();
+  const p0 = bot.lap.progress;
+  for (let k = 0; k < 60 * 12; k++) w.step();
+  check('the autopilot backs out of a wall and drives on', bot.lap.progress - p0 > 40 && bot.respawns === 0,
+    `${(bot.lap.progress - p0).toFixed(0)} m in 12 s, ${bot.respawns} respawns`);
+}
+
+/* ------------------------------------------------------------- race rules */
+
+console.log('\nrace rules');
+
+{
+  const w = new World(TRACKS[0], { laps: 3, countdown: 3 });
+  const bots = [0, 1, 2].map((i) => w.addBot(`b${i}`, i, SKILLS[0], i));
+  const start = bots.map((b) => [b.car.x, b.car.z]);
+  while (w.time < 2.9) w.step();
+  const still = bots.every((b, i) => Math.hypot(b.car.x - start[i][0], b.car.z - start[i][1]) < 0.01);
+  let go = false;
+  while (w.time < 4.5) {
+    w.step();
+    if (w.drain().some((e) => e.kind === 'go')) go = true;
+  }
+  const moving = bots.every((b) => Math.hypot(b.car.vx, b.car.vz) > 3);
+  check('nobody moves before the lights, everybody after', still && go && moving);
+}
+
+{
+  // A human who drives into the wall and keeps the throttle pinned.
+  const w = new World(TRACKS[0], { laps: 3, countdown: 0 });
+  const pose = w.track.poseAt(200);
+  const e = w.addCar('p', 0, () => intent({ throttle: 1 }));
+  for (let k = 0; k < 60 * 2; k++) w.step();
+  const safe = e.safeS;
+  const [x, z] = w.track.offsetPoint(pose.i, w.track.halfWidth + 1.2);
+  Object.assign(e.car, { x, z, yaw: pose.yaw + Math.PI / 2, vx: 0, vz: 0, w: 0, hint: pose.i });
+  let respawnAt = null;
+  for (let k = 0; k < 60 * (STUCK_RESPAWN + 1) && respawnAt === null; k++) {
+    w.step();
+    if (w.drain().some((ev) => ev.kind === 'respawn')) respawnAt = w.time;
+  }
+  const back = w.track.project(e.car.x, e.car.z);
+  const facing = Math.abs(wrapAngle(e.car.yaw - w.track.poseAt(back.s).yaw)) < 0.05;
+  check('a car pinned against a wall is put back on the road after 3 s', respawnAt !== null && Math.abs(back.d) < 0.5 && facing && e.ghost > 0,
+    respawnAt ? `respawned after ${(respawnAt - 2).toFixed(1)} s, ${w.track.deltaS(safe, back.s).toFixed(0)} m from its last good spot` : 'never respawned');
+
+  // Park a second car right on top of it: while it is a ghost they pass
+  // through each other; once the ghosting ends, they are pushed apart.
+  const other = w.addCar('q', 1, () => intent());
+  Object.assign(other.car, { x: e.car.x, z: e.car.z, yaw: e.car.yaw, vx: 0, vz: 0, w: 0, hint: e.car.hint });
+  e.drive = () => intent();
+  w.step();
+  const overlapping = Math.hypot(other.car.x - e.car.x, other.car.z - e.car.z) < 0.1;
+  for (let k = 0; k < 60 * GHOST_TIME + 5; k++) w.step();
+  const apart = Math.hypot(other.car.x - e.car.x, other.car.z - e.car.z);
+  check('a respawned car is a ghost for two seconds, then solid again', overlapping && e.ghost === 0 && apart > 1.5,
+    `${apart.toFixed(1)} m apart once solid`);
+}
+
+{
+  // Head on at 10 m/s each: they bounce apart, momentum is conserved, and they end up apart.
+  const a = createCar(0, 0, 0);
+  const b = createCar(0, 4.2, Math.PI);
+  a.vz = 10;
+  b.vz = -10;
+  const hit = resolveCarPair(a, b, CAR_SHAPE);
+  const d = Math.hypot(a.x - b.x, a.z - b.z);
+  check('cars colliding head on bounce apart with momentum conserved', hit !== null && a.vz < 0 && b.vz > 0 && Math.abs(a.vz + b.vz) < 1e-9 && d >= 4.4 - 1e-9,
+    `after: ${a.vz.toFixed(2)} / ${b.vz.toFixed(2)} m/s, ${d.toFixed(2)} m apart`);
+  // One-sided resolution (M3): only A is moved, and B keeps its velocity.
+  const c = createCar(0, 0, 0);
+  const e = createCar(0, 4.2, Math.PI);
+  c.vz = 10;
+  e.vz = -10;
+  resolveCarPair(c, e, CAR_SHAPE, true, false);
+  check('a one-sided collision moves only the car it is asked to', c.vz < 0 && e.vz === -10 && e.z === 4.2);
 }
 
 /* ------------------------------------------------------------ determinism */
