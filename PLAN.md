@@ -1,0 +1,892 @@
+# NITRO CARNAGE — build plan
+
+A top-down 3D combat racer for 1–6 players, running entirely in the browser with no
+game server. It's a spiritual successor to Super Cars II: short arcade races on tight
+tracks, missiles front and rear, mines, a shop between races, and a championship.
+Everything in it is original: the name, the tracks, the meshes, the sound and the music.
+
+This plan was written after reading glitchburst (`README.md`, `src/net/*`,
+`src/input/*`, `test/rig.mjs`, `test/mqtt-stub.js`, CI and the version hook). Where
+glitchburst already solved a problem, we reuse its solution and say so. Where this game
+needs something different, mostly because it's PvP and because cars move fast, the plan
+explains why.
+
+> **Status: plan only.** Nothing is built yet. Open questions are at the end.
+
+---
+
+## 1. Principles carried over from glitchburst
+
+| Convention | What we do |
+| --- | --- |
+| `tsc` only, no bundler | ES2022 modules emitted to `dist/`. `dist/` is committed and served by GitHub Pages from `main` at `/`. CI fails if `dist/` is stale. |
+| Import map to jsDelivr | `three@0.186.1` (`build/three.module.min.js`) and `mqtt@5.15.2`. Nothing needs installing to *play*. `@types/three` is a dev dependency for `tsc` only. |
+| MQTT.js over `wss://`, QoS 0 | We keep the same `BROKERS` list (HiveMQ, EMQX, Mosquitto) and `MqttNet` almost verbatim. Pages is HTTPS, so every endpoint is `wss://`. |
+| Distributed host | The alive player with the lowest time-prefixed ID is host. Heartbeat at 2 Hz, failover after 2.5 s, the lower ID wins a split brain, and the host claim also rides on presence. The `RoomSession` logic is ported. |
+| Presence | Last Will with `alive:0`, an explicit `alive:0` on leave, a 15 s backstop timeout, and a sleep-aware roster tick (a gap over 2 s means *we* slept, so everyone gets a fresh window). |
+| Room = place with a lobby | The heartbeat carries room state. Late joiners wait in the lobby for the next race. |
+| Colours | Colours are unique per room, and clashes resolve by seniority, then the next free colour (`resolveColours`, ported). The palette grows from 8 to 10 colours so a 6-player room always has room to move. |
+| Unified input | Keyboard, gamepad and touch produce one `Intent`, and the most recent device wins. We port `GamepadNavigator` and the on-screen keyboard. The Intent becomes a driving intent. |
+| Layering | `net/`, `sim/` and `input/` never import `three` or touch the DOM renderer, so the whole race runs headless in Node. |
+| Wire | Compact delimited base36 strings, never JSON. Decoders tolerate truncation. New fields are added at the end, so older builds still decode. |
+| Time | All wall-clock timing uses `performance.now()`, and all smoothing is framerate-independent: `1 - (1-base)^(dt/16.67)`. |
+| Tests | Node sim suite, plus browser suites under Playwright with a loopback MQTT stub over `BroadcastChannel`. Assertions poll for outcomes and never sleep for a fixed time. |
+| Audio | Web Audio synthesis only, with the lookahead music scheduler. The repo contains no binary assets. |
+| Versioning | Pre-commit hook bumps the patch version, rebuilds, and rewrites the README span. `test/consistency.mjs` checks the README test count and version. |
+
+The name lives in one constant: `src/brand.ts` exports `GAME_NAME = 'NITRO CARNAGE'`
+and `SLUG = 'nitrocarnage'`. The page title, menu, README badge text and
+`BroadcastChannel` name all derive from it.
+
+---
+
+## 2. Architecture
+
+```
+src/
+├── brand.ts          GAME_NAME, SLUG — the only place the title is spelled
+├── config.ts         BROKERS, NET timings, SIM constants, QUALITY presets
+├── types.ts          shared vocabulary (no three, no DOM)
+├── util.ts           Emitter, clamp/lerp, hashing, seeded PRNG, ids (from glitchburst)
+├── clock.ts          Clock interface { now(), setInterval, setTimeout } — injectable
+│
+├── sim/              PURE. No three, no DOM, no network.
+│   ├── track/
+│   │   ├── TrackDef.ts       the data-file schema
+│   │   ├── downtown.ts       ┐
+│   │   ├── greenbelt.ts      ├ data only: no logic, validated by tests
+│   │   ├── docks.ts          ┘
+│   │   ├── spline.ts         closed centripetal Catmull-Rom, arc-length table
+│   │   ├── buildTrack.ts     TrackDef → Track (walls, surfaces, grid, props)
+│   │   └── scatter.ts        seeded procedural prop placement from rules
+│   ├── car.ts                CarState, stepCar() — the 60 Hz physics
+│   ├── collide.ts            capsule-vs-segment (swept), capsule-vs-capsule
+│   ├── surfaces.ts           grip/drag table per surface
+│   ├── race.ts               checkpoints, laps, wrong way, stuck/off-course, standings
+│   ├── weapons.ts            projectile + mine simulation, deterministic from events
+│   ├── hazards.ts            train schedule from (seed, room time), oil
+│   ├── racingLine.ts         min-curvature line + speed profile per track (cached)
+│   ├── autopilot.ts          racing line follower, overtaking, weapons, shopping
+│   ├── economy.ts            THE tunable table: prizes, prices, upgrade curves
+│   ├── championship.ts       ledger ops (pure): award, buy, carry damage
+│   └── World.ts              one race: fixed-step loop, local car, remotes, projectiles
+│
+├── net/              PURE of rendering. Runs in Node against a stub broker.
+│   ├── MqttNet.ts            transport (ported)
+│   ├── topics.ts             the whole topic map in one file
+│   ├── codec.ts              every wire format, with byte counts in comments
+│   ├── RoomSession.ts        presence, election, capacity, colours (ported + clock injection)
+│   ├── ClockSync.ts          NTP-style offset to the room clock
+│   ├── deadReckoning.ts      remote car prediction + correction (pure maths)
+│   ├── RaceNet.ts            car state pub/sub, event batching, DR-threshold sends
+│   └── HostRace.ts           host-only race director: phases, grid, finish order,
+│                             pickups, train seed, ledger, bots
+│
+├── input/            ported: sources → one DriveIntent; haptics
+├── render/           THE ONLY place `three` is imported
+│   ├── Renderer.ts           WebGLRenderer, quality presets, resize, frame loop
+│   ├── CameraRig.ts          lead, speed zoom/FOV, trauma shake
+│   ├── TrackMesh.ts          road ribbon, kerbs, verges, markings, ramps
+│   ├── Scenery.ts            chunked InstancedMesh: buildings, trees, barriers, furniture
+│   ├── materials.ts          flat/gradient Lambert + emissive windows + cut-away chunk
+│   ├── CarMesh.ts            procedural low-poly car, steering/spinning wheels, roll/pitch
+│   ├── Fx.ts                 tyre-mark ring buffer, pooled particles, trails, explosions
+│   ├── ShadowRig.ts          directional light + shadow camera following the player
+│   └── Train.ts, Hazards.ts  train, crossing barriers, oil, mine lights
+├── ui/               DOM overlay: menu, lobby, shop, results, championship, HUD, minimap
+├── audio/            AudioBus/volume (ported), Engine synth, Sfx, Music
+└── main.ts           wiring
+```
+
+The rule for `sim/` is that it's deterministic given its inputs. It advances only in
+fixed steps of `1/60` s, draws randomness only from seeded `mulberry32`, and never calls
+`Math.random` or reads the clock. That gives us three things. The Node tests can replay
+a race exactly. A projectile fired on one client flies the same path on every other.
+And the scenery scattered from a seed is identical everywhere, so walls line up.
+
+### Frame loop
+
+```
+requestAnimationFrame
+  └─ dt = performance.now() delta, clamped to 250 ms
+     accumulator += dt
+     while accumulator ≥ 1/60:  input → World.step(1/60) → RaceNet.afterStep()
+     render(alpha = accumulator / (1/60))   // local car interpolated prev→current
+                                            // remote cars dead-reckoned to "now"
+```
+
+Publishing happens inside the sim step, not in render. Every third step (20 Hz) we
+publish, and we also publish on any step where the dead-reckoning check trips (§5.3).
+Glitchburst learned this the hard way: a host whose broadcast was tied to rendering
+broadcast at 8 Hz on a slow GPU.
+
+**Background tabs.** When the tab is hidden, rAF stops and main-thread timers are
+throttled to about 1 Hz. The host's heartbeat, clock pongs and bot cars would all stall.
+A tiny `Worker`, created from a Blob URL so there's no extra file, posts a tick at 60 Hz.
+Chrome doesn't throttle worker timers the way it throttles page timers. While
+`document.hidden` is true, those ticks drive `World.step` in place of rAF. Glitchburst
+lists "a backgrounded host slows the room" as a known limitation, and this is the fix.
+A test emulates the hidden state and checks that heartbeat and bot packets stay at rate.
+
+---
+
+## 3. Simulation
+
+Units are metres, seconds, kilograms and radians. The world is the XZ plane, Y is up,
+and yaw 0 points along +Z.
+
+### 3.1 Car physics (`sim/car.ts`)
+
+This is an arcade model built on the bicycle model. We deliberately avoid a physics engine.
+
+- **State.** Position `x,z`, yaw, velocity `vx,vz` in world space, yaw rate `w`, height
+  `y` and `vy`, steer angle, and flags.
+- **Longitudinal force.** Engine force from a torque curve that falls off with speed,
+  brake force, reverse below 1 m/s with the brake held, and rolling resistance plus
+  aerodynamic drag. Base car: 0–100 km/h in about 3.2 s and a top speed of about
+  48 m/s (173 km/h). Engine upgrades raise force and top speed.
+- **Lateral force.** Slip angles are computed per axle. The force is
+  `F = clamp(-Cα·α, ±μ·N_axle)` inside a friction circle shared with the drive force at
+  the rear. `μ` comes from the surface under each axle:
+
+  | Surface | μ | Rolling drag | Notes |
+  | --- | --- | --- | --- |
+  | Tarmac | 1.00 | 1.0× | baseline |
+  | Dirt | 0.70 | 1.6× | throws dust particles |
+  | Grass | 0.55 | 2.4× | slows you as well as sliding you |
+  | Oil | 0.18 | 1.0× | almost no lateral grip; a hazard |
+
+- **Handbrake.** Locks the rear axle: rear `μ ×0.4` and no drive. That's the
+  flick-into-a-hairpin move.
+- **Drift feel.** Maximum steer angle shrinks with speed. A counter-steer assist
+  lets the front slip angle track the velocity direction. Slip past about 0.15 rad
+  sets the `drifting` flag, which drives tyre marks, smoke and squeal.
+- **Turbo.** While the meter lasts, it adds drive force and raises the top speed.
+  Capacity and power come from the turbo upgrade.
+- **Height.** A ramp zone (a span along the spline, §3.3) sets `vy` from speed on exit.
+  In the air, gravity applies, there's no traction and no steering, and yaw rate is
+  kept. On landing, `vy` is lost into a `landing` impulse. The renderer shakes the
+  camera and the gamepad rumbles from that impulse, and a hard landing costs 10% speed.
+  The shadow grows and softens with height (renderer only).
+- All tunables live in `SIM.car` and are multiplied by upgrade levels from
+  `economy.ts`.
+
+### 3.2 Collisions (`sim/collide.ts`)
+
+- The car is a **capsule**: a segment along its length with radius about 1.0 m. That's
+  cheaper than an OBB and it never catches on segment joints.
+- **Walls.** One-sided segments built from the track edges. They're stored in a
+  uniform grid with 16 m cells, so a query touches only a few cells.
+- **Sweeping.** We substep so each substep moves the capsule at most 0.5 × radius:
+  `n = ceil(|v|·dt / (0.5·r))`. That's 2–3 substeps at top speed. A capsule can't
+  cross a segment without overlapping it on some substep, so tunnelling is impossible
+  by construction. The test launches a car at 5× top speed into every wall of every
+  track and asserts it never crosses. That's the lesson from glitchburst's bullet
+  tunnelling bug, applied up front.
+- **Response.** Push out along the normal, remove the normal velocity with a
+  restitution of 0.25, apply tangential friction, and add yaw torque from the contact
+  point, so a glancing hit spins you a little. An impact whose normal speed exceeds
+  12 m/s costs health, scaled by armour. The victim authors this damage, and it's local
+  to the victim.
+- **Car against car.** Capsule-vs-capsule with a mass-weighted impulse. Networking
+  rules for bumps are in §5.5.
+
+### 3.3 Tracks are data (`sim/track/*.ts`)
+
+A track file is a TS module that exports one `TrackDef` object, and nothing else. We
+use TS rather than JSON because `tsc`-only builds and Node tests can both import it with
+no loader, and the compiler type-checks the data. `test/sim` also validates every track
+at runtime: the loop is closed, there are no self-intersections, and the checkpoints are
+ordered.
+
+```ts
+interface TrackDef {
+  id: string; name: string; laps: number; seed: number;
+  theme: ThemeId;                               // sky, fog, ground, light angle, palette
+  centre: [x: number, z: number][];             // closed control polygon, metres
+  width: number | { at: number; w: number }[];  // road width, can vary along s
+  verge: { left: VergeDef; right: VergeDef };   // width + surface + wall? on each side
+  start: { s: number };                         // start/finish line (fraction of lap)
+  checkpoints: number[];                        // ordered s fractions, start excluded
+  surfaces: SurfaceZone[];                      // {span s0..s1, d0..d1} | {circle}
+  ramps: { s: number; len: number; lift: number }[];
+  pickups: { s: number; d: number; kind: 'cash' | 'repair' | 'ammo' | 'turbo' }[];
+  hazards: HazardDef[];                         // train crossing, fixed oil, water
+  props: PropRule[];                            // explicit props + seeded scatter rules
+}
+```
+
+`buildTrack()` turns that into a `Track`:
+
+- An arc-length table sampled every 1 m, holding position, tangent, normal, width and
+  banking. Projecting a point to `s` is a local search from the car's last `s`, with a
+  grid lookup as a fallback, so it's O(1) per step.
+- Wall segments from the left and right offset curves, with a verge where one is defined.
+- Surface lookup `(x,z) → surface`: road if `|d| < w/2`, otherwise the verge surface,
+  otherwise explicit zones such as oil circles and dirt spans.
+- Grid slots: 6 slots in 2×3 staggered rows behind the start line.
+- Props from explicit placements plus scatter rules, such as "fill blocks within
+  30–120 m of the road with buildings of height 12–48 m" or "trees in this polygon at
+  density 0.02/m², keeping 6 m clear of road". Scatter is seeded, so every client
+  generates the same world.
+
+Building heights are capped at 0.6 × the camera's minimum height (§4.1). At that ratio a
+roof sits a little over halfway to the lens, which gives a strong lean without the roof
+clipping through the camera.
+
+### 3.4 The three launch tracks
+
+| Track | Theme | Character | Hazards |
+| --- | --- | --- | --- |
+| **Neon Downtown** (M1) | skyscraper grid at dusk, emissive windows | 90° corners, a chicane, a long straight between towers, a plaza ramp; walls on both sides | none (it's the clean one) |
+| **Greenbelt** (M6) | park and forest, afternoon | flowing curves, grass verges instead of walls in places, a dirt shortcut, a creek jump | grass, dirt |
+| **Tidewater Docks** (M6) | container port, overcast | tight container canyons, cranes as tall occluders, quay edge | railway level crossing with a host-timed train, oil patches, water off the quay (respawn) |
+
+Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
+
+### 3.5 Race logic (`sim/race.ts`)
+
+- **Laps.** A car must pass its checkpoints in order. Crossing the start line with every
+  checkpoint passed completes a lap. The crossing time is interpolated inside the step
+  and stamped in *room time* (§5.2), so lap times are sub-frame accurate and comparable
+  across clients.
+- **Progress.** `lap × L + s` (along the spline) gives the running order.
+- **Wrong way.** If velocity along the tangent is below −2 m/s for 1.5 s, the WRONG WAY
+  banner shows. Reversing across the line un-passes checkpoints, so you can't farm laps.
+- **Respawn.** Triggers when the car is stuck (under 1 m/s with throttle held for 3 s),
+  off-course (the projection distance exceeds half the width plus the verge plus 4 m, or
+  the car is in water), or wrecked (§3.6). The car goes to the centreline about 15 m
+  before where it failed, faces along the tangent, and gets 2 s of ghost time: no car
+  collisions and no hits. A respawn is announced as a teleport event (§5.4), so remotes
+  snap instead of sliding.
+
+### 3.6 Weapons (`sim/weapons.ts`)
+
+| Weapon | Behaviour | Damage | Bought in |
+| --- | --- | --- | --- |
+| Front missile | 90 m/s straight, 1.4 s life, stops at walls | 30 | packs of 5 |
+| Rear missile | fired backwards, 70 m/s, 1.2 s | 25 | packs of 5 |
+| Mine | dropped behind, arms after 0.6 s, lasts 45 s, pulsing light | 35 | packs of 3 |
+| Turbo | meter, not ammo; capacity and power by upgrade | — | upgrade + pickup refill |
+| Super weapon | one-shot, slot reserved in the codec and ledger, designed later | — | M6+ |
+
+- A projectile is fully determined by `(origin, angle, weapon, t_fire, seed)`. Every
+  client simulates it, fast-forwarding from `t_fire` on arrival so late packets catch up.
+  Walls stop it identically everywhere, because the walls are identical everywhere.
+- A projectile is **inert everywhere except on the shooter's client** (§5.4).
+- Health is 100 base, reduced by armour. At 0 health the car is **wrecked**: it
+  explodes, respawns after 2.5 s with 35 health, and the killer earns a bounty. The time
+  lost is the penalty. That keeps a 6-player race from going empty.
+- Missile and mine sims are pure, so a Node test fires the same event into two separate
+  `World`s and asserts identical trajectories and wall hits.
+
+### 3.7 Autopilot (`sim/autopilot.ts`)
+
+One pure policy: `(car, track, line, others, loadout) → DriveIntent`. It's used for
+three things. It fills empty grid slots with bots, run by the host. It drives
+self-driving test clients, as glitchburst's auto-move did. And the "autopilot completes
+a lap on every track" test uses it.
+
+- **Racing line** (`racingLine.ts`). A minimum-curvature relaxation of the lateral offset
+  inside `width/2 − margin`, followed by a speed profile `v = sqrt(μ·g·k / κ)` with
+  forward (acceleration) and backward (braking) passes. It's computed once per track and
+  memoised.
+- **Steering.** Pure pursuit on the line, with the look-ahead scaled by speed.
+- **Throttle, brake and handbrake.** Track the profile speed. Use the handbrake below a
+  radius threshold.
+- **Overtaking.** If a car is ahead on the line within about 12 m and closing, shift the
+  target offset to the side with more room, then return to the line once past.
+- **Weapons.** Fire a front missile when a rival is in a ±6° cone within the missile's
+  reach. Drop a mine or fire a rear missile when a rival is within 15 m behind and in line.
+- **Shopping.** Repair first, then ammo to a target, then the cheapest next upgrade, with
+  a savings bias.
+- **Recovery.** Reverse and steer out when stuck, before the respawn rule kicks in.
+- An 80 ms exponential ease on the output stops it vibrating. Glitchburst measured 531
+  heading reversals a minute without that ease.
+- **Difficulty.** Bots take a speed-profile scale, a line-noise amplitude and a
+  weapon-reaction delay. That's three numbers, set in `SIM.bots`.
+- Real input always overrides the autopilot, frame by frame.
+
+### 3.8 Economy and championship (`sim/economy.ts`, `sim/championship.ts`)
+
+Every number lives in **one table**:
+
+```ts
+export const ECONOMY = {
+  prize:   [1000, 700, 500, 350, 250, 150],  // by finishing position
+  points:  [10, 6, 4, 3, 2, 1],
+  bounty:  150,                              // per wreck you cause
+  startingCash: 1500,
+  repairPerHp: 6,
+  ammo: { front: { pack: 5, price: 250, max: 20 }, rear: { … }, mine: { … } },
+  upgrades: {                                 // level 0 = stock, 4 = max
+    engine: { price: [600, 1100, 1800, 2800], effect: [1, 1.08, 1.16, 1.24, 1.32] },
+    tyres:  { price: […],                     effect: [1, 1.06, …] },  // μ multiplier
+    armour: { price: […],                     effect: [1, .88, …] },   // damage taken
+    turbo:  { price: […],                     effect: [{cap, force}, …] },
+  },
+};
+```
+
+- Damage **carries between races**, and repairs cost money. That's the Super Cars loop:
+  winning pays for the repairs that racing dirty costs you.
+- A championship is N races: 3, 5 or 7, chosen in the lobby. It cycles the track
+  rotation. From race 2 onwards the grid is reverse championship order, so the leader
+  starts at the back.
+- The **host owns the ledger** (§5.6), and clients render the host's numbers only.
+- The summary screen shows points, wins, wrecks caused, best laps and total earnings.
+
+---
+
+## 4. Rendering (`src/render/`, Three.js)
+
+### 4.1 Camera (`CameraRig.ts`)
+
+- A perspective camera with a vertical FOV of 48° that widens to 55° at top speed.
+- Height is 70 m, rising to 84 m at top speed. The camera looks almost straight down
+  with a **10° forward tilt**. Screen orientation is **fixed north-up**, as in the
+  original genre, so the car rotates on screen and multiplayer and the minimap stay
+  readable. (A rotate-with-car mode can be a setting later.)
+- **Lead.** The look-at point is offset along velocity by `v × 0.5 s`, capped at 22 m,
+  through a critically damped spring. At speed you see where you're going, and the car
+  sits off-centre towards the back.
+- **Parallax** comes from the perspective itself. Towers up to 42 m tall under a camera
+  at 70 m lean visibly away from screen centre as you pass.
+- **Shake.** A trauma model: `trauma ∈ [0,1]` decays at 1.5/s, and the offset and roll
+  are `trauma² × noise(t)`. Hits add 0.5, wrecks 1.0, and landings add
+  `impulse × k`. There's a "reduce motion" setting that scales it down.
+- The camera is framerate-independent, and it reads the *interpolated* local car so it
+  never judders at 144 Hz.
+
+### 4.2 Occlusion: a screen-space dithered cut-away
+
+When a tall object stands between the camera and a car, part of it disappears around
+that car's screen position. Fading whole buildings would be the other option, and it's
+worse on both counts. A big building pops out entirely just because its corner covers a
+car. And per-instance raycasts cost CPU per building per car.
+
+- Each frame the CPU projects up to 6 cars to screen space and uploads
+  `uCars[6] = (ndc.x, ndc.y, viewDepth, strength)`.
+- The tall-occluder material (buildings, tree canopies, cranes) gets a shader chunk via
+  `onBeforeCompile` on `MeshLambertMaterial`. For each car it takes the fragment's
+  aspect-corrected screen distance to the car. **Only if the fragment is nearer to the
+  camera than the car**, it computes a soft radial `cut` (the radius scales with the
+  car's projected size) and discards when `bayer4x4(gl_FragCoord) < cut × strength`.
+  That's screen-door transparency. It needs no sorting and keeps depth correct. Buildings
+  still cast their shadows, because the shadow depth material is untouched, so the car
+  stays correctly in shadow.
+- `strength` eases per car in about 180 ms. A car driving under a tower gets a hole that
+  opens and closes smoothly rather than popping.
+- There's a pixel test for it: park a car in the lee of the tallest tower, read back the
+  pixel at its projected position, and assert that it's the car's body colour.
+
+### 4.3 Look and lighting
+
+- Low-poly and flat-shaded, using `MeshLambertMaterial` with vertex colours for gradients
+  such as darker at the base of buildings and a sky-tinted roof edge.
+- One `DirectionalLight` with shadows. `ShadowRig` keeps its orthographic frustum (about
+  140 m) centred on the local car and **snapped to shadow-texel increments**, so shadows
+  don't shimmer as the camera moves. There's also a hemisphere fill light, and `Fog`
+  tuned per theme so the draw-distance setting hides the far plane cleanly.
+- Building windows are emissive and procedural. A shader function of the building's UVs
+  and instance seed lights a random subset of windows. There's no texture.
+- All geometry is generated in code. Road texture detail (lane dashes, kerbs, start grid)
+  comes from vertex colours and a small procedurally drawn `CanvasTexture`, and there are
+  no image files.
+
+### 4.4 Instancing and chunking (`Scenery.ts`)
+
+- There's one `InstancedMesh` per prop kind per **spatial chunk** (128 m squares). That
+  way frustum culling works at chunk level. A single track-wide InstancedMesh would never
+  be culled.
+- Prop kinds: box towers (3 silhouettes), trees (cone, sphere, poplar), barrier blocks,
+  tyre walls, lamp posts, bollards, containers (docks), and crane parts.
+- The budget is **under 150 draw calls and under 350k triangles** on "high". A browser
+  test asserts `renderer.info.render.calls` stays inside the budget on every track.
+
+### 4.5 Cars (`CarMesh.ts`)
+
+- A procedural body from a few chamfered boxes (hull, cabin, spoiler, bumpers), about
+  400 triangles. Body colour comes from the resolved player colour, with a darker
+  secondary, and the cabin is glass-dark.
+- Front wheels steer by `steer` and all wheels spin by speed. Body roll and pitch come
+  from a spring-damper fed by the sim's lateral and longitudinal acceleration. That's
+  render-only, so it costs nothing on the wire.
+- Below 30% health the car smokes, and below 15% it smokes more with a spark. The
+  shadow blob grows while airborne. A ghost car is dithered at 50%.
+
+### 4.6 Effects (`Fx.ts`)
+
+- **Tyre marks.** A ring buffer of 4096 quads in one `BufferGeometry`, written in place
+  with `addUpdateRange`. The oldest marks are overwritten and fade with age through a
+  vertex attribute. Marks are laid while drifting, handbraking or braking hard.
+- **Particles.** One pooled `InstancedMesh` of billboards per material, for smoke, dust,
+  sparks and debris. Pool size comes from the quality setting. When the pool is full, the
+  oldest particle is recycled rather than new ones being refused.
+- **Missile trails.** These are particles too. **Explosions** are a flash sprite, a
+  debris burst and camera trauma. **Mine lights** are emissive and pulse at 2 Hz, faster
+  when a car is near.
+
+### 4.7 Quality presets
+
+| | Low (phones) | Medium | High (iGPU laptop target) |
+| --- | --- | --- | --- |
+| Pixel ratio cap | 1.0 | 1.25 | 1.5 |
+| Shadows | off (blob only) | 1024², hard | 2048², PCF soft |
+| Particles | 300 | 900 | 2000 |
+| Draw distance / fog | 180 m | 260 m | 360 m |
+| Tyre marks | 1024 | 2048 | 4096 |
+| Antialias | off | off | on |
+
+The default preset depends on device class, and the game auto-drops one level if frame
+time stays above 20 ms for 3 s. The cut-away (§4.2) is always on, because not being able
+to see your car is a gameplay bug, not a visual one.
+
+---
+
+## 5. Networking
+
+### 5.1 Authority
+
+| Thing | Authority | Mechanism |
+| --- | --- | --- |
+| Your car's position, velocity and health | **you** | `c/<id>` at 20 Hz, plus immediately when the dead-reckoning error trips |
+| Your missile hitting someone | **shooter** detects, **victim** applies | `H` event from the shooter. The victim applies it once, deduplicated by `(shooter, shotSeq)` |
+| A mine you drive over | **victim** detects and applies | `T` event, and every client removes the mine |
+| Wall impacts, wrecks, respawns | **you** | `D` / `R` events |
+| Car-vs-car bumps | each side resolves its own car | `B` impulse event, applied only if the receiver saw no contact itself (§5.5) |
+| Countdown, grid, lap and finish order, train, pickups | **host** | heartbeat and `hx` events |
+| Prize money, points, upgrades, ammo stock between races | **host** | `ch` ledger |
+| Bot cars | **host** | published exactly like a human car. The new host adopts them on failover |
+
+"Favour the shooter" is a deliberate trade-off, the same one glitchburst made. On the
+shooter's screen the hit is exact and instant. The victim may see a missile that looked
+like a near miss, which is accepted in exchange for zero-latency hits and exactly one
+decision per hit.
+
+### 5.2 Room clock (`ClockSync.ts`)
+
+All shared timing uses **room time**: the host's `performance.now()` plus the host's own
+offset. That includes GO, lap and finish stamps, fire times and train crossings.
+
+- A client pings `kq/<pid>` with `t0`, and the host answers straight away on
+  `ka/<pid>` with `t1`, its room time on receipt. The client computes
+  `rtt = t3 − t0` and `offset = t1 + rtt/2 − t3`. It keeps the sample with the **lowest
+  RTT out of the last 8**, since the fastest round trip is the most symmetric, and it
+  slews towards a new estimate rather than stepping.
+- Pings go at 2 Hz for the first 4 s after joining or after a host change, then every 5 s.
+- **Failover keeps the clock continuous.** The original host has offset 0. A promoted
+  host keeps serving *its current estimate* of room time, not its raw
+  `performance.now()`. The timeline therefore survives the handover, and a `goAt` stamped
+  by the dead host still means the same instant. Without this, every stamp in flight
+  would be wrong by the difference between two machines' uptimes.
+- The race starts when `roomNow() ≥ goAt`. The host sets `goAt = now + 4000`, which
+  gives the 3-2-1 countdown time to reach everyone.
+
+### 5.3 Dead reckoning and correction (`deadReckoning.ts`)
+
+Plain interpolation renders remote cars 100–150 ms in the past. At 45 m/s that's 5–7 m,
+more than a car length, so you'd shoot at cars that aren't there any more. Instead we
+**extrapolate to now**:
+
+- **Model: constant turn rate and velocity.** From a packet stamped `ts`, we predict
+  `dt = roomNow − ts`. The velocity vector rotates by `w·dt`, so a car mid-corner is
+  predicted along its arc, not off the tangent into a wall. In the air, `y` follows a
+  ballistic path.
+- **Cap.** Extrapolation stops at 300 ms. Past that the car decelerates to hold, and the
+  HUD marks the player as lagging.
+- **Correction.** Projective velocity blending. When a packet arrives, the displayed state
+  doesn't jump. We blend from the *current displayed* trajectory to the *new predicted*
+  trajectory over 150 ms: `pos = lerp(oldPred(t), newPred(t), smooth(τ))`, framerate
+  independent. The result carries no visible pop and still converges fast.
+- **Snap** only past 10 m of error, or on an explicit `R` (respawn) event.
+- **Walls.** A remote's extrapolation is collided against walls with the same swept
+  routine, so lag never draws a car inside a building.
+- **Sender side.** Each step the sender runs *the same predictor* on its own last
+  published packet. If the prediction is off by more than 0.35 m or 4° of yaw, or the
+  flags or health changed, it publishes immediately. That's the "plus immediately on
+  sharp changes" rule, made precise. Sends are capped at 30 Hz.
+- **Acceptance test.** Replay recorded autopilot laps through a simulated link with
+  60–150 ms jitter and 5% loss. Assert a 95th-percentile position error under 0.8 m and
+  a maximum yaw error under 8° outside snaps.
+
+### 5.4 Projectiles and mines
+
+- The shooter publishes `F` with `(shotSeq, weapon, x, z, angle, tFire)`. The seed is
+  `hash(carId, shotSeq)`, so it costs no bytes. Each client spawns the projectile and
+  fast-forwards it to `roomNow − tFire`.
+- **Only the shooter's copy collides with cars.** It tests against its *displayed*
+  (dead-reckoned) cars. On contact it publishes `H(shotSeq, victimSlot, dmg, x, z)`.
+  Every client removes that shot and plays the explosion at `(x, z)`. The victim applies
+  the damage once, keyed on `(shooter, shotSeq)` for idempotence, and then publishes its
+  health on the next state packet, which goes immediately because health changed.
+- **Mines.** `M(mineSeq, x, z, tDrop)` places a mine everywhere. Only the *car that
+  drives over it* detects it. It publishes `T(ownerSlot, mineSeq)`, applies the damage to
+  itself, and every client removes the mine. If two cars genuinely hit the same mine in
+  the same 50 ms, both take damage. That's rare and harmless, and it's cheaper than
+  arbitration.
+- Anything a dropped packet could leave dangling expires by lifetime, since missiles and
+  mines are both short-lived.
+
+### 5.5 Car-vs-car bumps
+
+Each client resolves contacts **for its own car only**. It pushes its own car out of the
+remote's dead-reckoned capsule and applies its half of the impulse to its own velocity.
+It then publishes `B(otherSlot, jx, jz)`, the impulse it believes the *other* car
+received.
+
+- A receiver that detected the same contact itself within the last 200 ms ignores the
+  `B`, because it has already handled it.
+- A receiver that didn't detect it, because it saw a slightly different geometry,
+  applies `jx, jz` to its **velocity** only, over 3 steps. It never moves its position,
+  so the local car never hard-snaps.
+- Net result: each car gets bumped once, by its owner, from the owner's best information.
+
+### 5.6 Host race director (`HostRace.ts`)
+
+The race moves through these phases:
+
+```
+LOBBY → COUNTDOWN → RACING → FINISHING (first finisher +30 s, or all done) → RESULTS
+      → SHOP (all ready, or 60 s) → COUNTDOWN (next race) … → CHAMPIONSHIP → LOBBY
+```
+
+- **Grid.** At COUNTDOWN the host freezes the grid: slot 0–5 → car ID, with humans
+  first and then bots. Slots are the 1-character short IDs used on the wire.
+- **Standings.** Live position is computed on every client from `(lap, s)` in the car
+  packets. That uses the same inputs and the same rule as the host, so it's instant and
+  almost always identical. **Finish order is the host's.** It orders by the reported
+  `tFinish` room stamps, not by arrival order, so latency can't reorder a photo finish.
+  It publishes `O(slot, pos, tFinish)` and carries the whole order on every heartbeat.
+- **Pickups.** A client that drives over a pickup sends `P(idx)`. The host grants the
+  first claim with `G(idx, slot)` and schedules a respawn. Pickup availability is a
+  bitmask on the heartbeat, so a dropped `G` heals itself within 500 ms. The claimant
+  gets a "pending" sparkle straight away and the reward on grant.
+- **Train.** The host picks a `trainSeed` at race start and puts it on the heartbeat.
+  `hazards.ts` turns `(seed, goAt, roomNow)` into crossing windows. The barriers come
+  down 4 s ahead, and the train takes about 6 s to pass. Every client derives the same
+  train from the same numbers, and each client checks its own car against the train
+  (victim authority, as for mines).
+- **Ledger.** Cash, points, upgrades, ammo stock and carried health are held per car ID.
+  Shop purchases are `Q(item)` requests to the host, which validates the cash, applies
+  the purchase and republishes `ch`. The shop is between races, so the round trip doesn't
+  matter. At race end each client reports its final health and ammo in its finish event.
+- **Failover mid-race.** The new host adopts phase, `goAt`, grid, finish order, pickups
+  and train seed from the last heartbeat. It adopts the ledger from the last `ch`, since
+  every client keeps the latest copy. It adopts the bot cars from their current
+  dead-reckoned states and starts stepping them. Clock continuity (§5.2) means nothing
+  shifts. **The race doesn't end.**
+
+### 5.7 Room capacity and late joiners
+
+- The cap is 6 humans. As in glitchburst, a client ranked 7th or later in the sorted
+  alive IDs knows it's the overflow and backs out with a "room full" message. Nobody
+  gatekeeps.
+- Bots fill empty grid slots only when a race begins, so a new human displaces a bot at
+  the next race and never mid-race.
+- A late joiner sees the room phase on the heartbeat, stays in the lobby, and watches
+  the race live in spectator mode, following the leader, because it's already receiving
+  the car packets. It joins the championship at the next COUNTDOWN with 0 points and
+  starting cash.
+
+### 5.8 Topic map
+
+All topics sit under `nc/room/<roomId>/`, where `<roomId>` is a 4-character code from
+glitchburst's unambiguous alphabet. MQTT 3.1.1 has no topic aliases, so the topic string
+travels in **every** PUBLISH. The hot topics therefore get 1–2 character names. The
+long, descriptive names live in `topics.ts` as function names, not on the wire.
+
+| Topic | Publisher | Rate | Payload |
+| --- | --- | --- | --- |
+| `pr/<pid>` | each player (+ Last Will) | 1 Hz | presence |
+| `hb` | host | 2 Hz | heartbeat: room + race state |
+| `hx` | host | on event, batched per 50 ms | race events: countdown, finish, grants, shop replies |
+| `ch` | host | on change + every 2 s | championship ledger |
+| `c/<carId>` | car owner (host for bots) | **20 Hz**, plus DR bursts (cap 30 Hz), racing only | car state |
+| `e/<carId>` | car owner | on event, batched per 50 ms, only when non-empty | car events |
+| `kq/<pid>` | client | 2 Hz for 4 s, then 0.2 Hz | clock ping |
+| `ka/<pid>` | host | reply to each ping | clock pong |
+
+Car IDs are player IDs (13 characters, time-prefixed as in glitchburst) or `b0`–`b5` for
+bots. Bot IDs are keyed to the grid slot, so a promoted host republishes on the same
+topics.
+
+### 5.9 Codecs and byte counts
+
+Fields are comma-separated and records `;`- or `|`-separated. Numbers are base36 and
+signed with a leading `-`. Decoders tolerate truncation, and new fields go at the end.
+
+**Car state** (`c/<carId>`, the ID is in the topic):
+
+```
+t,x,z,yaw,vx,vz,w,steer,y,vy,flags,hp,lap,s
+1b2c,a3k,7fq,zk,ci,-9x,46,m,0,0,1a,2s,2,12w
+```
+
+| Field | Encoding | Chars |
+| --- | --- | --- |
+| `t` | room-time ms mod 36⁴ (28 min wrap, decoded to the nearest) | 4 |
+| `x`, `z` | decimetres, offset so tracks are ≥ 0 (up to 4.6 km) | 3 + 3 |
+| `yaw` | 1/1296 turn (0.28°) | 2 |
+| `vx`, `vz` | dm/s, signed | 2–3 each |
+| `w` | yaw rate, centi-rad/s, signed | 1–3 |
+| `steer` | −1..1 → 0..35 | 1 |
+| `y`, `vy` | cm, dm/s. Both `0` on the ground | 1 + 1 (up to 3 + 3 airborne) |
+| `flags` | bits: throttle, brake, handbrake, turbo, drift, airborne, ghost, wrecked, reverse, finished | 1–2 |
+| `hp` | 0–100 | 1–2 |
+| `lap` | 0–9 | 1 |
+| `s` | metres along the spline | 3 |
+
+**Payload: 43 bytes for the example above, 54 at worst** (airborne, full-speed
+reverse drift). For comparison, JSON would be about 190. On the wire, one publish is
+2 (fixed header) + 2 (topic length) + 28 (topic) + 43 = **75 bytes**, plus 2–6 bytes of
+WebSocket framing.
+
+**Car events** (`e/<carId>`), as `tag:fields` records joined by `|`:
+
+| Tag | Meaning | Fields | Typical bytes |
+| --- | --- | --- | --- |
+| `F` | fire | shotSeq, weapon, x, z, angle, tFire | 22 |
+| `M` | mine drop | mineSeq, x, z, tDrop | 18 |
+| `H` | my shot hit | shotSeq, victimSlot, dmg, x, z | 16 |
+| `T` | I triggered a mine | ownerSlot, mineSeq | 6 |
+| `B` | bump impulse | otherSlot, jx, jz (cm/s) | 11 |
+| `K` | lap done | lap, tLap | 8 |
+| `X` | finished | tFinish, hp, ammoF, ammoR, mines | 14 |
+| `D` | wrecked | killerSlot or `-` | 4 |
+| `R` | respawned (teleport: remotes snap) | x, z, yaw | 13 |
+| `P` | pickup claim | idx | 4 |
+| `Q` | shop request (lobby/shop only) | item, qty | 6 |
+| `Y` | ready flag | 0/1 | 3 |
+
+**Heartbeat** (`hb`):
+
+```
+hostId,seq,roomT,phase,race,of,track,laps,goAt,grid,finish,pickups,trainSeed
+```
+
+| Field | Chars |
+| --- | --- |
+| hostId | 13 |
+| seq | 2 |
+| roomT (ms) | 6 |
+| phase (`L`/`C`/`R`/`F`/`X`/`S`/`E`) | 1 |
+| race no. and championship length | 1 + 1 |
+| track and laps | 1 + 1 |
+| goAt | 6 |
+| grid: IDs in slot order, `.`-joined | up to 83 |
+| finish: `slot:tFinish` in order, `.`-joined | up to 41 |
+| pickup bitmask | ≤ 4 |
+| train seed | 2 |
+| separators | 12 |
+
+**About 110 bytes typical and 174 worst.** At 2 Hz that's 350 B/s at most.
+
+**Presence** (`pr/<pid>`) is `name,colour,host,alive,ready,ver`, about 35 bytes.
+**Ledger** (`ch`) has a header and one record per car: `id,name,pts,cash,hp,eng,tyr,arm,tur,front,rear,mines,wrecks,wins`.
+That's about 58 bytes a car and **about 360 bytes for 6**, sent every 2 s or on change.
+**Clock** ping and pong payloads are 6–12 bytes.
+
+### 5.10 Bandwidth budget (6 cars racing)
+
+| Flow | Per client | Room total at the broker |
+| --- | --- | --- |
+| Car state up (20 Hz, bursts to 30) | 1.6–2.4 KB/s | 10–15 KB/s in |
+| Car state down (6 cars, own echo included) | 9.5–14 KB/s | 57–86 KB/s out |
+| Heartbeat, presence, ledger, clock, events | ~1 KB/s | ~6 KB/s out |
+| **Messages per second** | ~25 up / ~135 down | ~150 in / ~810 out |
+
+Glitchburst's proven load was a 36 KB/s horde stream fanned out to 4 clients, about
+144 KB/s out, and the public brokers carried it. **This room is at roughly half that.**
+Per-connection publish rates (20–30 msg/s) match glitchburst's host.
+
+There's headroom for one later optimisation. Moving to MQTT 5 and subscribing with
+`noLocal` would drop the own-echo, which is 1/6 of the downstream. That's deferred until
+all three brokers are verified on protocol v5. Glitchburst runs v4, and we start there.
+
+A Node test asserts every codec's worst-case size against these numbers. Changing a
+format then fails loudly instead of quietly eroding the budget.
+
+---
+
+## 6. Input
+
+The glitchburst layer is ported, but its `Intent` becomes:
+
+```ts
+interface DriveIntent {
+  throttle: number;   // 0..1
+  brake: number;      // 0..1 (brake, then reverse once stopped)
+  steer: number;      // -1..1
+  handbrake: boolean;
+  fireFront: boolean; // edge
+  fireRear: boolean;  // edge (mine or rear missile, whichever is selected / available)
+  turbo: boolean;     // held
+}
+```
+
+| | Drive | Steer | Handbrake | Front | Rear | Turbo |
+| --- | --- | --- | --- | --- | --- | --- |
+| Keyboard | ↑/W, ↓/S | ←→ / AD (ramped, speed-sensitive) | Space | Z / J | X / K | Shift |
+| Gamepad | RT / LT (analogue) | left stick | A | RB | LB | B |
+| Touch | pedals, right thumb | left-thumb horizontal slider | button | button | button | button |
+
+- **Keyboard steering** ramps in over about 120 ms and centres faster. Digital full lock
+  at speed would spin the car.
+- **Gamepad.** A per-axis 0.15 hardware drift floor, then a radial deadzone (ported).
+  Triggers are read as `value || pressed`, and haptics fire on hits, landings, wrecks
+  and the GO. Menus use the ported spatial `GamepadNavigator` and the on-screen keyboard.
+- **Touch.** A left-thumb steering zone with a floating origin. The right side holds
+  gas/brake pedals and the handbrake, front, rear and turbo buttons. The layer exists
+  only in game (the glitchburst mobile bug). The mobile suite hit-tests every button.
+- Rear fire picks the rear missile if you have any and a mine otherwise. A settings
+  toggle sets the preference.
+
+---
+
+## 7. HUD and UI (DOM overlay)
+
+- **HUD.** Position (big), lap `2/4`, race time, last lap and best lap, speed, a
+  segmented health bar, ammo icons with counts, the turbo meter, the countdown, WRONG
+  WAY, a "respawning" notice, and the finish-order banner as cars cross the line.
+- **Minimap.** The spline is drawn once to an offscreen canvas, then blitted each frame
+  with car dots in player colours, the local car larger, and mines and the train.
+- **Off-screen rival arrows.** Chevrons on an inset rectangle point at rivals in their
+  colours, dimmed when a rival is wrecked. This is the ported `edgeMarkers` idea.
+- **Screens.** Menu, lobby (roster with colour swatches, track and championship choice,
+  bots fill, Start for the host), shop (cash, repair slider, ammo, upgrade tiers with
+  the next price), race results, championship table and summary, settings (quality,
+  volumes, controls, reduce motion, touch layout), and room full.
+
+---
+
+## 8. Audio (`src/audio/`)
+
+- **Engine.** Per car, two detuned sawtooth or pulse oscillators with a lowpass, pitch
+  from RPM (derived from speed and a gear curve) and filter cutoff from throttle. Remote
+  cars are attenuated by distance, and only the nearest 3 are voiced.
+- **Sound effects.** Tyre squeal (band-passed noise gated by slip), missile launch and
+  whoosh, explosion (noise plus a sine drop), mine arm blip and proximity beeps, a crash
+  thud scaled by impact, countdown beeps, the level-crossing bell and train horn, and
+  shop blips. Everything is rate-limited, as in glitchburst.
+- **Music.** Original driving synth patterns on the lookahead scheduler (25 ms timer,
+  150 ms horizon), with separate race and shop cues. The volume curve is squared, and
+  mute builds no oscillators. Both are ported.
+
+---
+
+## 9. Tests
+
+`npm test` runs `build` and then every suite. Browser suites use the glitchburst rig:
+a generated `test/rig/index.html` whose import map points at a local `three` and the
+loopback MQTT stub, served over HTTP, with Chromium on SwiftShader. A `?quality=potato`
+flag (no shadows, pixel ratio 0.5, 400×300) keeps multi-tab runs affordable. Assertions
+poll for outcomes and never sleep for a fixed time.
+
+| Suite | Runs in | Covers |
+| --- | --- | --- |
+| `sim.test.mjs` | Node | physics (acceleration, top speed, surface grip ordering, handbrake yaw, airborne no-steer, landing), **no tunnelling at 5× top speed on every wall of every track**, frame-chunking determinism (the same inputs over 1×60 steps and 60×1 give an identical state), track validation, laps and checkpoints (can't be farmed by reversing), wrong way, stuck and off-course respawn, weapons determinism across two Worlds, mine arming, **autopilot completes a clean lap on every track** within a par time, economy table invariants, championship ledger |
+| `net.test.mjs` | Node | **every codec's round trip and worst-case byte size**, truncation tolerance, timestamp wrap, dead-reckoning error bounds on recorded laps through a jittery and lossy link, clock-sync convergence and failover continuity, and a **multi-client room with an in-memory broker and a fake clock**: election, 7th client backs out, split brain healing over presence, frozen-tab wake, host failover mid-race with bots adopted, finish order by timestamp, pickup first-claim, ledger purchase validation |
+| `smoke.test.mjs` | browser, 1 tab | boot, menus, settings persistence, drive a lap on autopilot, **occlusion pixel test**, draw-call budget per track, camera lead and shake, quality auto-drop, hidden-tab worker ticker holds 20 Hz |
+| `multiplayer.test.mjs` | browser, 2–3 tabs | two clients race to the finish, both see the same finish order, A fires and B's health drops on both screens, mine trigger removes the mine everywhere, bump without a position snap, **failover mid-race** (close the host tab and the race completes), **a late joiner lands in the lobby** and spectates, then joins the next race, **a frozen tab** (CDP `Page.setWebLifecycleState: frozen`) wakes without splitting the room, and the shop round trip |
+| `gamepad.test.mjs`, `mobile.test.mjs` | browser | the whole front end by virtual pad only, and by touch only on an emulated phone, with hit-tests for nothing invisible covering buttons |
+
+The biggest change from glitchburst is that `net/` gets a **fake `Clock`** injected in
+place of `window.setInterval` and `performance.now()`. Glitchburst's frozen-tab test had
+to reach into private fields and backdate them. Here the Node suite can advance time by
+60 s in one call and test the election, timeouts, and a 7-client overflow in
+milliseconds. The browser suite then proves the same behaviour end to end with a real
+freeze.
+
+`test/consistency.mjs` is ported. It checks that the README test count matches the
+suites and that the version span matches `package.json`.
+
+---
+
+## 10. Milestones
+
+Each one is playable, tested and pushed before the next starts. Every milestone updates
+the README with the *why* and any bugs the tests caught.
+
+**M1 — One car, one 3D track.**
+Scaffold: `package.json`, `tsconfig`, import map, version hook, CI, and the rig with the
+local three and the MQTT stub. Then `sim/track` with the downtown data, `car.ts`,
+`collide.ts` and `surfaces.ts`. On the render side: road mesh, chunked instanced
+downtown scenery, car mesh, camera rig with lead, zoom, FOV and shake, the dithered
+cut-away, the following shadow camera, fog, and quality presets. Input for keyboard,
+pad and touch. Free drive.
+*Done when* you can drive downtown at 60 fps on a laptop, towers lean with parallax, the
+car never disappears behind a tower, and `sim` (physics, tunnelling, determinism, track
+validation) plus `smoke` (boot, occlusion pixel test, draw-call budget) are green.
+
+**M2 — Racing against bots, offline.**
+`race.ts` with checkpoints, laps, wrong way and respawn. Room-time stamps (local clock
+for now). `racingLine.ts` and `autopilot.ts`. The countdown. The HUD with position,
+laps, times, speed and minimap. Results screen. Single-player races against local bots.
+*Done when* the autopilot laps downtown cleanly under par in Node, and a browser smoke
+test finishes a 2-lap race on autopilot.
+
+**M3 — MQTT rooms, 6 cars.**
+Ported `MqttNet` and `RoomSession` with clock injection, lobby, colours, `ClockSync`,
+the car codec, `deadReckoning`, `RaceNet`, and `HostRace` phases, grid, finish order,
+bots on the host and failover adoption. Also room full, late-joiner spectating, the
+worker ticker, and off-screen rival arrows.
+*Done when* `net.test` and `multiplayer.test` are green (race, failover mid-race, late
+joiner, frozen tab, overflow) and 6 cars (humans plus bots) race on a public broker
+inside the §5.10 budget, with the budget measured and written up in the README.
+
+**M4 — Weapons, damage and respawn.**
+`weapons.ts` with front and rear missiles and mines, hit, mine and bump events, damage,
+wreck and respawn, ghost time, and effects (trails, explosions, sparks, smoke, mine
+lights). Haptics.
+*Done when* the determinism, dedupe and bump tests are green and the two-client weapon
+tests pass.
+
+**M5 — Shop, upgrades and the championship.**
+`economy.ts`, `championship.ts`, the host ledger, shop UI, upgrades feeding physics,
+reverse-order grids, the summary screen, and bot shopping.
+*Done when* the ledger survives host failover in tests and a 3-race championship with
+bots plays through.
+
+**M6 — More tracks, hazards, audio and polish.**
+Greenbelt and Tidewater Docks, the host-timed train and crossing, oil, water and dirt
+zones, the engine and SFX synth, music, the gamepad and mobile suites, a performance
+pass on a real iGPU, and a super-weapon design pass.
+*Done when* the autopilot laps every track in Node, the train is identical across two
+clients to within one frame, and every suite is green.
+
+---
+
+## 11. Risks and mitigations
+
+| Risk | Mitigation |
+| --- | --- |
+| Public broker throttling at 6 × 20 Hz | Worst-case bytes are asserted in tests. The room is at about half of glitchburst's proven load. Fallback options are an adaptive 15 Hz when RTT or loss rises, and MQTT 5 `noLocal`. |
+| Dead reckoning looks rubbery on sharp direction changes | The DR-threshold send makes updates denser exactly when the prediction breaks, and the correction is tested against recorded laps. |
+| SwiftShader too slow for multi-tab Three.js tests | The `potato` quality flag, few tabs, and most multi-client logic runs in Node against the fake clock. |
+| Buildings clip the camera or hide cars | The height cap (0.6 × camera height) and the cut-away with its pixel test. |
+| iGPU frame budget | Chunked instancing, the draw-call test, shadow frustum snapping, quality auto-drop. |
+| Train timing disagreeing across screens | It's derived from `(seed, goAt, roomTime)` with no train messages at all. A test compares two clients. |
+
+---
+
+## 12. Open questions
+
+These have sensible defaults, so building can start on the defaults unless you say
+otherwise.
+
+1. **Repo name.** This repository is `Sheppio/nitro-carnage`. The brief says
+   `nitrocarnage`. I'll use this repo as it is, keep `SLUG = 'nitrocarnage'` for storage
+   keys and channel names, and serve from Pages at `/nitro-carnage/`. Rename the repo
+   if you want the shorter URL.
+2. **Camera orientation.** I've assumed fixed north-up, as in the original genre, where
+   the car rotates on screen. The alternative is a chase-style camera that rotates with
+   the car. North-up keeps the minimap and multiplayer readable.
+3. **Damage carries between races.** I've assumed it does, with paid repairs, since
+   that's the core shop loop. The alternative is resetting to full health each race.
+4. **Wrecked cars respawn.** I've assumed a respawn after 2.5 s with 35 health, plus a
+   bounty to the killer, rather than being out of the race.
+5. **Own mines.** I've assumed they're harmless to you for their arming period and
+   dangerous after it.
+6. **Championship lengths.** I've assumed 3, 5 or 7 races, rotating through the
+   unlocked tracks.
