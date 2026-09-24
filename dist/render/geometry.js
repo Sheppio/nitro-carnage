@@ -71,4 +71,22 @@ export class MeshBuilder {
         return g;
     }
 }
+/**
+ * Merge a few non-indexed-able geometries (position and normal only) into one,
+ * for instancing a compound shape as a single mesh.
+ */
+export function mergeGeometries(...parts) {
+    const pos = [];
+    const nrm = [];
+    for (const part of parts) {
+        const g = part.index ? part.toNonIndexed() : part;
+        pos.push(...g.getAttribute('position').array);
+        nrm.push(...g.getAttribute('normal').array);
+    }
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    out.computeBoundingSphere();
+    return out;
+}
 //# sourceMappingURL=geometry.js.map

@@ -70,6 +70,15 @@ async function tap(page, button) {
   await frames(page);
 }
 
+/** Tap one direction until `id` has focus (at most `max` taps). */
+async function padTo(page, id, dir, max = 12) {
+  for (let k = 0; k < max; k++) {
+    if ((await focused(page)) === id) return true;
+    await tap(page, dir);
+  }
+  return (await focused(page)) === id;
+}
+
 const focused = (page) => page.evaluate(() => document.activeElement?.id || document.activeElement?.textContent?.trim() || '');
 
 try {
@@ -92,8 +101,7 @@ try {
   /* ----------------------------------------------- on-screen keyboard */
   // Focus starts on Create room; up reaches the name field; A opens the keyboard.
   await until(async () => (await focused(page)) === 'btn-create');
-  await tap(page, B.UP);
-  const onName = await until(async () => (await focused(page)) === 'input-name');
+  const onName = await padTo(page, 'input-name', B.UP);
   await tap(page, B.A);
   const kb = await until(() => page.evaluate(() => !document.getElementById('keyboard-veil').hidden));
   r.check('A on the name field opens the on-screen keyboard', Boolean(onName) && Boolean(kb));
@@ -119,11 +127,8 @@ try {
   r.check('the keyboard types by pad, and B closes it', typed?.endsWith('NOVA'), `name "${typed}"`);
 
   /* ---------------------------------------------------- race and pause */
-  // Down from the name: Create, Join, Quick race.
-  await tap(page, B.DOWN);
-  await tap(page, B.DOWN);
-  await tap(page, B.DOWN);
-  const onRace = await until(async () => (await focused(page)) === 'btn-race');
+  // Down from the name, past Create, Join and the track, to Quick race.
+  const onRace = await padTo(page, 'btn-race', B.DOWN);
   await tap(page, B.A);
   const racing = await until(() => page.evaluate(() => !document.getElementById('screen-hud').hidden), { timeout: 20000 });
   r.check('D-pad and A start a quick race from the menu', Boolean(onRace) && Boolean(racing));
@@ -151,8 +156,7 @@ try {
 
   await tap(page, B.MENU);
   await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden));
-  await tap(page, B.DOWN);
-  const onLeave = await until(async () => (await focused(page)) === 'btn-pause-leave');
+  const onLeave = await padTo(page, 'btn-pause-leave', B.DOWN);
   await tap(page, B.A);
   const menu = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden && window.nitro.session === null));
   r.check('and Leave race goes back to the menu', Boolean(onLeave) && Boolean(menu),
@@ -160,15 +164,15 @@ try {
   /* -------------------------------------------------------- settings */
   // Every row of Settings by D-pad alone — the on/off switches included,
   // which sit at the opposite edge of their rows from the dropdowns.
-  for (let k = 0; k < 8 && (await focused(page)) !== 'btn-settings'; k++) await tap(page, B.RIGHT);
+  await padTo(page, 'btn-settings', B.DOWN);
   await tap(page, B.A);
   await until(() => page.evaluate(() => !document.getElementById('screen-settings').hidden));
   const visited = new Set();
-  for (let k = 0; k < 10; k++) {
+  for (let k = 0; k < 12; k++) {
     visited.add(await focused(page));
     await tap(page, B.DOWN);
   }
-  const rows = ['set-quality', 'set-touch', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
+  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
   const missed = rows.filter((id) => !visited.has(id));
   await until(async () => (await focused(page)) === 'set-motion' || (await tap(page, B.DOWN), false), { timeout: 10000, interval: 0 });
   const before = await page.evaluate(() => document.getElementById('set-motion').checked);

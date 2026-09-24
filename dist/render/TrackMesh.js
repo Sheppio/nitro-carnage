@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MeshBuilder } from './geometry.js';
 import { flatMaterial } from './materials.js';
+import { Surface } from '../sim/surfaces.js';
 const KERB = 0.8;
 const Y_ROAD = 0.02;
 const Y_MARK = 0.04;
@@ -27,17 +28,27 @@ export function buildTrackMesh(track, theme) {
     const shade = (hex, f) => new THREE.Color(hex).multiplyScalar(f).getHex();
     const roadA = theme.road;
     const roadB = shade(theme.road, 0.93);
+    const spacing = track.length / n;
+    // Gravel spans colour the road itself; a grass verge is grass, not pavement.
+    const dirtAt = (i) => track.def.surfaces.some((z) => {
+        if (z.shape !== 'span' || z.surface !== Surface.Dirt)
+            return false;
+        const s0 = z.from * track.length, s1 = z.to * track.length, s = i * spacing;
+        return s0 <= s1 ? s >= s0 && s <= s1 : s >= s0 || s <= s1;
+    });
+    const verge = track.def.verge.surface === Surface.Grass ? theme.grass : theme.pavement;
     for (let i = 0; i < n; i++) {
         const j = i + 1;
-        const band = Math.floor(i / 4) % 2 === 0 ? roadA : roadB;
+        const dirt = dirtAt(i);
+        const band = dirt ? shade(theme.dirt, Math.floor(i / 4) % 2 === 0 ? 1 : 0.92) : Math.floor(i / 4) % 2 === 0 ? roadA : roadB;
         // Left of travel is +d. Quads wind counter-clockwise seen from above:
         // from the right edge to the left edge, then forward.
         road.quad(at(i, -hw, Y_ROAD), at(j, -hw, Y_ROAD), at(j, hw, Y_ROAD), at(i, hw, Y_ROAD), band);
         const kerb = Math.floor(i / 3) % 2 === 0 ? theme.kerbA : theme.kerbB;
         road.quad(at(i, hw, Y_ROAD), at(j, hw, Y_ROAD), at(j, hw + KERB, Y_ROAD), at(i, hw + KERB, Y_ROAD), kerb);
         road.quad(at(i, -hw - KERB, Y_ROAD), at(j, -hw - KERB, Y_ROAD), at(j, -hw, Y_ROAD), at(i, -hw, Y_ROAD), kerb);
-        road.quad(at(i, hw + KERB, Y_ROAD), at(j, hw + KERB, Y_ROAD), at(j, wo, Y_ROAD), at(i, wo, Y_ROAD), theme.pavement);
-        road.quad(at(i, -wo, Y_ROAD), at(j, -wo, Y_ROAD), at(j, -hw - KERB, Y_ROAD), at(i, -hw - KERB, Y_ROAD), theme.pavement);
+        road.quad(at(i, hw + KERB, Y_ROAD), at(j, hw + KERB, Y_ROAD), at(j, wo, Y_ROAD), at(i, wo, Y_ROAD), verge);
+        road.quad(at(i, -wo, Y_ROAD), at(j, -wo, Y_ROAD), at(j, -hw - KERB, Y_ROAD), at(i, -hw - KERB, Y_ROAD), verge);
     }
     const surface = new THREE.Mesh(road.build(), flatMaterial());
     surface.receiveShadow = true;
@@ -47,8 +58,11 @@ export function buildTrackMesh(track, theme) {
     const marks = new MeshBuilder();
     const strip = (i0, i1, d0, d1, hex) => marks.quad(at(i0, d0, Y_MARK), at(i1, d0, Y_MARK), at(i1, d1, Y_MARK), at(i0, d1, Y_MARK), hex);
     for (let i = 0; i < n; i += 8)
-        strip(i, i + 4, -0.15, 0.15, theme.line);
+        if (!dirtAt(i))
+            strip(i, i + 4, -0.15, 0.15, theme.line);
     for (let i = 0; i < n; i++) {
+        if (dirtAt(i))
+            continue;
         strip(i, i + 1, hw - 0.5, hw - 0.3, theme.line);
         strip(i, i + 1, -hw + 0.3, -hw + 0.5, theme.line);
     }
@@ -78,7 +92,6 @@ export function buildTrackMesh(track, theme) {
     group.add(markMesh);
     // Ramps: a wedge rising along the direction of travel, then a drop.
     const ramps = new MeshBuilder();
-    const spacing = track.length / n;
     for (const r of track.ramps) {
         const i0 = Math.floor(track.wrapS(r.s0) / spacing);
         const steps = Math.max(2, Math.round((r.s1 - r.s0) / spacing));
@@ -100,6 +113,58 @@ export function buildTrackMesh(track, theme) {
         rampMesh.receiveShadow = true;
         rampMesh.name = 'ramps';
         group.add(rampMesh);
+    }
+    // Oil: dark, faintly iridescent pools on the road.
+    const oils = track.def.surfaces.filter((z) => z.shape === 'circle' && z.surface === Surface.Oil);
+    if (oils.length) {
+        const ob = new MeshBuilder();
+        for (const z of oils) {
+            if (z.shape !== 'circle')
+                continue;
+            const [cx, cz] = z.at;
+            const k = 14;
+            for (let a = 0; a < k; a++) {
+                // A wobbly blob, not a perfect disc.
+                const r0 = z.r * (0.8 + 0.2 * Math.sin(a * 2.3 + cx));
+                const r1 = z.r * (0.8 + 0.2 * Math.sin((a + 1) * 2.3 + cx));
+                const a0 = (a / k) * Math.PI * 2, a1 = ((a + 1) / k) * Math.PI * 2;
+                ob.tri({ x: cx, y: Y_MARK + 0.01, z: cz }, { x: cx + Math.sin(a1) * r1, y: Y_MARK + 0.01, z: cz + Math.cos(a1) * r1 }, { x: cx + Math.sin(a0) * r0, y: Y_MARK + 0.01, z: cz + Math.cos(a0) * r0 }, a % 3 === 0 ? 0x1c1a2a : 0x101014);
+            }
+        }
+        const oilMesh = new THREE.Mesh(ob.build(), new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 90, specular: 0x6a5a8a }));
+        oilMesh.name = 'oil';
+        group.add(oilMesh);
+    }
+    // Water: the harbour and the creek, just above the ground and under the road.
+    for (const [wx0, wz0, wx1, wz1] of track.def.water ?? []) {
+        const water = new THREE.Mesh(new THREE.PlaneGeometry(wx1 - wx0, wz1 - wz0), new THREE.MeshPhongMaterial({ color: theme.water, shininess: 25, specular: 0x2a3a4a }));
+        water.rotation.x = -Math.PI / 2;
+        water.position.set((wx0 + wx1) / 2, 0.008, (wz0 + wz1) / 2);
+        water.receiveShadow = true;
+        water.name = 'water';
+        group.add(water);
+    }
+    // The railway: sleepers and two rails, over the road where they cross it.
+    const rail = track.rail;
+    if (rail) {
+        const rb = new MeshBuilder();
+        const px = -rail.dz, pz = rail.dx; // across the rails
+        const pt = (u, side, y) => ({ x: rail.ax + rail.dx * u + px * side, y, z: rail.az + rail.dz * u + pz * side });
+        for (let u = 0; u < rail.length; u += 1.2) {
+            rb.quad(pt(u, -1.3, 0.05), pt(u, 1.3, 0.05), pt(u + 0.5, 1.3, 0.05), pt(u + 0.5, -1.3, 0.05), 0x4a3c30);
+        }
+        for (const side of [-0.72, 0.72]) {
+            rb.quad(pt(0, side - 0.07, 0.09), pt(0, side + 0.07, 0.09), pt(rail.length, side + 0.07, 0.09), pt(rail.length, side - 0.07, 0.09), 0xb8bcc4);
+        }
+        // Ballast bed.
+        rb.quad(pt(0, -2.2, 0.03), pt(0, 2.2, 0.03), pt(rail.length, 2.2, 0.03), pt(rail.length, -2.2, 0.03), 0x6a645c);
+        // Double-sided: the rail direction decides the winding, and it is data.
+        const railMat = flatMaterial().clone();
+        railMat.side = THREE.DoubleSide;
+        const railMesh = new THREE.Mesh(rb.build(), railMat);
+        railMesh.receiveShadow = true;
+        railMesh.name = 'railway';
+        group.add(railMesh);
     }
     // Ground: a big plane under everything, sized to the scenery.
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;

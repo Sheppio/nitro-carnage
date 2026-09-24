@@ -1,4 +1,5 @@
 import { colourOf, PALETTE } from '../sim/palette.js';
+import { TRACKS } from '../sim/track/index.js';
 const $ = (id) => document.getElementById(id);
 /**
  * The room's staging area: who is here, in which colour, and — for the host —
@@ -56,8 +57,12 @@ export class Lobby {
             select.value = mine;
         $('lobby-cars').value = String(net.state.cars);
         $('lobby-laps').value = String(net.state.laps);
+        $('lobby-track').value = String(net.state.track);
         $('lobby-wait').hidden = net.isHost;
-        $('lobby-wait').textContent = room.hostId ? 'Waiting for the host to start the race.' : 'Looking for the room…';
+        const track = TRACKS[net.state.track]?.name ?? '';
+        $('lobby-wait').textContent = room.hostId
+            ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}. Waiting for the host to start it.`
+            : 'Looking for the room…';
     }
     row(name, colourId, badges) {
         const li = document.createElement('li');

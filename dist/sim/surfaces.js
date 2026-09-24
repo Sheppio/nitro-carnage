@@ -14,6 +14,8 @@ export var Surface;
     Surface[Surface["Oil"] = 3] = "Oil";
     /** Kerbs and pavements: tarmac grip, a touch of drag. */
     Surface[Surface["Kerb"] = 4] = "Kerb";
+    /** Off the quay (M5). Nothing to drive on: a car in it is put back on the road. */
+    Surface[Surface["Water"] = 5] = "Water";
 })(Surface || (Surface = {}));
 export const SURFACES = {
     [Surface.Tarmac]: { name: 'tarmac', grip: 1.0, drag: 0 },
@@ -21,5 +23,6 @@ export const SURFACES = {
     [Surface.Grass]: { name: 'grass', grip: 0.55, drag: 3.0 },
     [Surface.Oil]: { name: 'oil', grip: 0.18, drag: 0 },
     [Surface.Kerb]: { name: 'kerb', grip: 0.95, drag: 0.3 },
+    [Surface.Water]: { name: 'water', grip: 0.1, drag: 12 },
 };
 //# sourceMappingURL=surfaces.js.map

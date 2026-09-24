@@ -2,6 +2,7 @@ import { SIM } from '../config.js';
 import type { DriveIntent } from '../types.js';
 import { mulberry32, wrapAngle } from '../util.js';
 import { steerLimit } from './car.js';
+import { SURFACES } from './surfaces.js';
 import type { CarState } from './car.js';
 import type { RacingLine } from './racingLine.js';
 import type { Track } from './track/buildTrack.js';
@@ -88,6 +89,7 @@ export function createAutopilot(seed: number, skill: Skill): AutopilotState {
  */
 export function autopilot(
   st: AutopilotState, car: CarState, track: Track, line: RacingLine, rivals: readonly Rival[], time: number, dt: number,
+  stopAt: number | null = null,
 ): DriveIntent {
   const out: DriveIntent = { throttle: 0, brake: 0, steer: 0, handbrake: false, fireFront: false, fireRear: false, turbo: false };
   const p = track.project(car.x, car.z, car.hint);
@@ -177,9 +179,26 @@ export function autopilot(
 
   // --- Speed: chase the profile, looked up a reaction time ahead. ---
   let target = line.speed[idx(p.s + v * 0.3 + 2)]! * st.skill.pace;
+  // The line was planned for tarmac. Off it, a corner's speed scales with the
+  // square root of the grip: on grass that is about three quarters.
+  const grip = Math.min(SURFACES[car.surfaceFront].grip, SURFACES[car.surfaceRear].grip);
+  if (grip < 1) target *= Math.sqrt(grip);
   // Boxed in behind a car we are not passing: follow it rather than rear-end it.
   if (ahead && aheadGap < 9 && Math.abs(st.shift) < 1) target = Math.min(target, Math.hypot(ahead.vx, ahead.vz));
+  // A stop line ahead (a level crossing with a train due): brake to stand
+  // short of it, at a deceleration the brakes manage with room to spare.
+  if (stopAt !== null) {
+    const toStop = track.deltaS(p.s, stopAt);
+    if (toStop > -1 && toStop < 160) target = Math.min(target, Math.sqrt(2 * 10 * Math.max(0, toStop - 2)));
+  }
   const err = target - v;
+  if (target < 0.5 && v < 2) {
+    // Waiting at the line: hold still rather than creep, or back out of it.
+    out.throttle = 0;
+    out.brake = 0;
+    out.handbrake = true;
+    return out;
+  }
   if (err > 0.3) {
     out.throttle = Math.min(1, 0.45 + err * 0.25);
   } else if (err < -1.2) {
@@ -187,6 +206,12 @@ export function autopilot(
   } else {
     out.throttle = 0.3;
   }
+  // Traction control: sliding, the drive force only eats the grip that is
+  // holding the car in the corner. Full throttle through a fast sweeper ran
+  // bots wide onto the grass, where they fishtailed from verge to verge.
+  const slide = Math.abs(car.slip);
+  if (slide > 0.28) out.throttle = 0;
+  else if (slide > 0.16) out.throttle = Math.min(out.throttle, 0.4);
 
   aim(st, out, car, p.s, p.d, track, rivals, time);
 

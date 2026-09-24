@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../util.js';
-import { MeshBuilder } from './geometry.js';
+import { MeshBuilder, mergeGeometries } from './geometry.js';
 import { applyCutaway, flatMaterial, towerMaterial } from './materials.js';
 /** Side of a scenery chunk, metres. */
 const CHUNK = 160;
@@ -78,7 +78,76 @@ export class Scenery {
         const headMat = new THREE.MeshBasicMaterial({ color: 0xffe2a8, fog: true });
         applyCutaway(headMat);
         this.add('lamp-heads', headGeo, headMat, lamps.map((p) => ({ x: p.x, z: p.z, rot: p.rot, sx: 1, sy: 1, sz: 1, colour: 0xffffff })), {});
+        this.trees(track, theme);
+        this.containers(track, theme);
+        this.cranes(track, theme);
     }
+    /**
+     * Trees: a trunk and a two-tier crown of low-poly cones. Crowns are the
+     * tall things of the park, so they take the cut-away like buildings do and
+     * join the occluder list the pixel test probes.
+     */
+    trees(track, theme) {
+        const trees = track.props.filter((p) => p.kind === 'tree');
+        if (!trees.length)
+            return;
+        const trunkGeo = new MeshBuilder().box(0, 0.5, 0, 1, 1, 1, 0xffffff, { skipBottom: true }).build();
+        const trunkMat = flatMaterial();
+        applyCutaway(trunkMat);
+        this.add('tree-trunks', trunkGeo, trunkMat, trees.map((p) => ({
+            x: p.x, z: p.z, rot: p.rot, sx: 0.5, sy: p.h * 0.35, sz: 0.5, colour: theme.trunk,
+        })), { cast: true });
+        const crown = new THREE.ConeGeometry(0.5, 1, 7).translate(0, 0.5, 0);
+        const upper = new THREE.ConeGeometry(0.36, 0.7, 7).translate(0, 0.95, 0);
+        const crownGeo = mergeGeometries(crown, upper);
+        const crownMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+        applyCutaway(crownMat);
+        const crowns = trees.map((p) => ({
+            x: p.x, y: p.h * 0.25, z: p.z, rot: p.rot, sx: p.w, sy: p.h * 0.8, sz: p.w,
+            colour: theme.foliage[Math.floor(p.seed * theme.foliage.length)],
+        }));
+        this.towers.push(...crowns);
+        this.add('tree-crowns', crownGeo, crownMat, crowns, { cast: true, receive: true });
+    }
+    /** Containers: one box each, the top a shade lighter, stacked in their lot. */
+    containers(track, theme) {
+        const boxes = track.props.filter((p) => p.kind === 'container');
+        if (!boxes.length)
+            return;
+        const geo = new MeshBuilder()
+            .box(0, 0.5, 0, 1, 1, 1, 0xffffff, { skipBottom: true, sides: 0xc4c4c4 })
+            // Corrugation: a darker band round the middle reads as ribbing from above.
+            .box(0, 0.5, 0, 1.02, 0.12, 0.98, 0x9a9a9a, { skipBottom: true })
+            .build();
+        const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+        applyCutaway(mat);
+        const items = boxes.map((p) => ({
+            x: p.x, y: p.y ?? 0, z: p.z, rot: p.rot, sx: p.w, sy: p.h, sz: p.d,
+            colour: theme.containers[Math.floor(p.seed * theme.containers.length)],
+        }));
+        this.towers.push(...items);
+        this.add('containers', geo, mat, items, { cast: true, receive: true });
+    }
+    /** Dockside cranes: four legs, a portal beam, and a boom out over the water. */
+    cranes(track, theme) {
+        const cranes = track.props.filter((p) => p.kind === 'crane');
+        if (!cranes.length)
+            return;
+        const c = theme.crane;
+        const b = new MeshBuilder();
+        for (const [lx, lz] of [[-6, -4], [6, -4], [-6, 4], [6, 4]])
+            b.box(lx, 12, lz, 0.9, 24, 0.9, c, { skipBottom: true });
+        b.box(0, 24.5, -4, 13, 1.4, 1, c).box(0, 24.5, 4, 13, 1.4, 1, c);
+        b.box(0, 27, 0, 3, 4, 9, c);
+        // The boom, reaching out over the water (-Z in the crane's frame).
+        b.box(0, 30, -22, 1.6, 1.6, 44, c).box(0, 25.5, 6, 4, 3, 6, 0x4a4e56);
+        const mat = flatMaterial();
+        applyCutaway(mat);
+        const items = cranes.map((p) => ({ x: p.x, z: p.z, rot: p.rot, sx: 1, sy: 1, sz: 1, colour: 0xffffff }));
+        this.towers.push(...cranes.map((p) => ({ x: p.x, z: p.z, rot: p.rot, sx: 13, sy: 32, sz: 9, colour: c })));
+        this.add('cranes', b.build(), mat, items, { cast: true });
+    }
+    /** Split instances into chunks and build one InstancedMesh per chunk. */
     /** Split instances into chunks and build one InstancedMesh per chunk. */
     add(name, geometry, material, items, opts) {
         const chunks = new Map();

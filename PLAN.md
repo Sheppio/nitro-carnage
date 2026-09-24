@@ -11,7 +11,7 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status:** M1 to M4 are built (see README). Where building changed a decision, this plan has been
+> **Status:** M1 to M5 are built (see README). Where building changed a decision, this plan has been
 > updated to match, and the change is marked with its milestone, as in *(M1)* or *(M4)*.
 
 ---
@@ -254,6 +254,18 @@ clipping through the camera.
 
 Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
 
+*(M5, as built.)*
+- **Greenbelt's shortcut** became a gravel stretch on the racing line. A shortcut would
+  need lap-validation rules for a second path. The creek is bridged: the road runs over
+  it just past the jump. The open verges are **wall gaps**: `wallGaps` in the
+  `TrackDef` removes the barrier along a stretch on one side.
+- **The Docks' water** is a `water` rectangle: off the road inside it, a car is put
+  straight back on the road.
+- **The railway** is a finite line from `from` to `to` that must cross the road exactly
+  once (a test checks). The train is a pure function of race time, clipped to the
+  rails' ends. Bots stop for it using the same function.
+- Laps are 49 s (Greenbelt), 60 s (Downtown) and 62 s (Docks) for the fastest bot.
+
 ### 3.5 Race logic (`sim/race.ts`)
 
 - **Laps.** A car must pass its checkpoints in order. Crossing the start line with every
@@ -278,7 +290,7 @@ Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
 | Rear missile | fired backwards, 70 m/s, 1.2 s | 20 *(M4: was 25)* | packs of 5 |
 | Mine | dropped behind, arms after 0.6 s, lasts 45 s, pulsing light | 30 *(M4: was 35)* | packs of 3 |
 | Turbo | meter, not ammo; capacity and power by upgrade | — | upgrade + pickup refill |
-| Super weapon | one-shot, slot reserved in the codec and ledger, designed later | — | M5+ |
+| Super weapon | one-shot; see the design below *(M5 design pass; not built)* | — | later |
 
 - A projectile is fully determined by `(origin, angle, weapon, t_fire, seed)`. Every
   client simulates it, fast-forwarding from `t_fire` on arrival so late packets catch up.
@@ -291,6 +303,20 @@ Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
   car. The first numbers gave 13. Until the shop in M8, every car starts a race with
   10 front missiles, 5 rear missiles and 3 mines. The rear button drops mines while
   you have them, then fires rear missiles. A selector can come with the shop.
+- *(M5 design pass)* **Super weapon: the Shockwave.** It's a ring that expands from the
+  car to 22 m in 0.35 s. Every car it reaches is knocked away from the centre by
+  12 m/s, takes 15 damage, and has its weapons and turbo jammed for 3 s. It's charged,
+  not bought: the charge fills with damage you deal (100 damage for one charge, one
+  charge held at most), so it rewards the aggressive driver and gives a car being
+  hunted a way out. It follows the same rules as the other weapons:
+  - Like a missile, the ring is a function of time from `(x, z, tFire)`, so one `S`
+    event carries it and late arrival costs nothing.
+  - Like a mine, **the victim detects** whether the ring reached it, and applies the
+    knock-back to itself. A ring is a single decision per victim, and
+    victim-detection keeps the knock-back smooth on the one screen that matters.
+
+  It stays unbuilt until the core game has been played enough to know whether it
+  needs one.
 - *(M4)* Car-to-car contact does **not** cause damage. It would need both owners to
   agree on the impact, and walls and weapons already give plenty. It may be revisited.
 - *(M4)* A wall hit faster than 12 m/s costs 1.4 health per m/s over. A wall that
@@ -962,12 +988,18 @@ lights). Haptics.
 *Done when* the determinism, dedupe and bump tests are green and the two-client weapon
 tests pass.
 
-**M5 — More tracks, hazards, audio and polish.**
+**M5 — More tracks, hazards, audio and polish.** *(built)*
 Greenbelt and Tidewater Docks, the host-timed train and crossing, oil, water and dirt
 zones, the engine and SFX synth, music, the mobile suite, a performance
 pass on a real iGPU, and a super-weapon design pass.
 *Done when* the autopilot laps every track in Node, the train is identical across two
 clients to within one frame, and every suite is green.
+*(As built:*
+- *the performance pass on a real iGPU can't be done from the dev container, so it
+  isn't claimed. What is checked is that every track stays inside the 150 draw-call
+  budget on High, in the browser suite;*
+- *the train agrees across clients to the metre in a network test;*
+- *the pause menu gained Settings, with the volume sliders, at the player's request.)*
 
 **M6 — Car customisation: liveries and body styles** *(added after M3; see §4.5b)*.
 Five procedural body styles, stripe patterns, stripe and rim colours, and race numbers.

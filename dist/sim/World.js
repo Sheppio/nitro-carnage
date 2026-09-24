@@ -6,6 +6,9 @@ import { resolveCarPair } from './collide.js';
 import { createLapState, stepLaps } from './race.js';
 import { racingLine } from './racingLine.js';
 import { Armoury } from './weapons.js';
+import { closestSegSeg } from './collide.js';
+import { Surface } from './surfaces.js';
+import { crossingBusy, TRAIN_HALF_WIDTH, trainAt, trainSegment } from './train.js';
 import { Track } from './track/buildTrack.js';
 /** Seconds a car may crawl while its driver is trying to go before it is put back on the road. */
 export const STUCK_RESPAWN = 3;
@@ -100,7 +103,7 @@ export class World {
         const state = createAutopilot(seed, skill);
         const line = racingLine(this.track);
         const entrant = this.addCar(id, slot, () => IDLE_INTENT, stats);
-        entrant.drive = () => autopilot(state, entrant.car, this.track, line, this.rivalsOf(entrant.id), this.time, STEP);
+        entrant.drive = () => autopilot(state, entrant.car, this.track, line, this.rivalsOf(entrant.id), this.time, STEP, this.stopLine(entrant));
         return entrant;
     }
     /** Every other car, as the autopilot sees them. */
@@ -112,6 +115,31 @@ export class World {
             out.push({ id: e.id, x: e.car.x, z: e.car.z, vx: e.car.vx, vz: e.car.vz, s: e.s, d: e.d, target: !e.lap.finished });
         }
         return out;
+    }
+    /**
+     * Where a car driven by the autopilot should stop, if anywhere: short of
+     * the level crossing when the train will be across it by the time the car
+     * gets there. Null when the way is clear.
+     */
+    stopLine(e) {
+        const rail = this.track.rail;
+        if (!rail)
+            return null;
+        const line = rail.s - this.track.wallOffset - 3;
+        const dist = this.track.deltaS(e.s, line);
+        if (dist < -2 || dist > 160)
+            return null;
+        const v = Math.max(4, Math.hypot(e.car.vx, e.car.vz));
+        const now = this.time - this.goTime;
+        // Busy from now until a little after we would be over the rails?
+        return crossingBusy(this.track, now, now + (dist + 2 * this.track.wallOffset + 10) / v + 1) ? line : null;
+    }
+    /**
+     * Report something that happened elsewhere — another client's shot or mine,
+     * copied into this world — so it is heard and seen like a local one.
+     */
+    announce(ev) {
+        this.events.push(ev);
     }
     /** Take the events since the last call. */
     drain() {
@@ -180,6 +208,7 @@ export class World {
             }
         }
         this.collideCars();
+        this.collideTrain(end);
         this.stepWeapons(end - STEP, end);
         for (const e of this.entrants) {
             const c = e.car;
@@ -204,9 +233,13 @@ export class World {
             const speed = Math.hypot(c.vx, c.vz);
             if (Math.abs(p.d) < track.halfWidth && along > 3 && !c.airborne)
                 e.safeS = p.s;
+            // Off the quay (or into the creek): straight back to the road.
+            if (c.surfaceFront === Surface.Water || c.surfaceRear === Surface.Water || track.surfaceAt(c.x, c.z, c.hint) === Surface.Water) {
+                e.offCourse = Math.max(e.offCourse, OFF_COURSE_RESPAWN - 0.25);
+            }
             const trying = e.intent.throttle > 0.1 || e.intent.brake > 0.1;
             e.stuck = speed < 1 && trying ? e.stuck + STEP : 0;
-            e.offCourse = Math.abs(p.d) > track.wallOffset + 3 ? e.offCourse + STEP : 0;
+            e.offCourse = Math.abs(p.d) > track.wallOffset + 3 || e.offCourse > OFF_COURSE_RESPAWN - 0.3 ? e.offCourse + STEP : 0;
             if (e.stuck >= STUCK_RESPAWN || e.offCourse >= OFF_COURSE_RESPAWN)
                 this.respawn(e);
         }
@@ -395,6 +428,59 @@ export class World {
             killer.kills++;
         if (e)
             this.events.push({ kind: 'wreck', id: victim, by, x: e.car.x, z: e.car.z, time: this.time });
+    }
+    /* ---------------------------------------------------------------- train */
+    /**
+     * The train against the cars this world drives. It is an immovable,
+     * unstoppable capsule: a car in its way is shoved clear, dragged along with
+     * it, and badly hurt. Each client does this for its own cars only, against
+     * a train every client computes identically.
+     */
+    collideTrain(end) {
+        const tr = trainAt(this.track, end - this.goTime);
+        if (!tr)
+            return;
+        const seg = trainSegment(this.track, tr);
+        if (!seg)
+            return;
+        const rail = this.track.rail;
+        const reach = SIM.car.radius + TRAIN_HALF_WIDTH;
+        const half = SIM.car.capsuleHalf;
+        const tmp = { ax: 0, az: 0, bx: 0, bz: 0 };
+        for (const e of this.entrants) {
+            if (e.remote || e.ghost > 0)
+                continue;
+            const c = e.car;
+            const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+            const d2 = closestSegSeg(c.x + fx * half, c.z + fz * half, c.x - fx * half, c.z - fz * half, seg.ax, seg.az, seg.bx, seg.bz, tmp);
+            if (d2 >= reach * reach)
+                continue;
+            const d = Math.sqrt(d2);
+            // Out of the train sideways, the way the car already was.
+            let nx = tmp.ax - tmp.bx, nz = tmp.az - tmp.bz;
+            if (d > 1e-6) {
+                nx /= d;
+                nz /= d;
+            }
+            else {
+                nx = -rail.dz;
+                nz = rail.dx;
+            }
+            c.x += nx * (reach - d);
+            c.z += nz * (reach - d);
+            const tvx = rail.dx * tr.dir * tr.speed, tvz = rail.dz * tr.dir * tr.speed;
+            const closing = (tvx - c.vx) * nx + (tvz - c.vz) * nz;
+            if (closing > 0) {
+                // Leave at the train's speed along the normal, plus a bounce.
+                c.vx += nx * closing * 1.3;
+                c.vz += nz * closing * 1.3;
+                c.w += (e.id.length % 2 ? 1 : -1) * Math.min(3, closing * 0.2);
+                if (e.wrecked <= 0 && closing > 2) {
+                    this.events.push({ kind: 'train', id: e.id, closing });
+                    this.damage(e, 20 + closing * 2, null, false);
+                }
+            }
+        }
     }
     /* ----------------------------------------------------------- car contact */
     collideCars() {

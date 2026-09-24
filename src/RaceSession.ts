@@ -5,6 +5,8 @@ import type { SettingsStore } from './input/settings.js';
 import type { InputManager } from './input/InputManager.js';
 import type { NetRace } from './net/NetRace.js';
 import { GameView } from './render/GameView.js';
+import type { AudioEngine } from './audio/AudioEngine.js';
+import { crossingWarning, trainAt } from './sim/train.js';
 import { autopilot, createAutopilot, SKILLS } from './sim/autopilot.js';
 import { BOT_NAMES } from './sim/bots.js';
 import { createCar } from './sim/car.js';
@@ -119,6 +121,10 @@ export class RaceSession {
   onHud: ((hud: HudSnapshot) => void) | null = null;
   onEvent: ((ev: RaceEvent) => void) | null = null;
   onOver: ((rows: ResultRow[]) => void) | null = null;
+  /** Sound, if the page has it. Set by the page after construction. */
+  audio: AudioEngine | null = null;
+  private lastPip = -1;
+  private warned = false;
 
   constructor(host: HTMLElement, opts: SessionOptions, private input: InputManager, settings: SettingsStore, net: NetRace | null = null) {
     this.mode = opts.mode;
@@ -173,6 +179,8 @@ export class RaceSession {
     this.view.onJolt = (kind, k) => {
       const p = kind === 'landing' ? HAPTIC.landing : HAPTIC.crash;
       this.input.rumble(p.weak * k, p.strong * k, p.ms);
+      if (kind === 'landing') this.audio?.landing(k);
+      else this.audio?.crash(k);
     };
   }
 
@@ -197,6 +205,7 @@ export class RaceSession {
   stop(): void {
     this.running = false;
     cancelAnimationFrame(this.raf);
+    this.audio?.silenceEngines();
     this.input.setInRace(false);
     for (const off of this.offNet) off();
     this.offNet = [];
@@ -221,7 +230,7 @@ export class RaceSession {
     const touched = Math.abs(human.steer) > 0.05 || human.throttle > 0 || human.brake > 0 || human.handbrake;
     if (me.lap.finished || (this.autopilot && !touched)) {
       const line = racingLine(this.world.track);
-      return autopilot(this.pilot, me.car, this.world.track, line, this.world.rivalsOf(me.id), this.world.time, STEP);
+      return autopilot(this.pilot, me.car, this.world.track, line, this.world.rivalsOf(me.id), this.world.time, STEP, this.world.stopLine(me));
     }
     return human;
   }
@@ -255,6 +264,8 @@ export class RaceSession {
     // The cars are drawn `1 - alpha` of a step behind the latest one; the shots are drawn at the same moment.
     const drawTime = this.world.time - (1 - alpha) * STEP;
     this.view.drawWeapons(this.world.armoury, drawTime, this.paused && !this.net ? 0 : dt, this.drawn.values());
+    this.view.drawHazards(drawTime - this.world.goTime, dt);
+    this.sound(drawTime - this.world.goTime);
     // Spectating: follow whoever is leading.
     if (!this.player) this.view.focusId = standings(this.world.entrants)[0]?.id ?? this.view.focusId;
     this.view.render(this.drawn, this.paused && !this.net ? 0 : dt);
@@ -269,8 +280,51 @@ export class RaceSession {
     this.raf = requestAnimationFrame(this.frame);
   };
 
+  /** Distance from the car being followed, for how loud something is. */
+  private hear(x: number, z: number): number {
+    const f = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
+    return f ? Math.hypot(x - f.x, z - f.z) : 0;
+  }
+
+  /** Once a frame: engines for the nearest cars, the countdown, the crossing. */
+  private sound(raceTime: number): void {
+    const a = this.audio;
+    if (!a) return;
+    if (this.paused && !this.net) {
+      a.silenceEngines();
+      return;
+    }
+    const voices = [];
+    for (const e of this.world.entrants) {
+      const c = this.drawn.get(e.id)!;
+      voices.push({
+        id: e.id, speed: Math.hypot(c.vx, c.vz), throttle: e.remote ? (c.boosting ? 1 : 0.6) : c.throttle,
+        boosting: c.boosting, distance: this.hear(c.x, c.z),
+        slide: c.airborne || e.wrecked > 0 ? 0 : Math.max(0, Math.abs(c.slip) - 0.12) * 3 + (c.handbrake && Math.hypot(c.vx, c.vz) > 6 ? 0.5 : 0),
+      });
+    }
+    a.engines(voices);
+    // Pips on 3, 2, 1; GO has its own tone, from the go event.
+    const cd = this.world.countdown;
+    const pip = Math.ceil(cd);
+    if (cd > 0 && pip <= 3 && pip !== this.lastPip) {
+      this.lastPip = pip;
+      a.countdown(false);
+    }
+    // The crossing: a bell while the lights flash, and the horn once per train.
+    const rail = this.world.track.rail;
+    if (rail) {
+      const warn = crossingWarning(this.world.track, raceTime);
+      if (warn) a.bell(this.hear(rail.x, rail.z));
+      const tr = trainAt(this.world.track, raceTime);
+      if (warn && !this.warned && tr) a.horn(this.hear(rail.x, rail.z));
+      this.warned = warn;
+    }
+  }
+
   private handle(ev: RaceEvent): void {
     if (ev.kind === 'go') this.input.rumble(HAPTIC.go.weak, HAPTIC.go.strong, HAPTIC.go.ms);
+    this.soundFor(ev);
     const focus = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
     if (ev.kind === 'hit') {
       this.view.explode(ev.x, ev.z, ev.weapon === 'mine' ? 1.4 : 1, focus);
@@ -286,6 +340,47 @@ export class RaceSession {
     if (ev.kind === 'finish' && ev.id === this.playerId) this.playerFinishedAt = ev.time;
     this.onEvent?.(ev);
     if (!this.net) this.checkOver();
+  }
+
+  private soundFor(ev: RaceEvent): void {
+    const a = this.audio;
+    if (!a) return;
+    const at = (id: string): number => {
+      const c = this.drawn.get(id);
+      return c ? this.hear(c.x, c.z) : 50;
+    };
+    switch (ev.kind) {
+      case 'go':
+        a.countdown(true);
+        break;
+      case 'fire':
+        a.fire(at(ev.id), ev.weapon === 'rear');
+        break;
+      case 'mine':
+        a.mineDrop(this.hear(ev.x, ev.z));
+        break;
+      case 'hit':
+        a.explosion(this.hear(ev.x, ev.z), ev.weapon === 'mine' ? 1.3 : 1);
+        break;
+      case 'blast':
+        a.explosion(this.hear(ev.x, ev.z), 0.6);
+        break;
+      case 'wreck':
+        a.explosion(this.hear(ev.x, ev.z), 1.8);
+        break;
+      case 'train':
+        a.crash(1);
+        break;
+      case 'lap':
+        if (ev.id === this.playerId && ev.lap + 1 <= this.world.laps) a.lap(ev.lap + 1 === this.world.laps);
+        break;
+      case 'finish':
+        if (ev.id === this.playerId) a.finish();
+        break;
+      case 'respawn':
+        if (ev.id === this.playerId) a.respawn();
+        break;
+    }
   }
 
   private checkOver(): void {

@@ -9,6 +9,7 @@ import { ShadowRig } from './ShadowRig.js';
 import { themeFor } from './themes.js';
 import { buildTrackMesh } from './TrackMesh.js';
 import { WeaponView } from './WeaponView.js';
+import { HazardView } from './HazardView.js';
 import { missileAt } from '../sim/weapons.js';
 /** How far out the cut-away hole reaches around a car, in metres at the car. */
 const CUT_RADIUS_M = 6.5;
@@ -31,6 +32,7 @@ export class GameView {
     shadows;
     fx;
     weapons = new WeaponView();
+    hazards;
     clock = 0;
     quality;
     resizeObserver;
@@ -62,7 +64,8 @@ export class GameView {
         this.scenery = new Scenery(track, theme);
         this.scene.add(this.scenery.group);
         this.fx = new Fx(preset.tyreMarks, preset.particles);
-        this.scene.add(this.fx.group, this.weapons.group);
+        this.hazards = new HazardView(track);
+        this.scene.add(this.fx.group, this.weapons.group, this.hazards.group);
         this.rig = new CameraRig(1);
         this.rig.setFar(preset.drawDistance + 60);
         this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -101,6 +104,10 @@ export class GameView {
             const p = missileAt(m, time);
             this.fx.trail(m, p.x - m.dx * 1.4, p.z - m.dz * 1.4, m.dx, m.dz, m.speed, dt);
         }
+    }
+    /** The train and the crossing, at a race time (seconds since GO). */
+    drawHazards(raceTime, dt) {
+        this.hazards.update(raceTime, dt);
     }
     /**
      * An explosion at a world point. The camera shakes with it, by how close

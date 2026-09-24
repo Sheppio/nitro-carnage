@@ -285,10 +285,12 @@ select {
 
 .touch-layer[hidden] { display: none !important; }
 
+/* The left half is the steering thumb's, below the top bar: over it, the
+   steering zone covered the ☰ Menu button, and a phone could not pause. */
 .touch-steer {
   position: absolute;
   left: 0;
-  top: 0;
+  top: 64px;
   bottom: 0;
   width: 48%;
   pointer-events: auto;

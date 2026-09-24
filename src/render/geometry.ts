@@ -78,3 +78,22 @@ export class MeshBuilder {
     return g;
   }
 }
+
+/**
+ * Merge a few non-indexed-able geometries (position and normal only) into one,
+ * for instancing a compound shape as a single mesh.
+ */
+export function mergeGeometries(...parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const nrm: number[] = [];
+  for (const part of parts) {
+    const g = part.index ? part.toNonIndexed() : part;
+    pos.push(...(g.getAttribute('position').array as Float32Array));
+    nrm.push(...(g.getAttribute('normal').array as Float32Array));
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  out.computeBoundingSphere();
+  return out;
+}

@@ -24,6 +24,17 @@ export interface Theme {
   /** Direction the light travels *from*, as azimuth/elevation in degrees. */
   sunAzimuth: number;
   sunElevation: number;
+  /** Water (M5): the harbour, the creek. */
+  water: number;
+  /** Tree crowns, picked per tree, and trunks. */
+  foliage: readonly number[];
+  trunk: number;
+  /** Shipping containers, picked per stack. */
+  containers: readonly number[];
+  crane: number;
+  /** The verge, when it is grass rather than pavement. */
+  grass: number;
+  dirt: number;
 }
 
 export const THEMES: Record<string, Theme> = {
@@ -50,6 +61,77 @@ export const THEMES: Record<string, Theme> = {
     sunIntensity: 2.1,
     sunAzimuth: 235,
     sunElevation: 38,
+    water: 0x2c4a6e,
+    foliage: [0x3f6b45, 0x4d7a3e, 0x35603f],
+    trunk: 0x4a3a2c,
+    containers: [0xb8412f, 0x2f6fa8, 0xd9a13b, 0x3f8a5a, 0x8a8f96],
+    crane: 0xe0a92a,
+    grass: 0x4a6b3a,
+    dirt: 0x7d6446,
+  },
+  /** Greenbelt: a bright summer afternoon over parkland. */
+  park: {
+    sky: 0x9fd2f0,
+    fog: 0xbfe0ee,
+    ground: 0x5f8f45,
+    road: 0x55575e,
+    pavement: 0x9a9888,
+    kerbA: 0xf2efe6,
+    kerbB: 0x2f8a4a,
+    line: 0xf8f6ee,
+    barrierA: 0xd8d4c8,
+    barrierB: 0x2f7ac0,
+    towerPalette: [0x9a8f7e],
+    roof: 0x6a6056,
+    windowWarm: 0xffe6a8,
+    windowCool: 0xbfe8ff,
+    windowsLit: 0.05,
+    hemiSky: 0xdff0ff,
+    hemiGround: 0x4a6a34,
+    hemiIntensity: 1.5,
+    sun: 0xfff1d6,
+    sunIntensity: 2.6,
+    sunAzimuth: 210,
+    sunElevation: 52,
+    water: 0x3f7fa8,
+    foliage: [0x3f7a3a, 0x4f8c3a, 0x2f6a3a, 0x6a9a3a, 0x35704a],
+    trunk: 0x5a4330,
+    containers: [0x8a8f96],
+    crane: 0xe0a92a,
+    grass: 0x6a9a4a,
+    dirt: 0x9a7a52,
+  },
+  /** Tidewater Docks: flat grey light off the sea. */
+  overcast: {
+    sky: 0x8d99a6,
+    fog: 0x9aa5b0,
+    ground: 0x6e7176,
+    road: 0x44474d,
+    pavement: 0x85878a,
+    kerbA: 0xf0e8d0,
+    kerbB: 0xe0b020,
+    line: 0xf4efe0,
+    barrierA: 0xa8aaa8,
+    barrierB: 0xe0b020,
+    towerPalette: [0x8a8f96],
+    roof: 0x5a5e66,
+    windowWarm: 0xffd890,
+    windowCool: 0xc8e4f0,
+    windowsLit: 0.1,
+    hemiSky: 0xd6dde6,
+    hemiGround: 0x4a4e56,
+    hemiIntensity: 1.7,
+    sun: 0xf0f2f4,
+    sunIntensity: 1.5,
+    sunAzimuth: 160,
+    sunElevation: 60,
+    water: 0x345468,
+    foliage: [0x4a6048],
+    trunk: 0x4a3a2c,
+    containers: [0xb8412f, 0x2f6fa8, 0xd9a13b, 0x3f8a5a, 0x8a8f96, 0xd8d4c8, 0x6a3a7a, 0x2f8f8a],
+    crane: 0xe0a92a,
+    grass: 0x5a6a4a,
+    dirt: 0x7d6446,
   },
 };
 

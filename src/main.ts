@@ -8,7 +8,9 @@ import { RaceSession } from './RaceSession.js';
 import type { SessionMode } from './RaceSession.js';
 import { RoomClient } from './RoomClient.js';
 import { isColourId } from './sim/palette.js';
-import { DOWNTOWN } from './sim/track/downtown.js';
+import { TRACKS } from './sim/track/index.js';
+import { AudioEngine } from './audio/AudioEngine.js';
+import type { TrackDef } from './sim/track/TrackDef.js';
 import { applyGlyphs, padFamily } from './ui/glyphs.js';
 import { GamepadNavigator } from './ui/GamepadNavigator.js';
 import { Hud } from './ui/Hud.js';
@@ -88,6 +90,25 @@ nameInput.addEventListener('input', () => {
   store.set(NAME_KEY, nameInput.value);
 });
 const playerName = (): string => sanitizeName(nameInput.value);
+/* ------------------------------------------------------------------ track */
+
+const TRACK_KEY = `${SLUG}.track`;
+const trackSelects = [$<HTMLSelectElement>('menu-track'), $<HTMLSelectElement>('lobby-track')];
+for (const sel of trackSelects) {
+  sel.replaceChildren(...TRACKS.map((t, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = t.name;
+    return o;
+  }));
+}
+/** `?track=docks` picks a track by id, for tests and links. */
+const trackParam = TRACKS.findIndex((t) => t.id === params.get('track'));
+const savedTrack = TRACKS.findIndex((t) => t.id === store.get(TRACK_KEY));
+$<HTMLSelectElement>('menu-track').value = String(trackParam >= 0 ? trackParam : Math.max(0, savedTrack));
+$('menu-track').addEventListener('change', () => store.set(TRACK_KEY, chosenTrack().id));
+const chosenTrack = (): TrackDef => TRACKS[Number($<HTMLSelectElement>('menu-track').value)] ?? TRACKS[0]!;
+
 const savedColour = store.get(COLOUR_KEY);
 let colourId = isColourId(savedColour) ? savedColour : 'vermilion';
 
@@ -100,7 +121,7 @@ let lastMode: SessionMode = 'race';
 /** `?laps=1` shortens races, for tests and for trying things quickly. */
 const lapsOverride = Number(params.get('laps')) || 0;
 
-function begin(mode: SessionMode, s: RaceSession): void {
+function begin(mode: SessionMode, s: RaceSession, track: TrackDef): void {
   session = s;
   if (params.has('autopilot')) s.autopilot = true;
   hud = new Hud(s, params.has('debug'));
@@ -116,13 +137,15 @@ function begin(mode: SessionMode, s: RaceSession): void {
     closePause();
     show('screen-results');
   };
-  $('hud-track').textContent = DOWNTOWN.name;
+  $('hud-track').textContent = track.name;
   const help = $('hud-help');
   // The controls, briefly, at the start of every drive: weapons are new to everybody once.
   help.hidden = false;
   help.classList.remove('gone');
   clearTimeout(helpTimer);
   helpTimer = window.setTimeout(() => help.classList.add('gone'), 9000);
+  s.audio = audio;
+  audio.music.play('race');
   show('screen-hud');
   s.start();
 }
@@ -132,15 +155,17 @@ function startOffline(mode: 'race' | 'free'): void {
   stopSession();
   lastMode = mode;
   const quality = qualityOverride ?? settings.current.quality;
+  const track = chosenTrack();
   begin(mode, new RaceSession(
     gameRoot,
-    { mode, track: DOWNTOWN, quality, colourId, bots: 5, laps: lapsOverride || DOWNTOWN.laps },
+    { mode, track, quality, colourId, bots: 5, laps: lapsOverride || track.laps },
     input,
     settings,
-  ));
+  ), track);
 }
 
 function stopSession(): void {
+  if (session) audio.music.play('menu');
   session?.stop();
   hud?.dispose();
   session = null;
@@ -185,7 +210,8 @@ async function openRoom(code: string): Promise<void> {
     if (room !== client) return;
     stopSession();
     const quality = qualityOverride ?? settings.current.quality;
-    begin('net', new RaceSession(gameRoot, { mode: 'net', track: DOWNTOWN, quality, colourId, bots: 0, laps: 0 }, input, settings, net));
+    const track = TRACKS[net.state.track] ?? TRACKS[0]!;
+    begin('net', new RaceSession(gameRoot, { mode: 'net', track, quality, colourId, bots: 0, laps: 0 }, input, settings, net), track);
   });
   net.events.on('raceEnd', () => {
     if (room !== client) return;
@@ -303,10 +329,15 @@ $('lobby-colour').addEventListener('change', (e) => {
   lobby?.render();
 });
 const lobbySettings = (): void => {
-  room?.net.configure(Number($<HTMLSelectElement>('lobby-cars').value), Number($<HTMLSelectElement>('lobby-laps').value));
+  room?.net.configure(
+    Number($<HTMLSelectElement>('lobby-cars').value),
+    Number($<HTMLSelectElement>('lobby-laps').value),
+    Number($<HTMLSelectElement>('lobby-track').value),
+  );
 };
 $('lobby-cars').addEventListener('change', lobbySettings);
 $('lobby-laps').addEventListener('change', lobbySettings);
+$('lobby-track').addEventListener('change', lobbySettings);
 
 const brokerSelect = $<HTMLSelectElement>('set-broker');
 brokerSelect.replaceChildren(
@@ -317,16 +348,59 @@ brokerSelect.replaceChildren(
     return o;
   }),
 );
-$('btn-settings').addEventListener('click', () => {
+/* ------------------------------------------------------------------ sound */
+
+const audio = new AudioEngine();
+const syncVolumes = (): void => audio.setVolumes(settings.current.sfxVolume, settings.current.musicVolume);
+syncVolumes();
+settings.events.on('change', syncVolumes);
+// Browsers start audio only from a gesture: the first key, click or touch.
+for (const type of ['keydown', 'pointerdown', 'touchstart'] as const) {
+  window.addEventListener(type, () => {
+    audio.unlock();
+    audio.music.play(session ? 'race' : 'menu');
+  }, { capture: true, passive: true });
+}
+// A soft tick as the focus ring moves through the menus.
+document.addEventListener('focusin', () => {
+  if (!session || session.paused) audio.blip();
+});
+$('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number((e.target as HTMLInputElement).value)));
+$('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number((e.target as HTMLInputElement).value)));
+
+/** Where Settings' Back goes: the menu, or the pause menu of the race it was opened from. */
+let settingsFromPause = false;
+function openSettings(fromPause: boolean): void {
+  settingsFromPause = fromPause;
   $<HTMLSelectElement>('set-quality').value = settings.current.quality === 'potato' ? 'low' : settings.current.quality;
   $<HTMLSelectElement>('set-touch').value = settings.current.touchControls;
   $<HTMLInputElement>('set-vibration').checked = settings.current.vibration;
   $<HTMLInputElement>('set-motion').checked = settings.current.reduceMotion;
   $<HTMLInputElement>('set-autopilot').checked = settings.current.autopilot;
   brokerSelect.value = settings.current.broker;
+  $<HTMLInputElement>('set-sfx').value = String(settings.current.sfxVolume);
+  $<HTMLInputElement>('set-music').value = String(settings.current.musicVolume);
+  // The race stays where it is underneath: paused offline, held on the brakes online.
+  if (fromPause) $('pause-veil').hidden = true;
   show('screen-settings');
+}
+$('btn-settings').addEventListener('click', () => openSettings(false));
+$('btn-pause-settings').addEventListener('click', () => openSettings(true));
+$('btn-settings-back').addEventListener('click', () => {
+  if (settingsFromPause && session) {
+    settingsFromPause = false;
+    show('screen-hud');
+    openPause();
+  } else {
+    show('screen-menu');
+  }
 });
-$('btn-settings-back').addEventListener('click', () => show('screen-menu'));
+// Settings that can change mid-race take effect at once.
+settings.events.on('change', () => {
+  if (!session) return;
+  session.view.rig.shakeScale = settings.current.reduceMotion ? 0.25 : 1;
+  if (!params.has('autopilot')) session.autopilot = settings.current.autopilot;
+});
 $('set-quality').addEventListener('change', (e) => settings.set('quality', (e.target as HTMLSelectElement).value as QualityId));
 $('set-touch').addEventListener('change', (e) =>
   settings.set('touchControls', (e.target as HTMLSelectElement).value as 'auto' | 'on' | 'off'),
@@ -355,6 +429,7 @@ declare global {
   interface Window {
     nitro: {
       settings: SettingsStore;
+      audio: AudioEngine;
       input: InputManager;
       readonly session: RaceSession | null;
       readonly room: RoomClient | null;
@@ -366,6 +441,7 @@ declare global {
 }
 window.nitro = {
   settings,
+  audio,
   input,
   get session() {
     return session;

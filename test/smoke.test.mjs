@@ -37,6 +37,8 @@ try {
 
   const clickable = await page.evaluate(() => {
     const btn = document.getElementById('btn-free-drive');
+    // The menu scrolls on a short screen; this is about overlays, not height.
+    btn.scrollIntoView({ block: 'center' });
     const box = btn.getBoundingClientRect();
     return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === btn;
   });
@@ -303,6 +305,55 @@ try {
   const shadows = await hi.evaluate(() => window.nitro.session.view.renderer.shadowMap.enabled);
   r.check('high quality renders with shadows inside 150 draw calls', shadows && calls > 0 && calls < 150, `${calls} draw calls`);
   await hi.close();
+
+  /* ------------------------------------------------------ every track */
+  // Each track boots from a link, names itself on the HUD, and draws inside
+  // the budget. Docks and Greenbelt carry the new scenery: containers, cranes, trees.
+  const trackNotes = [];
+  let tracksOk = true;
+  for (const id of ['greenbelt', 'docks']) {
+    const tp = await openPage(`quality=high&drive&track=${id}`, { width: 320, height: 180 });
+    const info = await until(() => tp.evaluate(() => {
+      const s = window.nitro.session;
+      if (!s || s.world.steps < 10) return null;
+      const names = new Set();
+      s.view.scene.traverse((o) => names.add(o.name.split(':')[0]));
+      return { name: document.getElementById('hud-track').textContent, calls: s.view.drawCalls, def: s.world.track.def.name, scenery: [...names] };
+    }), { timeout: 60000 });
+    const wants = id === 'docks' ? ['containers', 'cranes', 'railway', 'train', 'water'] : ['tree-crowns', 'water'];
+    const missing = wants.filter((w) => !info?.scenery.includes(w));
+    if (!info || info.name !== info.def || info.calls >= 150 || missing.length) tracksOk = false;
+    trackNotes.push(`${info?.name}: ${info?.calls} draws${missing.length ? `, missing ${missing.join(' ')}` : ''}`);
+    await tp.close();
+  }
+  r.check('Greenbelt and Tidewater Docks boot from a link, with their scenery, inside 150 draw calls', tracksOk, trackNotes.join('; '));
+
+  /* --------------------------------------------------------------- sound */
+  const snd = await openPage('quality=potato&race&autopilot&laps=1');
+  await until(() => snd.evaluate(() => window.nitro.session?.world.started), { timeout: 60000 });
+  await snd.keyboard.press('KeyZ');
+  const sound = await until(() => snd.evaluate(() => {
+    const a = window.nitro.audio;
+    return a.ctx?.state === 'running' && a.engineVoices > 0 ? { voices: a.engineVoices, music: a.music.playing, started: a.started } : null;
+  }), { timeout: 20000 });
+  r.check('sound starts on the first key: the race music plays and engines are voiced', sound?.music === 'race' && sound.started > 0, JSON.stringify(sound));
+  let most = 0;
+  for (let k = 0; k < 20; k++) {
+    most = Math.max(most, await snd.evaluate(() => window.nitro.audio.engineVoices));
+    await snd.waitForTimeout(100);
+  }
+  r.check('six cars on track, but only the nearest three engines are voiced', most > 0 && most <= 3, `${most} at most`);
+  const muted = await snd.evaluate(async () => {
+    const a = window.nitro.audio;
+    window.nitro.settings.set('sfxVolume', 0);
+    window.nitro.settings.set('musicVolume', 0);
+    await new Promise((res) => setTimeout(res, 300));
+    const before = a.started;
+    await new Promise((res) => setTimeout(res, 1500));
+    return { built: a.started - before, voices: a.engineVoices };
+  });
+  r.check('with both volumes at zero, nothing is built: no notes, no engines', muted.built === 0 && muted.voices === 0, JSON.stringify(muted));
+  await snd.close();
 
   r.check('no page errors or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (err) {

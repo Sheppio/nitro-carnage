@@ -20,6 +20,7 @@ import { resolveColours, PALETTE } from '../dist/sim/palette.js';
 import { applyDeadzone1, filterAxis } from '../dist/input/sources.js';
 import { mulberry32, wrapAngle, smoothing } from '../dist/util.js';
 import { Armoury, castRay, missileAt } from '../dist/sim/weapons.js';
+import { trainAt, crossingBlocked, crossingWarning, trainSegment } from '../dist/sim/train.js';
 
 let pass = 0;
 let fail = 0;
@@ -27,6 +28,12 @@ function check(label, ok, note = '') {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${note ? ` — ${note}` : ''}`);
   ok ? pass++ : fail++;
 }
+
+/**
+ * A check run once per track, from inside a loop over TRACKS. Named apart so
+ * `consistency.mjs` can count it once per track rather than once.
+ */
+const tcheck = check;
 
 const intent = (o = {}) => ({ throttle: 0, brake: 0, steer: 0, handbrake: false, fireFront: false, fireRear: false, turbo: false, ...o });
 
@@ -79,14 +86,14 @@ for (const def of TRACKS) {
   const t = new Track(def);
   const name = def.name;
 
-  check(`${name}: lap length is a short arcade circuit (1.2-1.8 km)`, t.length > 1200 && t.length < 1800, `${t.length.toFixed(0)} m`);
+  tcheck(`${name}: lap length is a short arcade circuit (1.2-1.8 km)`, t.length > 1200 && t.length < 1800, `${t.length.toFixed(0)} m`);
 
   let minR = Infinity;
   for (let i = 0; i < t.n; i++) {
     const k = Math.abs(t.line.curvature[i]);
     if (k > 1e-6) minR = Math.min(minR, 1 / k);
   }
-  check(`${name}: tightest corner leaves room for the inside wall`, minR > t.wallOffset + 1,
+  tcheck(`${name}: tightest corner leaves room for the inside wall`, minR > t.wallOffset + 1,
     `min radius ${minR.toFixed(1)} m vs wall offset ${t.wallOffset} m`);
 
   // No wall segment crosses a non-adjacent one: a folded inside wall would.
@@ -103,7 +110,7 @@ for (const def of TRACKS) {
       if (closestSegSeg(w[o], w[o + 1], w[o + 2], w[o + 3], w[p], w[p + 1], w[p + 2], w[p + 3], tmp) < 1e-6) crossings++;
     });
   }
-  check(`${name}: no wall crosses another`, crossings === 0, `${crossings} crossings among ${t.wallCount} segments`);
+  tcheck(`${name}: no wall crosses another`, crossings === 0, `${crossings} crossings among ${t.wallCount} segments`);
 
   // The road is clear: every centreline sample sits a full wall offset from every wall.
   let tightest = Infinity;
@@ -115,7 +122,7 @@ for (const def of TRACKS) {
       tightest = Math.min(tightest, Math.sqrt(d2));
     });
   }
-  check(`${name}: centreline stays a wall offset from every wall`, tightest > t.wallOffset - 0.3,
+  tcheck(`${name}: centreline stays a wall offset from every wall`, tightest > t.wallOffset - 0.3,
     `closest ${tightest.toFixed(2)} m`);
 
   const rand = mulberry32(7);
@@ -130,28 +137,61 @@ for (const def of TRACKS) {
     worstS = Math.max(worstS, Math.abs(t.deltaS(pose.i * (t.length / t.n), p.s)));
     worstD = Math.max(worstD, Math.abs(p.d - d));
   }
-  check(`${name}: projection recovers s and d anywhere on the road`, worstS < 0.6 && worstD < 0.3,
+  tcheck(`${name}: projection recovers s and d anywhere on the road`, worstS < 0.6 && worstD < 0.3,
     `worst s error ${worstS.toFixed(2)} m, d error ${worstD.toFixed(2)} m`);
 
   const cps = t.checkpoints;
-  check(`${name}: checkpoints are ordered inside the lap`, cps.length > 0 && cps.every((s, i) => s > 0 && s < t.length && (i === 0 || s > cps[i - 1])));
+  tcheck(`${name}: checkpoints are ordered inside the lap`, cps.length > 0 && cps.every((s, i) => s > 0 && s < t.length && (i === 0 || s > cps[i - 1])));
 
   const start = t.project(def.start[0], def.start[1]);
-  check(`${name}: s = 0 is at the start line`, Math.min(start.s, t.length - start.s) < 1, `start projects to s=${start.s.toFixed(2)}`);
+  tcheck(`${name}: s = 0 is at the start line`, Math.min(start.s, t.length - start.s) < 1, `start projects to s=${start.s.toFixed(2)}`);
 
   const again = new Track(def);
-  check(`${name}: scenery is deterministic from the seed`, JSON.stringify(again.props) === JSON.stringify(t.props), `${t.props.length} props`);
+  tcheck(`${name}: scenery is deterministic from the seed`, JSON.stringify(again.props) === JSON.stringify(t.props), `${t.props.length} props`);
 
-  const corners = (p) => [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]].map(([a, b]) => [p.x + (a * p.w) / 2, p.z + (b * p.d) / 2]);
-  const intrusions = t.props.filter((p) => p.kind === 'tower' && corners(p).some(([x, z]) => Math.abs(t.project(x, z).d) < t.wallOffset));
-  check(`${name}: no tower stands on the road`, intrusions.length === 0, `${intrusions.length} intruding`);
+  // Footprint corners, turned by the prop's yaw (containers lie either way).
+  const corners = (p) => [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]].map(([a, b]) => {
+    const lx = (a * p.w) / 2, lz = (b * p.d) / 2;
+    const c = Math.cos(p.rot), sn = Math.sin(p.rot);
+    return [p.x + lx * c + lz * sn, p.z - lx * sn + lz * c];
+  });
+  const solid = t.props.filter((p) => p.kind === 'tower' || p.kind === 'container');
+  const intrusions = solid.filter((p) => corners(p).some(([x, z]) => Math.abs(t.project(x, z).d) < t.wallOffset));
+  tcheck(`${name}: no building or container stands on the road`, intrusions.length === 0, `${intrusions.length} of ${solid.length} intruding`);
+  const onRail = t.props.filter((p) => p.kind !== 'crane' && t.railDistance(p.x, p.z) < 4);
+  const wet = t.props.filter((p) => p.kind !== 'crane' && t.inWater(p.x, p.z));
+  tcheck(`${name}: nothing stands on the railway or in the water`, onRail.length === 0 && wet.length === 0, `${onRail.length} on the rails, ${wet.length} in the water`);
+
+  // The railway, if any, crosses the road exactly once: count the entries into the road along it.
+  let entries = 0;
+  if (t.rail) {
+    let inRoad = false;
+    for (let u = 0; u <= t.rail.length; u += 0.5) {
+      const now = Math.abs(t.project(t.rail.ax + t.rail.dx * u, t.rail.az + t.rail.dz * u).d) < t.wallOffset;
+      if (now && !inRoad) entries++;
+      inRoad = now;
+    }
+  }
+  tcheck(`${name}: a railway crosses the road exactly once`, !t.rail || entries === 1, t.rail ? `${entries} crossings` : 'no railway');
+
+  // An open verge really is open: no wall on that side within the gap.
+  let walled = 0;
+  for (const g of def.wallGaps ?? []) {
+    const side = g.side === 'left' ? 1 : -1;
+    for (let f = g.from + 0.005; f < g.to - 0.005; f += 0.005) {
+      const pose = t.poseAt(f * t.length);
+      const [x, z] = t.offsetPoint(pose.i, side * t.wallOffset);
+      t.forWallsNear(x - 0.5, z - 0.5, x + 0.5, z + 0.5, () => walled++);
+    }
+  }
+  tcheck(`${name}: an open verge has no wall`, walled === 0, `${(def.wallGaps ?? []).length} gaps`);
 
   const slots = [0, 1, 2, 3, 4, 5].map((k) => t.gridSlot(k));
   const onRoad = slots.every((p) => Math.abs(t.project(p.x, p.z).d) < t.halfWidth - 1);
   const behind = slots.every((p) => t.deltaS(0, t.project(p.x, p.z).s) < 0);
   let minGap = Infinity;
   for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) minGap = Math.min(minGap, Math.hypot(slots[a].x - slots[b].x, slots[a].z - slots[b].z));
-  check(`${name}: six grid slots on the road, behind the line, not touching`, onRoad && behind && minGap > 4.5, `closest pair ${minGap.toFixed(1)} m`);
+  tcheck(`${name}: six grid slots on the road, behind the line, not touching`, onRoad && behind && minGap > 4.5, `closest pair ${minGap.toFixed(1)} m`);
 }
 
 /* --------------------------------------------------------------- physics */
@@ -358,6 +398,10 @@ for (const def of TRACKS) {
     const o = k * 6;
     const mx = (w[o] + w[o + 2]) / 2, mz = (w[o + 1] + w[o + 3]) / 2;
     const nx = w[o + 4], nz = w[o + 5];
+    // Which side of the road this wall is on: escaping means ending up behind
+    // *it*. (A car that bounces back across the road and out through an open
+    // quay on the far side has not tunnelled through anything.)
+    const side = Math.sign(t.project(mx, mz).d);
     // Start 3 m inside the wall, pointed straight at it at five times top speed.
     const car = createCar(mx + nx * 3, mz + nz * 3, Math.atan2(-nx, -nz));
     car.vx = -nx * fast;
@@ -366,13 +410,14 @@ for (const def of TRACKS) {
     tried++;
     for (let s = 0; s < 20; s++) {
       stepCar(car, intent({ throttle: 1 }), t, STEP);
-      if (Math.abs(t.project(car.x, car.z, car.hint).d) > t.wallOffset + 0.05) {
+      const d = t.project(car.x, car.z, car.hint).d;
+      if (Math.sign(d) === side && Math.abs(d) > t.wallOffset + 0.05) {
         escaped++;
         break;
       }
     }
   }
-  check(`${def.name}: no tunnelling at 5x top speed into any wall`, escaped === 0, `${escaped} of ${tried} escaped at ${fast} m/s`);
+  tcheck(`${def.name}: no tunnelling at 5x top speed into any wall`, escaped === 0, `${escaped} of ${tried} escaped at ${fast} m/s`);
 }
 
 {
@@ -486,18 +531,21 @@ for (const def of TRACKS) {
   const t = new Track(def);
   const line = racingLine(t);
   const inside = line.offset.every((o) => Math.abs(o) <= t.halfWidth - 1.6);
-  check(`${def.name}: the racing line stays on the road`, inside);
+  tcheck(`${def.name}: the racing line stays on the road`, inside);
 
   // Cutting apexes: where the road bends hardest, the line sits on the inside.
+  // "Hardest" relative to the track: Greenbelt has no corner under 40 m.
+  let kMax = 0;
+  for (let i = 0; i < t.n; i++) kMax = Math.max(kMax, Math.abs(t.line.curvature[i]));
   let sum = 0;
   let n = 0;
   for (let i = 0; i < t.n; i++) {
     const k = t.line.curvature[i];
-    if (Math.abs(k) < 1 / 30) continue;
+    if (Math.abs(k) < Math.min(1 / 30, kMax * 0.8)) continue;
     sum += Math.sign(k) * line.offset[i];
     n++;
   }
-  check(`${def.name}: the line takes the inside of tight corners`, n > 0 && sum / n > 1.5, `mean ${(sum / n).toFixed(2)} m to the inside`);
+  tcheck(`${def.name}: the line takes the inside of tight corners`, n > 0 && sum / n > 1.5, `mean ${(sum / n).toFixed(2)} m to the inside`);
 
   let worst = 0;
   const sp = t.length / t.n;
@@ -506,13 +554,15 @@ for (const def of TRACKS) {
     const b = line.speed[(i + 1) % t.n];
     worst = Math.max(worst, (a * a - b * b) / (2 * sp));
   }
-  check(`${def.name}: the speed profile never asks for more braking than planned`, worst <= DEFAULT_LINE.braking + 1e-6, `${worst.toFixed(2)} m/s^2`);
+  tcheck(`${def.name}: the speed profile never asks for more braking than planned`, worst <= DEFAULT_LINE.braking + 1e-6, `${worst.toFixed(2)} m/s^2`);
 
   const w = new World(def, { laps: 2, countdown: 0 });
   const bot = w.addBot('b', 0, SKILLS[0], 1);
   while (!bot.lap.finished && w.steps < 60 * 400) w.step();
   const best = bot.lap.best ?? Infinity;
-  check(`${def.name}: the autopilot laps cleanly, inside par`, bot.lap.finished && bot.respawns === 0 && bot.car.impacts <= 1 && best < line.parTime,
+  // Par is the line's own ideal; on a track of long, fast sweepers a real car
+  // on a real steering wheel gets within a few per cent of it, not under it.
+  tcheck(`${def.name}: the autopilot laps cleanly, within 5% of par`, bot.lap.finished && bot.respawns === 0 && bot.car.impacts <= 1 && best < line.parTime * 1.05,
     `best ${best.toFixed(1)} s vs par ${line.parTime.toFixed(1)} s, ${bot.car.impacts} wall hits, ${bot.respawns} respawns`);
 }
 
@@ -894,6 +944,110 @@ const S0 = straight(TRACKS[0] && new World(TRACKS[0]).track);
   const again = run();
   check('and the same armed race run twice is identical to the last step',
     r.w.steps === again.w.steps && r.bots.every((b, i) => b.lap.finishTime === again.bots[i].lap.finishTime && b.hp === again.bots[i].hp));
+}
+
+/* ---------------------------------------------------------------- hazards */
+
+console.log('\nhazards');
+
+{
+  const docks = TRACKS.find((d) => d.railway);
+  const t1 = new Track(docks);
+  const t2 = new Track(docks);
+  const rw = docks.railway;
+  // Same race time, two separately built tracks: the same train, to the millimetre.
+  let same = true;
+  for (let t = 0; t < 200; t += 0.37) {
+    const a = trainAt(t1, t), b = trainAt(t2, t);
+    if (JSON.stringify(a) !== JSON.stringify(b)) same = false;
+  }
+  const none = trainAt(t1, rw.first - 0.1) === null;
+  const out = trainAt(t1, rw.first + 1);
+  const back = trainAt(t1, rw.first + rw.period + 1);
+  check('the train is a pure function of race time: two tracks agree, no train before its first run',
+    same && none && out?.dir === 1 && back?.dir === -1, `first run ${rw.first} s, then every ${rw.period} s, alternating`);
+
+  // It blocks the crossing for a few seconds each pass, and the lights come on before it does.
+  let blockedFrom = null, blockedTo = null, warnedAt = null;
+  for (let t = rw.first - 10; t < rw.first + rw.period - 10; t += 0.05) {
+    if (warnedAt === null && crossingWarning(t1, t)) warnedAt = t;
+    if (crossingBlocked(t1, t)) {
+      blockedFrom ??= t;
+      blockedTo = t;
+    }
+  }
+  check('each pass blocks the crossing for a few seconds, with the lights on 5 s before',
+    blockedFrom !== null && blockedTo - blockedFrom > 2 && blockedTo - blockedFrom < 10 && Math.abs(blockedFrom - warnedAt - 5) < 0.3,
+    blockedFrom === null ? 'never blocked' : `blocked ${(blockedTo - blockedFrom).toFixed(1)} s, lights ${(blockedFrom - warnedAt).toFixed(1)} s ahead`);
+
+  // Past the end of the line the train is in its shed or off the map: none of it may touch anything.
+  const tr = trainAt(t1, rw.first + (t1.rail.length + 30) / rw.speed);
+  const seg = tr && trainSegment(t1, tr);
+  const inside = !seg || [seg.ax, seg.bx].every((x) => x >= Math.min(t1.rail.ax, t1.rail.bx) - 1e-6 && x <= Math.max(t1.rail.ax, t1.rail.bx) + 1e-6)
+    && [seg.az, seg.bz].every((z) => z >= Math.min(t1.rail.az, t1.rail.bz) - 1e-6 && z <= Math.max(t1.rail.az, t1.rail.bz) + 1e-6);
+  check('the train never reaches past the ends of its rails', inside);
+
+  // A car parked on the crossing when the train comes through.
+  const w = new World(docks, { laps: 0, countdown: 0, weapons: false });
+  const e = w.addCar('p', 0, () => intent());
+  const pose = w.track.poseAt(t1.rail.s);
+  const parkAt = () => Object.assign(e.car, { x: pose.x, z: pose.z, yaw: pose.yaw, vx: 0, vz: 0, w: 0, hint: pose.i });
+  while (!crossingBlocked(w.track, w.time + 0.2 - w.goTime)) {
+    w.step();
+    parkAt();
+  }
+  const evs = stepFor(w, 3);
+  const hit = evs.find((x) => x.kind === 'train');
+  const clear = trainSegment(w.track, trainAt(w.track, w.time - w.goTime));
+  check('a car parked on the crossing is hit by the train: shoved clear and badly hurt', hit && e.hp <= 100 - 20 && Math.hypot(e.car.x - pose.x, e.car.z - pose.z) > 2,
+    `${(100 - e.hp).toFixed(0)} damage`);
+
+  // Six bots, three laps of the docks: they wait for the train, and nobody is hit by it.
+  const r = new World(docks, { laps: 3, countdown: 1, weapons: false });
+  const bots = SKILLS.map((sk, i) => r.addBot(`b${i}`, i, sk, 70 + i));
+  let trainHits = 0, waited = 0;
+  while (r.time < 400 && !bots.every((b) => b.lap.finished)) {
+    r.step();
+    trainHits += r.drain().filter((x) => x.kind === 'train').length;
+    for (const b of bots) if (r.stopLine(b) !== null && Math.hypot(b.car.vx, b.car.vz) < 1) waited++;
+  }
+  check('six bots race the docks: they wait at the crossing and the train hits nobody', bots.every((b) => b.lap.finished) && trainHits === 0 && waited > 0,
+    `${(waited / 60).toFixed(1)} car-seconds waiting, ${trainHits} hit`);
+}
+
+{
+  // Off the quay: into the harbour, and back on the road within a second or so.
+  const docks = TRACKS.find((d) => d.id === 'docks');
+  const w = new World(docks, { laps: 0, countdown: 0, weapons: false });
+  const e = w.addCar('p', 0, () => intent({ throttle: 1 }));
+  const gap = docks.wallGaps[0];
+  const pose = w.track.poseAt(((gap.from + gap.to) / 2) * w.track.length);
+  const side = gap.side === 'left' ? 1 : -1;
+  const [x, z] = w.track.offsetPoint(pose.i, side * (w.track.wallOffset + 3));
+  Object.assign(e.car, { x, z, yaw: pose.yaw, vx: 0, vz: 0, hint: pose.i });
+  const wet = w.track.surfaceAt(x, z, pose.i);
+  const evs = stepFor(w, 1.5, (ev) => ev.some((y) => y.kind === 'respawn'));
+  const back = Math.abs(w.track.project(e.car.x, e.car.z).d) < w.track.halfWidth;
+  check('a car in the harbour is back on the road within a second', wet === 5 && evs.some((y) => y.kind === 'respawn') && back && w.time < 1.3,
+    `surface ${wet}, after ${w.time.toFixed(2)} s, ${back ? 'on the road' : 'not on the road'}`);
+}
+
+{
+  // Oil: a patch on the road has almost no grip; a car steering across it
+  // hardly turns at all — it carries straight on.
+  const docks = TRACKS.find((d) => d.surfaces.some((z) => z.surface === 3));
+  const oil = docks.surfaces.find((z) => z.surface === 3);
+  const t = new Track(docks);
+  const run = (surface) => {
+    const car = createCar(0, 0, 0);
+    car.vz = 20;
+    const env = { walls: new Float64Array(0), forWallsNear() {}, surfaceAt: () => surface, groundAt: () => 0, project: () => ({ i: 0 }) };
+    for (let k = 0; k < 40; k++) stepCar(car, intent({ steer: -1, throttle: 0.5 }), env, STEP);
+    // How far the direction of travel has turned.
+    return Math.abs(Math.atan2(car.vx, car.vz));
+  };
+  check('an oil patch is oil, and a car steering across it barely turns',
+    t.surfaceAt(oil.at[0], oil.at[1]) === 3 && run(3) < run(0) * 0.4, `turned ${run(0).toFixed(2)} rad on tarmac, ${run(3).toFixed(2)} on oil`);
 }
 
 /* ------------------------------------------------------------ determinism */

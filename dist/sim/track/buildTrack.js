@@ -29,6 +29,13 @@ export class Track {
     wallStamp;
     stamp = 0;
     circles = [];
+    waters;
+    /**
+     * The railway, if the track has one: its ends, its unit direction and
+     * length, and where it crosses the road (the point, its arc length, and how
+     * far along the rail that is).
+     */
+    rail = null;
     spans = [];
     constructor(def) {
         this.def = def;
@@ -46,10 +53,14 @@ export class Track {
         }
         // Walls: the offset curves, one segment every WALL_SPACING samples.
         const segs = [];
+        const spacing = this.length / this.n;
+        const open = (side, i) => (def.wallGaps ?? []).some((g) => (g.side === 'left' ? 1 : -1) === side && inSpan(i * spacing, g.from * this.length, g.to * this.length));
         if (def.walls) {
             const step = WALL_SPACING;
             for (const side of [1, -1]) {
                 for (let i = 0; i < this.n; i += step) {
+                    if (open(side, i + step / 2))
+                        continue;
                     // The last segment closes the loop exactly at sample 0, however the
                     // lap length divides: overshooting would overlap the first segment.
                     const j = Math.min(i + step, this.n) % this.n;
@@ -96,6 +107,24 @@ export class Track {
             else {
                 this.spans.push({ from: zone.from * this.length, to: zone.to * this.length, surface: zone.surface });
             }
+        }
+        this.waters = def.water ?? [];
+        if (def.railway) {
+            const [ax, az] = def.railway.from;
+            const [bx, bz] = def.railway.to;
+            const length = Math.hypot(bx - ax, bz - az);
+            const dx = (bx - ax) / length, dz = (bz - az) / length;
+            // Where along the rail it meets the road: the point nearest the centreline.
+            let bestU = 0, bestD = Infinity;
+            for (let u = 0; u <= length; u += 0.25) {
+                const d = Math.abs(this.project(ax + dx * u, az + dz * u).d);
+                if (d < bestD) {
+                    bestD = d;
+                    bestU = u;
+                }
+            }
+            const x = ax + dx * bestU, z = az + dz * bestU;
+            this.rail = { ax, az, bx, bz, dx, dz, length, x, z, s: this.project(x, z).s, u: bestU };
         }
         this.ramps = def.ramps.map((r) => {
             const p = this.project(r.at[0], r.at[1]);
@@ -203,7 +232,26 @@ export class Track {
             if (inSpan(p.s, span.from, span.to))
                 return span.surface;
         }
-        return Math.abs(p.d) <= this.halfWidth ? Surface.Tarmac : this.def.verge.surface;
+        if (Math.abs(p.d) <= this.halfWidth)
+            return Surface.Tarmac;
+        if (Math.abs(p.d) > this.wallOffset && this.inWater(x, z))
+            return Surface.Water;
+        return this.def.verge.surface;
+    }
+    /** Inside one of the track's water rectangles (whatever is built over it). */
+    inWater(x, z) {
+        for (const [x0, z0, x1, z1] of this.waters)
+            if (x >= x0 && x <= x1 && z >= z0 && z <= z1)
+                return true;
+        return false;
+    }
+    /** Distance from a point to the railway line, or Infinity with no railway. */
+    railDistance(x, z) {
+        const r = this.rail;
+        if (!r)
+            return Infinity;
+        const u = Math.max(0, Math.min(r.length, (x - r.ax) * r.dx + (z - r.az) * r.dz));
+        return Math.hypot(x - (r.ax + r.dx * u), z - (r.az + r.dz * u));
     }
     /** Ground height: zero everywhere except on a ramp. */
     groundAt(x, z, hint = -1) {
@@ -293,6 +341,8 @@ function scatter(track) {
     const props = [];
     /** Distance from a point to the road centreline, without a hint. */
     const roadDist = (x, z) => Math.abs(track.project(x, z).d);
+    /** Somewhere nothing may stand: the railway's corridor, or the water. */
+    const blocked = (x, z, r) => track.railDistance(x, z) < r + 5 || track.inWater(x, z);
     for (const rule of def.props) {
         if (rule.kind === 'city') {
             const [x0, z0, x1, z1] = rule.area;
@@ -328,7 +378,7 @@ function scatter(track) {
                             d *= 0.8;
                         }
                     }
-                    if (!fits || Math.min(w, d) < 6)
+                    if (!fits || Math.min(w, d) < 6 || blocked(x, z, Math.max(w, d) / 2))
                         continue;
                     props.push({ kind: 'tower', x, z, rot: 0, w, d, h, seed });
                 }
@@ -356,10 +406,48 @@ function scatter(track) {
                 const z = z0 + rand() * (z1 - z0);
                 const h = rule.height[0] + rand() * (rule.height[1] - rule.height[0]);
                 const seed = rand();
-                if (roadDist(x, z) < track.wallOffset + rule.clearance)
+                if (roadDist(x, z) < track.wallOffset + rule.clearance || blocked(x, z, h * 0.25))
                     continue;
                 props.push({ kind: 'tree', x, z, rot: seed * Math.PI * 2, w: h * 0.45, d: h * 0.45, h, seed });
             }
+        }
+        else if (rule.kind === 'containers') {
+            // A 40 ft box is 12.2 x 2.4 x 2.6 m. Lots hold a row of three side by
+            // side, so stacks read as blocks with alleys between them.
+            const [x0, z0, x1, z1] = rule.area;
+            const LW = 14, LD = 9;
+            for (let lx = x0; lx < x1; lx += LW + 3) {
+                for (let lz = z0; lz < z1; lz += LD + 3) {
+                    const gap = rand();
+                    const along = rand() < 0.5;
+                    const seed = rand();
+                    if (gap < rule.gaps)
+                        continue;
+                    const x = lx + LW / 2, z = lz + LD / 2;
+                    const w = along ? 12.2 : 7.4, d = along ? 7.4 : 12.2;
+                    let clear = true;
+                    for (const [fx, fz] of FOOTPRINT_PROBES) {
+                        if (roadDist(x + (fx * w) / 2, z + (fz * d) / 2) < track.wallOffset + rule.clearance)
+                            clear = false;
+                    }
+                    if (!clear || blocked(x, z, 7))
+                        continue;
+                    for (let k = 0; k < 3; k++) {
+                        const off = (k - 1) * 2.5;
+                        const levels = 1 + Math.floor(rand() * rule.stack);
+                        for (let lv = 0; lv < levels; lv++) {
+                            props.push({
+                                kind: 'container', x: x + (along ? 0 : off), z: z + (along ? off : 0), rot: along ? Math.PI / 2 : 0,
+                                w: 2.4, d: 12.2, h: 2.6, y: lv * 2.6, seed: (seed + k * 0.37 + lv * 0.61) % 1,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        else if (rule.kind === 'cranes') {
+            for (const [x, z, rot] of rule.at)
+                props.push({ kind: 'crane', x, z, rot, w: 14, d: 10, h: 34, seed: rand() });
         }
     }
     return props;

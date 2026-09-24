@@ -172,8 +172,21 @@ try {
   const staysShut = await page.evaluate(() => document.getElementById('pause-veil').hidden);
   r.check('Esc again resumes, and does not reopen the menu it just closed', Boolean(resumed) && staysShut);
 
+  // Settings from the pause menu, and back to it, still paused.
   await page.keyboard.press('Escape');
   await until(() => visible(page, 'pause-veil'));
+  await goTo(page, 'btn-pause-settings');
+  await page.keyboard.press('Enter');
+  const inSettings = await until(() => visible(page, 'screen-settings'));
+  await goTo(page, 'set-music');
+  const vol0 = await page.evaluate(() => window.nitro.settings.current.musicVolume);
+  await page.keyboard.press('ArrowLeft');
+  const vol1 = await page.evaluate(() => window.nitro.settings.current.musicVolume);
+  await page.keyboard.press('Escape');
+  const backInPause = await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden && !document.getElementById('screen-hud').hidden && window.nitro.session.paused));
+  r.check('Settings opens from the pause menu, the music slider moves with the arrows, and Esc returns to the paused race',
+    Boolean(inSettings) && vol1 < vol0 && Boolean(backInPause), `music ${vol0} -> ${vol1}`);
+
   const onLeave = await goTo(page, 'btn-pause-leave');
   await page.keyboard.press('Enter');
   const left = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden && window.nitro.session === null));

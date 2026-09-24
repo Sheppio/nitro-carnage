@@ -190,6 +190,7 @@ export class NetRace {
   /** Host: change the lobby settings (cars on the grid, laps). */
   configure(cars: number, laps: number, track = this.state.track): void {
     if (!this.isHost || this.state.phase !== 'L') return;
+    track = Math.max(0, Math.min(this.tracks.length - 1, Math.round(track) || 0));
     this.state = { ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(9, laps)), track };
     this.room.beatNow();
     this.events.emit('state', { state: this.state });
@@ -329,7 +330,7 @@ export class NetRace {
       const slot = Number(e.id.slice(1));
       const pilot = createAutopilot(hashString(`${this.raceGoAt}:${e.id}`), SKILLS[slot % SKILLS.length]!);
       e.remote = false;
-      e.drive = () => autopilot(pilot, e.car, w.track, line, w.rivalsOf(e.id), w.time, STEP);
+      e.drive = () => autopilot(pilot, e.car, w.track, line, w.rivalsOf(e.id), w.time, STEP, w.stopLine(e));
       // Its lap count came from its packets; checkpoints are inferred from where it is.
       e.lap.s = e.s;
       e.lap.nextCp = e.lap.completed < 0 ? w.track.checkpoints.length : w.track.checkpoints.filter((c) => c < e.s).length;
@@ -406,7 +407,7 @@ export class NetRace {
       } else if (/^b\d+$/.test(id) && this.isHost) {
         const pilot = createAutopilot(hashString(`${s.goAt}:${id}`), SKILLS[slot % SKILLS.length]!);
         const e = w.addCar(id, slot, () => IDLE_INTENT);
-        e.drive = () => autopilot(pilot, e.car, w.track, line, w.rivalsOf(id), w.time, STEP);
+        e.drive = () => autopilot(pilot, e.car, w.track, line, w.rivalsOf(id), w.time, STEP, w.stopLine(e));
         this.owned.set(id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0 });
       } else {
         const e = w.addRemote(id, slot);
@@ -556,9 +557,11 @@ export class NetRace {
       // Fired a moment ago on the shooter's screen: the flight is a function
       // of time, so spawning it late puts it exactly where it now is.
       w.armoury.launch(id, ev.seq, ev.weapon === 1 ? 'rear' : 'front', ev.x, ev.z, ev.yaw, time(ev.t), false);
+      w.announce({ kind: 'fire', id, seq: ev.seq, weapon: ev.weapon === 1 ? 'rear' : 'front', x: ev.x, z: ev.z, yaw: ev.yaw, time: time(ev.t) });
     } else if (ev.k === 'mine') {
       if (w.armoury.findMine(id, ev.seq)) return;
       w.armoury.place(id, ev.seq, ev.x, ev.z, time(ev.t));
+      w.announce({ kind: 'mine', id, seq: ev.seq, x: ev.x, z: ev.z, time: time(ev.t) });
     } else if (ev.k === 'hit') {
       const victim = this.state.grid[ev.slot];
       if (!victim) return;

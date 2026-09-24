@@ -1,5 +1,6 @@
 import type { NetRace } from '../net/NetRace.js';
 import { colourOf, PALETTE } from '../sim/palette.js';
+import { TRACKS } from '../sim/track/index.js';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -62,8 +63,12 @@ export class Lobby {
 
     $<HTMLSelectElement>('lobby-cars').value = String(net.state.cars);
     $<HTMLSelectElement>('lobby-laps').value = String(net.state.laps);
+    $<HTMLSelectElement>('lobby-track').value = String(net.state.track);
     $('lobby-wait').hidden = net.isHost;
-    $('lobby-wait').textContent = room.hostId ? 'Waiting for the host to start the race.' : 'Looking for the room…';
+    const track = TRACKS[net.state.track]?.name ?? '';
+    $('lobby-wait').textContent = room.hostId
+      ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}. Waiting for the host to start it.`
+      : 'Looking for the room…';
   }
 
   private row(name: string, colourId: string, badges: string[]): HTMLLIElement {

@@ -21,6 +21,7 @@ import { racingLine } from '../dist/sim/racingLine.js';
 import { World } from '../dist/sim/World.js';
 import { mulberry32, wrapAngle } from '../dist/util.js';
 import { SIM } from '../dist/config.js';
+import { trainAt } from '../dist/sim/train.js';
 
 let pass = 0;
 let fail = 0;
@@ -422,6 +423,27 @@ const toResults = (room, ms = 200000) => room.run(ms, () => room.clients.filter(
   check('six racing cars publish 20-30 packets a second each', perCar >= 19 && perCar <= 30, `${perCar.toFixed(1)} per car per second`);
   check('and the whole room stays inside the budget (under 90 KB/s out of the broker)', egress < 90,
     `${(bytes / secs / 1024).toFixed(1)} KB/s in, ${egress.toFixed(1)} KB/s out at six subscribers`);
+}
+
+{
+  // The host picks the docks: every client races there, and — with no train
+  // messages at all — every client has the train in the same place.
+  const room = makeRoom(3, { latency: 50 });
+  room.run(2500);
+  const host = hostOf(room);
+  const docks = TRACKS.findIndex((t) => t.id === 'docks');
+  host.net.configure(3, 1, docks);
+  host.net.startRace();
+  room.run(NET.countdownMs + 24000);
+  const ids = room.clients.map((c) => c.net.world?.track.def.id);
+  const trains = room.clients.map((c) => {
+    const w = c.net.world;
+    return trainAt(w.track, w.time - w.goTime);
+  });
+  const heads = trains.map((t) => t?.head ?? NaN);
+  const spread = Math.max(...heads) - Math.min(...heads);
+  check('a room on the docks: every client on that track, and the train within a metre everywhere',
+    ids.every((id) => id === 'docks') && trains.every(Boolean) && spread < 1, `train heads ${heads.map((h) => h.toFixed(1)).join(' / ')}`);
 }
 
 /* -------------------------------------------------------------- weapons */

@@ -42,6 +42,25 @@ export interface TrackDef {
   verge: { width: number; surface: Surface };
   /** Walls at the edge of the verge on both sides. */
   walls: boolean;
+  /**
+   * Stretches with no wall on one side (M5): lap fractions, and which side of
+   * the direction of travel. Past an open verge lies whatever the ground is —
+   * grass in the park, water off the quay.
+   */
+  wallGaps?: readonly { from: number; to: number; side: 'left' | 'right' }[];
+  /**
+   * Water, as axis-aligned rectangles (M5). Off the road inside one, a car is
+   * in the water and is put back on the road. Drawn by the renderer as well.
+   */
+  water?: readonly (readonly [x0: number, z0: number, x1: number, z1: number])[];
+  /**
+   * A railway with a level crossing (M5): a straight line of track from
+   * `from` to `to` that crosses the road once. A train runs it on a timetable
+   * measured from GO — first after `first` seconds, then every `period`,
+   * alternating direction — so every client runs the same train with no
+   * messages at all.
+   */
+  railway?: { from: XZ; to: XZ; first: number; period: number; speed: number; cars: number };
 
   /** A point on or near the start/finish line; projected onto the centreline. */
   start: XZ;
@@ -87,4 +106,15 @@ export type PropRule =
       count: number;
       clearance: number;
       height: readonly [min: number, max: number];
-    };
+    }
+  /** Shipping containers stacked on a lot grid in a rectangle, clear of the road (M5). */
+  | {
+      kind: 'containers';
+      area: readonly [x0: number, z0: number, x1: number, z1: number];
+      clearance: number;
+      /** Tallest stack, in containers. */
+      stack: number;
+      gaps: number;
+    }
+  /** Dockside cranes at fixed spots (M5): tall, open gantries the cut-away looks through. */
+  | { kind: 'cranes'; at: readonly (readonly [x: number, z: number, rot: number])[] };

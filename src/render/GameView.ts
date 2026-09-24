@@ -12,6 +12,7 @@ import { ShadowRig } from './ShadowRig.js';
 import { themeFor } from './themes.js';
 import { buildTrackMesh } from './TrackMesh.js';
 import { WeaponView } from './WeaponView.js';
+import { HazardView } from './HazardView.js';
 import type { Armoury } from '../sim/weapons.js';
 import { missileAt } from '../sim/weapons.js';
 
@@ -46,6 +47,7 @@ export class GameView {
   private shadows: ShadowRig;
   private fx: Fx;
   private weapons = new WeaponView();
+  private hazards: HazardView;
   private clock = 0;
   private quality: QualityId;
   private resizeObserver: ResizeObserver;
@@ -80,7 +82,8 @@ export class GameView {
     this.scene.add(this.scenery.group);
 
     this.fx = new Fx(preset.tyreMarks, preset.particles);
-    this.scene.add(this.fx.group, this.weapons.group);
+    this.hazards = new HazardView(track);
+    this.scene.add(this.fx.group, this.weapons.group, this.hazards.group);
 
     this.rig = new CameraRig(1);
     this.rig.setFar(preset.drawDistance + 60);
@@ -123,6 +126,11 @@ export class GameView {
       const p = missileAt(m, time);
       this.fx.trail(m, p.x - m.dx * 1.4, p.z - m.dz * 1.4, m.dx, m.dz, m.speed, dt);
     }
+  }
+
+  /** The train and the crossing, at a race time (seconds since GO). */
+  drawHazards(raceTime: number, dt: number): void {
+    this.hazards.update(raceTime, dt);
   }
 
   /**

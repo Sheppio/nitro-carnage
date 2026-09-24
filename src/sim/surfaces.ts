@@ -13,6 +13,8 @@ export enum Surface {
   Oil = 3,
   /** Kerbs and pavements: tarmac grip, a touch of drag. */
   Kerb = 4,
+  /** Off the quay (M5). Nothing to drive on: a car in it is put back on the road. */
+  Water = 5,
 }
 
 export interface SurfaceDef {
@@ -28,4 +30,5 @@ export const SURFACES: Record<Surface, SurfaceDef> = {
   [Surface.Grass]: { name: 'grass', grip: 0.55, drag: 3.0 },
   [Surface.Oil]: { name: 'oil', grip: 0.18, drag: 0 },
   [Surface.Kerb]: { name: 'kerb', grip: 0.95, drag: 0.3 },
+  [Surface.Water]: { name: 'water', grip: 0.1, drag: 12 },
 };

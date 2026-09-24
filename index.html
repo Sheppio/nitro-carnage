@@ -36,6 +36,10 @@
           <nav class="menu-actions">
             <button class="btn primary" id="btn-create" data-nav-default>Create room</button>
             <button class="btn" id="btn-join">Join room</button>
+            <label class="field">
+              <span>Offline track</span>
+              <select id="menu-track"></select>
+            </label>
             <div class="btn-row">
               <button class="btn" id="btn-race">Quick race</button>
               <button class="btn" id="btn-free-drive">Free drive</button>
@@ -104,6 +108,10 @@
               </select>
             </label>
             <label class="field host-only">
+              <span>Track</span>
+              <select id="lobby-track"></select>
+            </label>
+            <label class="field host-only">
               <span>Laps</span>
               <select id="lobby-laps">
                 <option value="1">1</option>
@@ -151,6 +159,14 @@
               <option value="on">Always</option>
               <option value="off">Never</option>
             </select>
+          </label>
+          <label class="field">
+            <span>Sound effects</span>
+            <input type="range" id="set-sfx" min="0" max="1" step="0.1" />
+          </label>
+          <label class="field">
+            <span>Music</span>
+            <input type="range" id="set-music" min="0" max="1" step="0.1" />
           </label>
           <label class="field check"><input type="checkbox" id="set-vibration" /> <span>Vibration</span></label>
           <label class="field check"><input type="checkbox" id="set-motion" /> <span>Reduce camera shake</span></label>
@@ -209,6 +225,7 @@
             <p class="menu-note" id="pause-note"></p>
             <nav class="menu-actions">
               <button class="btn primary" id="btn-resume" data-nav-back data-nav-default>Resume</button>
+              <button class="btn" id="btn-pause-settings">Settings</button>
               <button class="btn" id="btn-pause-leave">Leave race</button>
             </nav>
           </div>

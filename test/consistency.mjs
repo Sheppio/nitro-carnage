@@ -15,16 +15,20 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SUITES = ['sim', 'net', 'smoke', 'multiplayer', 'gamepad', 'keyboard'];
+const SUITES = ['sim', 'net', 'smoke', 'multiplayer', 'gamepad', 'keyboard', 'mobile'];
+
+// Checks inside a loop over the tracks are written `tcheck(` and run once per
+// track, so they count that many times. The track list comes from the build.
+const { TRACKS } = await import(join(HERE, '..', 'dist', 'sim', 'track', 'index.js'));
 
 let total = 0;
 const parts = [];
 for (const suite of SUITES) {
   const src = await readFile(join(HERE, `${suite}.test.mjs`), 'utf8');
-  // `check(` in the Node suite, `r.check(` in the browser suites. A check
-  // inside the loop over TRACKS is counted once here and runs once per
-  // track: exact while there is one track, and to be revisited with the second.
-  const count = (src.match(/^\s*(?:await step|r\.check|check)\(/gm) ?? []).length;
+  // `check(` in the Node suites, `r.check(` in the browser suites.
+  const once = (src.match(/^\s*(?:await step|r\.check|check)\(/gm) ?? []).length;
+  const perTrack = (src.match(/^\s*tcheck\(/gm) ?? []).length;
+  const count = once + perTrack * TRACKS.length;
   total += count;
   parts.push(`${suite} ${count}`);
 }
