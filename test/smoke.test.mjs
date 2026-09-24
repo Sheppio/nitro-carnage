@@ -251,6 +251,47 @@ try {
     results.title);
   await race.close();
 
+  /* --------------------------------------------------------------- weapons */
+  const arms = await openPage('quality=potato&drive');
+  // Past the start grace: nobody fires in the first seconds after GO.
+  await until(() => arms.evaluate(() => window.nitro.session?.world.time > 4.3), { timeout: 60000 });
+  const ammo0 = await arms.evaluate(() => document.getElementById('hud-ammo-front').textContent);
+  await arms.keyboard.press('KeyZ');
+  const drawn = await until(() => arms.evaluate(() => window.nitro.session.view.scene.getObjectByName('missiles').count || null), { timeout: 10000 });
+  const ammo1 = await until(() => arms.evaluate((a0) => {
+    const t = document.getElementById('hud-ammo-front').textContent;
+    return t !== a0 ? t : null;
+  }, ammo0), { timeout: 5000 });
+  r.check('Z fires a missile: it is drawn, and the HUD counts it off', Boolean(drawn) && Number(ammo1) === Number(ammo0) - 1, `${ammo0} -> ${ammo1}`);
+
+  await arms.keyboard.press('KeyX');
+  const mine = await until(() => arms.evaluate(() => window.nitro.session.view.scene.getObjectByName('mines').count || null), { timeout: 10000 });
+  r.check('X drops a mine, drawn with its beacon', Boolean(mine));
+
+  // A hit on the player: health bar down, and the car smokes once it is low.
+  const bar = await arms.evaluate(async () => {
+    const s = window.nitro.session;
+    const c = s.player.car;
+    s.world.hit('you', 'someone', 1, 'front', 75, c.x, c.z);
+    await new Promise((res) => setTimeout(res, 400));
+    return { hp: s.player.hp, transform: document.getElementById('hud-hp').style.transform, critical: document.getElementById('hud-hp').classList.contains('critical') };
+  });
+  r.check('a hit takes health off, and the health bar shows it', bar.hp === 25 && bar.transform === 'scaleX(0.25)', `${bar.hp} health, ${bar.transform}`);
+  const wreck = await arms.evaluate(async () => {
+    const s = window.nitro.session;
+    const c = s.player.car;
+    s.world.hit('you', 'someone', 2, 'front', 40, c.x, c.z);
+    await new Promise((res) => setTimeout(res, 300));
+    return { wrecked: s.player.wrecked > 0, banner: document.getElementById('hud-banner').textContent };
+  });
+  r.check('shot to nothing, the car is wrecked and the HUD says so', wreck.wrecked && /WRECKED/.test(wreck.banner), wreck.banner);
+  const back = await until(() => arms.evaluate(() => {
+    const p = window.nitro.session.player;
+    return p.wrecked === 0 && p.hp === 35 ? true : null;
+  }), { timeout: 10000 });
+  r.check('and is back on the road a few seconds later with 35 health', Boolean(back));
+  await arms.close();
+
   /* ------------------------------------------------------ draw-call budget */
   // Small viewport: the count does not depend on resolution, and SwiftShader
   // at full size with a 2048 shadow map takes seconds per frame.

@@ -19,6 +19,7 @@ import { interpolateCar } from '../dist/sim/interpolate.js';
 import { resolveColours, PALETTE } from '../dist/sim/palette.js';
 import { applyDeadzone1, filterAxis } from '../dist/input/sources.js';
 import { mulberry32, wrapAngle, smoothing } from '../dist/util.js';
+import { Armoury, castRay, missileAt } from '../dist/sim/weapons.js';
 
 let pass = 0;
 let fail = 0;
@@ -516,7 +517,7 @@ for (const def of TRACKS) {
 }
 
 {
-  const w = new World(TRACKS[0], { laps: 3, countdown: 3 });
+  const w = new World(TRACKS[0], { laps: 3, countdown: 3, weapons: false });
   for (let i = 0; i < 6; i++) w.addBot(`b${i}`, i, SKILLS[i], 100 + i);
   let finite = true;
   let hardBumps = 0;
@@ -617,6 +618,282 @@ console.log('\nrace rules');
   e.vz = -10;
   resolveCarPair(c, e, CAR_SHAPE, true, false);
   check('a one-sided collision moves only the car it is asked to', c.vz < 0 && e.vz === -10 && e.z === 4.2);
+}
+
+/* ---------------------------------------------------------------- weapons */
+
+console.log('\nweapons');
+
+const W = SIM.weapons;
+
+/** The start of the longest nearly straight stretch of a track: somewhere to shoot along. */
+function straight(track, len = 80) {
+  let best = 0;
+  let bestTurn = Infinity;
+  for (let s = 0; s < track.length; s += 5) {
+    let turn = 0;
+    for (let a = 0; a < len; a += 5) turn += Math.abs(wrapAngle(track.poseAt(s + a + 5).yaw - track.poseAt(s + a).yaw));
+    if (turn < bestTurn) {
+      bestTurn = turn;
+      best = s;
+    }
+  }
+  return best;
+}
+
+/** Put a car at arc length `s`, `d` metres off the centre line, facing along the track (or `turn` off it), stopped. */
+function place(w, e, s, d = 0, turn = 0) {
+  const pose = w.track.poseAt(s);
+  const [x, z] = w.track.offsetPoint(pose.i, d);
+  Object.assign(e.car, { x, z, yaw: pose.yaw + turn, vx: 0, vz: 0, w: 0, hint: pose.i });
+  Object.assign(e.prev, e.car);
+  const p = w.track.project(x, z, pose.i);
+  e.s = p.s;
+  e.d = p.d;
+  e.safeS = p.s;
+}
+
+/** A world past its start grace, with scripted cars. */
+function armedWorld(n) {
+  const w = new World(TRACKS[0], { laps: 0, countdown: 0 });
+  const cars = Array.from({ length: n }, (_, i) => {
+    const e = w.addCar(`c${i}`, i, () => e.script ?? intent());
+    return e;
+  });
+  while (w.time < W.startGrace + 0.1) w.step();
+  w.drain();
+  return { w, cars };
+}
+
+/** Step until `fn` is true or `max` seconds pass; returns the events seen. */
+function stepFor(w, max, fn = () => false) {
+  const evs = [];
+  for (let k = 0; k < max * 60; k++) {
+    w.step();
+    evs.push(...w.drain());
+    if (fn(evs)) break;
+  }
+  return evs;
+}
+
+const S0 = straight(TRACKS[0] && new World(TRACKS[0]).track);
+
+{
+  // A shot is a function of time: two worlds, the same launch, evaluated at
+  // the same moment — one stepped there, one spawning the shot late — agree.
+  const a = new Armoury(new World(TRACKS[0]).track);
+  const b = new Armoury(new World(TRACKS[0]).track);
+  const pose = new World(TRACKS[0]).track.poseAt(S0);
+  const ma = a.launch('x', 1, 'front', pose.x, pose.z, pose.yaw, 10, true);
+  const mb = b.launch('x', 1, 'front', pose.x, pose.z, pose.yaw, 10, false);
+  const pa = missileAt(ma, 10.7);
+  const pb = missileAt(mb, 10.7);
+  check('a missile fired into two worlds flies identically, and one spawned late is already where it should be',
+    ma.end === mb.end && ma.wall === mb.wall && pa.x === pb.x && pa.z === pb.z);
+}
+
+{
+  // Two hundred shots from all over the track in every direction: none ends past a wall.
+  const w = new World(TRACKS[0]);
+  const t = w.track;
+  const rand = mulberry32(99);
+  let escaped = 0;
+  let walls = 0;
+  for (let k = 0; k < 200; k++) {
+    const s = rand() * t.length;
+    const pose = t.poseAt(s);
+    const [x, z] = t.offsetPoint(pose.i, (rand() - 0.5) * 2 * (t.halfWidth - 1.5));
+    const m = w.armoury.launch('x', k, rand() < 0.5 ? 'front' : 'rear', x, z, rand() * Math.PI * 2, 0, false);
+    if (m.wall) walls++;
+    // Walk the flight: every point of it must stay inside the walls.
+    for (let tt = 0; tt <= m.end; tt += 0.01) {
+      const p = missileAt(m, tt);
+      if (Math.abs(t.project(p.x, p.z).d) > t.wallOffset + 0.05) {
+        escaped++;
+        break;
+      }
+    }
+  }
+  check('missiles stop at walls: 200 shots in random directions, none leaves the track', escaped === 0 && walls > 100, `${walls} hit a wall, ${escaped} escaped`);
+}
+
+{
+  // Nose against a wall: the shot must not come out the other side.
+  const w = new World(TRACKS[0]);
+  const t = w.track;
+  const pose = t.poseAt(S0);
+  const [x, z] = t.offsetPoint(pose.i, t.wallOffset - 1.1);
+  const toWall = pose.yaw - Math.PI / 2; // facing the wall on the car's right... or left
+  const a = w.armoury.launch('x', 1, 'front', x, z, toWall, 0, false);
+  const b = w.armoury.launch('x', 2, 'front', x, z, toWall + Math.PI, 0, false);
+  const shortest = Math.min(a.end, b.end);
+  const at = missileAt(shortest === a.end ? a : b, shortest);
+  check('a car with its nose on a wall cannot shoot through it', shortest === 0 && Math.abs(t.project(at.x, at.z).d) <= t.wallOffset + 0.05,
+    `flight ${(Math.min(a.end, b.end) * 1000).toFixed(0)} ms`);
+}
+
+{
+  const { w, cars: [a, b] } = armedWorld(2);
+  place(w, a, S0);
+  place(w, b, S0 + 30);
+  a.script = intent({ fireFront: true });
+  w.step();
+  a.script = intent();
+  const evs = stepFor(w, 1, (e) => e.some((x) => x.kind === 'hit'));
+  const hit = evs.find((e) => e.kind === 'hit');
+  check('a front missile hits the car 30 m ahead: 20 damage, one missile gone',
+    hit?.id === 'c1' && hit.by === 'c0' && b.hp === W.health - W.front.damage && a.ammo.front === W.loadout.front - 1 && w.armoury.missiles.length === 0,
+    `hp ${b.hp}, ammo ${a.ammo.front}`);
+  check('and the shooter never hits itself', a.hp === W.health);
+}
+
+{
+  // Rear missile, once the mines are gone; cooldown and empty racks respected.
+  const { w, cars: [a, b] } = armedWorld(2);
+  place(w, a, S0 + 30);
+  place(w, b, S0);
+  a.ammo.mines = 0;
+  a.script = intent({ fireRear: true });
+  const evs = stepFor(w, 1);
+  const fired = evs.filter((e) => e.kind === 'fire');
+  check('with no mines left the rear button fires rear missiles, one per cooldown', fired.length >= 2 && fired.every((f) => f.weapon === 'rear')
+    && fired.length <= Math.ceil(1 / W.rear.cooldown) + 1 && b.hp < W.health, `${fired.length} fired in the first second`);
+  a.ammo.front = 0;
+  a.script = intent({ fireFront: true });
+  const none = stepFor(w, 0.5).filter((e) => e.kind === 'fire' && e.weapon === 'front');
+  check('an empty rack fires nothing', none.length === 0);
+}
+
+{
+  // Nobody fires on the grid, or before the start grace.
+  const w = new World(TRACKS[0], { laps: 1, countdown: 1 });
+  const e = w.addCar('a', 0, () => intent({ fireFront: true, fireRear: true }));
+  let early = 0;
+  while (w.time < 1 + W.startGrace - 0.05) {
+    w.step();
+    early += w.drain().filter((x) => x.kind === 'fire' || x.kind === 'mine').length;
+  }
+  const later = stepFor(w, 0.5).filter((x) => x.kind === 'fire' || x.kind === 'mine').length;
+  check(`nobody fires before GO + ${W.startGrace} s, and fires after`, early === 0 && later > 0 && e.ammo.front < W.loadout.front);
+}
+
+{
+  // Ghosts, finishers and wrecks are not targets: the shot flies on.
+  const { w, cars: [a, b, c] } = armedWorld(3);
+  place(w, a, S0);
+  place(w, b, S0 + 20);
+  place(w, c, S0 + 40);
+  b.ghost = 5;
+  c.lap.finished = true;
+  a.script = intent({ fireFront: true });
+  w.step();
+  a.script = intent();
+  const evs = stepFor(w, 1.5);
+  check('shots pass through a ghost and a car that has finished', !evs.some((e) => e.kind === 'hit') && b.hp === 100 && c.hp === 100);
+}
+
+{
+  // Mines: dropped behind, inert until armed, then they hurt whoever drives
+  // over them — including their owner — and vanish.
+  const { w, cars: [a, b] } = armedWorld(2);
+  place(w, a, S0 + 20);
+  place(w, b, S0 + 60, 5);
+  a.script = intent({ fireRear: true });
+  w.step();
+  a.script = intent();
+  const mine = w.armoury.mines[0];
+  const behind = mine && w.track.deltaS(w.track.project(mine.x, mine.z).s, a.s);
+  // Park B on it at once: not armed yet.
+  Object.assign(b.car, { x: mine.x, z: mine.z, yaw: a.car.yaw, vx: 0, vz: 0 });
+  const early = stepFor(w, W.mine.arm - 0.1).filter((e) => e.kind === 'hit');
+  const evs = stepFor(w, 0.3);
+  const hit = evs.find((e) => e.kind === 'hit');
+  check('a mine drops behind the car and is harmless until it arms', mine && behind > 1.5 && early.length === 0, `${behind?.toFixed(1)} m behind`);
+  check('armed, it hurts the car on it for 30, once, and is gone', hit?.weapon === 'mine' && b.hp === W.health - W.mine.damage && w.armoury.mines.length === 0 && a.ammo.mines === W.loadout.mines - 1);
+
+  place(w, b, S0 + 60, 5);
+  a.script = intent({ fireRear: true });
+  w.step();
+  a.script = intent();
+  stepFor(w, W.mine.arm + 0.2);
+  const own = w.armoury.mines[0];
+  Object.assign(a.car, { x: own.x, z: own.z, vx: 0, vz: 0 });
+  stepFor(w, 0.2);
+  check('your own mine hurts you too, once armed', a.hp === W.health - W.mine.damage);
+}
+
+{
+  // Wreck: to zero health, burn, back on the road with 35 health, ghosted,
+  // and the kill credited.
+  const { w, cars: [a, b] } = armedWorld(2);
+  place(w, a, S0);
+  place(w, b, S0 + 25);
+  b.hp = 15;
+  a.script = intent({ fireFront: true });
+  w.step();
+  a.script = intent();
+  const evs = stepFor(w, 1, (e) => e.some((x) => x.kind === 'wreck'));
+  const wreck = evs.find((e) => e.kind === 'wreck');
+  const burning = b.wrecked > 0 && b.hp === 0;
+  const before = [b.car.x, b.car.z];
+  const later = stepFor(w, W.wreckTime + 0.1);
+  const back = later.some((e) => e.kind === 'respawn' && e.id === 'c1');
+  check('a car shot to zero is wrecked, and the shooter gets the kill', wreck?.id === 'c1' && wreck.by === 'c0' && a.kills === 1 && b.wrecks === 1 && burning);
+  check(`it burns for ${W.wreckTime} s, then is back on the road with ${W.respawnHealth} health and ghosted`,
+    back && b.wrecked === 0 && b.hp === W.respawnHealth && b.ghost > 0 && Math.hypot(b.car.x - before[0], b.car.z - before[1]) > 1);
+}
+
+{
+  // Walls hurt past 12 m/s, and a wall that finishes off a car somebody
+  // just shot is their wreck.
+  const w = new World(TRACKS[0], { laps: 0, countdown: 0 });
+  const e = w.addCar('a', 0, () => intent());
+  const hitWall = (speed) => {
+    place(w, e, S0, 0, Math.PI / 2);
+    const hp = e.hp;
+    e.car.vx = Math.sin(e.car.yaw) * speed;
+    e.car.vz = Math.cos(e.car.yaw) * speed;
+    stepFor(w, 1.5);
+    return hp - e.hp;
+  };
+  const soft = hitWall(10);
+  const hard = hitWall(35);
+  check('a wall at 10 m/s costs nothing; at 35 m/s it costs health', soft === 0 && hard > 10, `${hard.toFixed(1)} health at 35 m/s`);
+  e.hp = 5;
+  e.lastAttacker = 'z';
+  e.lastAttackAt = w.time;
+  const z = w.addCar('z', 1, () => intent());
+  place(w, e, S0, 0, Math.PI / 2);
+  e.car.vx = Math.sin(e.car.yaw) * 35;
+  e.car.vz = Math.cos(e.car.yaw) * 35;
+  const evs = stepFor(w, 1.5);
+  const wreck = evs.find((x) => x.kind === 'wreck');
+  check('a wall that finishes a car just shot counts as the shooter\'s wreck', wreck?.by === 'z' && z.kills === 1);
+}
+
+{
+  // A full armed race: six bots, three laps, weapons live.
+  const run = () => {
+    const w = new World(TRACKS[0], { laps: 3, countdown: 1 });
+    const bots = SKILLS.map((sk, i) => w.addBot(`b${i}`, i, sk, 50 + i));
+    const tally = { fire: 0, hit: 0, wreck: 0, mine: 0 };
+    let bad = false;
+    while (w.time < 400 && !bots.every((b) => b.lap.finished)) {
+      w.step();
+      for (const e of w.drain()) if (e.kind in tally) tally[e.kind]++;
+      if (bots.some((b) => !Number.isFinite(b.car.x) || !Number.isFinite(b.hp))) bad = true;
+    }
+    return { w, bots, tally, bad };
+  };
+  const r = run();
+  const kills = r.bots.reduce((a, b) => a + b.kills, 0);
+  const wrecks = r.bots.reduce((a, b) => a + b.wrecks, 0);
+  check('six armed bots race three laps: all finish, shots land, some wrecks, every kill credited to a wreck',
+    r.bots.every((b) => b.lap.finished) && !r.bad && r.tally.hit > 10 && wrecks >= 1 && wrecks <= 20 && kills <= wrecks,
+    `${r.tally.fire} missiles, ${r.tally.mine} mines, ${r.tally.hit} hits, ${wrecks} wrecks, ${kills} credited`);
+  const again = run();
+  check('and the same armed race run twice is identical to the last step',
+    r.w.steps === again.w.steps && r.bots.every((b, i) => b.lap.finishTime === again.bots[i].lap.finishTime && b.hp === again.bots[i].hp));
 }
 
 /* ------------------------------------------------------------ determinism */

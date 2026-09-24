@@ -8,6 +8,8 @@ import { Scenery } from './Scenery.js';
 import { ShadowRig } from './ShadowRig.js';
 import { themeFor } from './themes.js';
 import { buildTrackMesh } from './TrackMesh.js';
+import { WeaponView } from './WeaponView.js';
+import { missileAt } from '../sim/weapons.js';
 /** How far out the cut-away hole reaches around a car, in metres at the car. */
 const CUT_RADIUS_M = 6.5;
 /**
@@ -28,6 +30,8 @@ export class GameView {
     scenery;
     shadows;
     fx;
+    weapons = new WeaponView();
+    clock = 0;
     quality;
     resizeObserver;
     v = new THREE.Vector3();
@@ -58,7 +62,7 @@ export class GameView {
         this.scenery = new Scenery(track, theme);
         this.scene.add(this.scenery.group);
         this.fx = new Fx(preset.tyreMarks, preset.particles);
-        this.scene.add(this.fx.group);
+        this.scene.add(this.fx.group, this.weapons.group);
         this.rig = new CameraRig(1);
         this.rig.setFar(preset.drawDistance + 60);
         this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -71,10 +75,43 @@ export class GameView {
     addCar(id, colour) {
         const mesh = new CarMesh(colour, QUALITY[this.quality].shadowMapSize > 0);
         this.scene.add(mesh.root, mesh.blob);
-        const view = { id, mesh, landings: 0, impacts: 0 };
+        const view = { id, mesh, landings: 0, impacts: 0, hp: 100, wrecked: false, ghost: false };
         this.cars.set(id, view);
         this.focusId ??= id;
         return view;
+    }
+    /** A car's health and state, for smoke, fire and the ghost blink. */
+    setCondition(id, hp, wrecked, ghost) {
+        const view = this.cars.get(id);
+        if (!view)
+            return;
+        view.hp = hp;
+        view.wrecked = wrecked;
+        view.ghost = ghost;
+    }
+    /**
+     * Missiles and mines, drawn at world time `time` — the same interpolated
+     * moment the cars are drawn at — with exhaust trails.
+     */
+    drawWeapons(armoury, time, dt, cars) {
+        this.weapons.update(armoury, time, cars);
+        for (const m of armoury.missiles) {
+            if (m.done || time < m.t0 || time > m.end)
+                continue;
+            const p = missileAt(m, time);
+            this.fx.trail(m, p.x - m.dx * 1.4, p.z - m.dz * 1.4, m.dx, m.dz, m.speed, dt);
+        }
+    }
+    /**
+     * An explosion at a world point. The camera shakes with it, by how close
+     * it is to the car being followed.
+     */
+    explode(x, z, size, focus) {
+        this.fx.explode(x, z, size);
+        if (focus) {
+            const d = Math.hypot(x - focus.x, z - focus.z);
+            this.rig.addTrauma(Math.max(0, 0.55 * size * (1 - d / 40)));
+        }
     }
     resize() {
         const w = Math.max(1, this.host.clientWidth);
@@ -93,12 +130,15 @@ export class GameView {
             const view = this.cars.get(id);
             if (!view)
                 continue;
+            view.mesh.condition(view.wrecked, view.ghost, this.clock);
             view.mesh.update(state, dt);
             this.fx.car(state, dt);
+            this.fx.condition(state, view.hp, view.wrecked, dt, view);
             if (id === this.focusId)
                 this.jolts(view, state);
         }
         this.fx.update(dt);
+        this.clock += dt;
         const focus = this.focusId ? states.get(this.focusId) : undefined;
         if (focus) {
             this.rig.update(focus, dt);

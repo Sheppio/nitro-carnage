@@ -142,6 +142,18 @@ export class GamepadNavigator {
       return;
     }
 
+    // Esc (and Backspace outside a text field) is the keyboard's B button:
+    // whatever the screen's back action is — Back, Cancel, Resume, Done.
+    // Taken here, in the capture phase, so the race's own Esc handler does
+    // not see the same press and reopen the pause menu it just closed.
+    if (event.key === 'Escape' || (event.key === 'Backspace' && !typing)) {
+      if (!this.hasBack()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.back();
+      return;
+    }
+
     if (event.key === ' ' || event.key === 'Enter') {
       // In a text field a space is a space, and Enter is already wired to
       // submit on the fields that want it.
@@ -346,6 +358,10 @@ export class GamepadNavigator {
    * pressing B to close the on-screen keyboard walked the player back out of
    * character select.
    */
+  private hasBack(): boolean {
+    return [...this.navScope().querySelectorAll<HTMLElement>('[data-nav-back]')].some((el) => !el.hidden && isVisible(el));
+  }
+
   private back(): void {
     for (const el of this.navScope().querySelectorAll<HTMLElement>('[data-nav-back]')) {
       if (!el.hidden && isVisible(el)) {
@@ -378,8 +394,20 @@ export class GamepadNavigator {
   }
 }
 
+/**
+ * The box a control occupies for navigation: its whole form row when it sits
+ * in one (`label.field`), otherwise itself.
+ *
+ * A settings row is a label with its control at one end — dropdowns on the
+ * right, checkboxes on the left. Measured by the controls alone, a column of
+ * right-hand dropdowns is "directly below" each other and the small left-hand
+ * checkboxes between them are far off to the side, so pressing down from
+ * Touch controls jumped straight to Broker and the three toggles in between
+ * could not be reached from the keyboard or a pad at all. Rows are all the
+ * same width, so down simply means the next row.
+ */
 function rectOf(el: HTMLElement): Rect {
-  const r = el.getBoundingClientRect();
+  const r = (el.closest('label.field') ?? el).getBoundingClientRect();
   return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom };
 }
 

@@ -118,7 +118,8 @@ function begin(mode: SessionMode, s: RaceSession): void {
   };
   $('hud-track').textContent = DOWNTOWN.name;
   const help = $('hud-help');
-  help.hidden = mode !== 'free';
+  // The controls, briefly, at the start of every drive: weapons are new to everybody once.
+  help.hidden = false;
   help.classList.remove('gone');
   clearTimeout(helpTimer);
   helpTimer = window.setTimeout(() => help.classList.add('gone'), 9000);

@@ -64,7 +64,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [smoke, multiplayer, gamepad]
+        suite: [smoke, multiplayer, gamepad, keyboard]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

@@ -195,6 +195,55 @@ select {
   transform-origin: left;
 }
 
+.hud-arms {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+/* Ten segments, one per 10 health: a hit is visibly two or three of them going. */
+.health {
+  width: 170px;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--edge);
+  overflow: hidden;
+  position: relative;
+}
+
+.health::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 15px, rgba(0, 0, 0, 0.6) 15px 17px);
+}
+
+.health-fill {
+  height: 100%;
+  width: 100%;
+  background: #4be08a;
+  transform-origin: left;
+  transition: transform 0.12s;
+}
+
+.health-fill.low { background: #ffb020; }
+.health-fill.critical { background: #ff3b3b; animation: hp-blink 0.5s steps(2) infinite; }
+
+@keyframes hp-blink { 50% { opacity: 0.4; } }
+
+.ammo {
+  display: flex;
+  gap: 12px;
+  font: 700 13px var(--display);
+  color: var(--muted);
+  text-shadow: 0 1px 3px #000;
+}
+
+.ammo b { color: var(--text); font-size: 16px; }
+.ammo b.empty { color: #ff5a5a; }
+
 .hud-help {
   position: absolute;
   left: 50%;

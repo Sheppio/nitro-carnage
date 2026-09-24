@@ -87,6 +87,16 @@ export class CarMesh {
   private readonly e = new THREE.Euler(0, 0, 0, 'YXZ');
   private readonly v = new THREE.Vector3();
   private readonly one = new THREE.Vector3(1, 1, 1);
+  private wrecked = false;
+
+  /**
+   * Show a car's condition. A ghost (just respawned: shots and cars pass
+   * through it) blinks, the arcade convention for "cannot be touched".
+   */
+  condition(wrecked: boolean, ghost: boolean, time: number): void {
+    this.wrecked = wrecked;
+    this.root.visible = !ghost || Math.sin(time * 40) > -0.3;
+  }
 
   constructor(colour: number, shadowMaps: boolean) {
     this.colour = colour;
@@ -139,7 +149,10 @@ export class CarMesh {
     this.roll += this.rollVel * step;
     this.pitchVel += ((pitchTarget - this.pitch) * 160 - this.pitchVel * 16) * step;
     this.pitch += this.pitchVel * step;
-    this.body.rotation.set(this.pitch, 0, this.roll, 'YXZ');
+    // A wreck slumps onto one side, where it burns until it is put back.
+    if (this.wrecked) this.body.rotation.set(0.12, 0, 0.3, 'YXZ');
+    else this.body.rotation.set(this.pitch, 0, this.roll, 'YXZ');
+    this.body.position.y = this.wrecked ? -0.18 : 0;
 
     this.spin += (car.forward * dt) / WHEEL_R;
     const place = (i: number, x: number, z: number, steer: number): void => {

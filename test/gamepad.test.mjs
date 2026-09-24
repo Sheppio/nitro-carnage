@@ -157,6 +157,27 @@ try {
   const menu = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden && window.nitro.session === null));
   r.check('and Leave race goes back to the menu', Boolean(onLeave) && Boolean(menu),
     `focus ${onLeave ? 'reached' : 'missed'} Leave, ${menu ? 'back at menu' : `still on ${await page.evaluate(() => [...document.querySelectorAll('.screen:not([hidden])')].map((x) => x.id).join())}`}`);
+  /* -------------------------------------------------------- settings */
+  // Every row of Settings by D-pad alone — the on/off switches included,
+  // which sit at the opposite edge of their rows from the dropdowns.
+  for (let k = 0; k < 8 && (await focused(page)) !== 'btn-settings'; k++) await tap(page, B.RIGHT);
+  await tap(page, B.A);
+  await until(() => page.evaluate(() => !document.getElementById('screen-settings').hidden));
+  const visited = new Set();
+  for (let k = 0; k < 10; k++) {
+    visited.add(await focused(page));
+    await tap(page, B.DOWN);
+  }
+  const rows = ['set-quality', 'set-touch', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
+  const missed = rows.filter((id) => !visited.has(id));
+  await until(async () => (await focused(page)) === 'set-motion' || (await tap(page, B.DOWN), false), { timeout: 10000, interval: 0 });
+  const before = await page.evaluate(() => document.getElementById('set-motion').checked);
+  await tap(page, B.A);
+  const after = await page.evaluate(() => document.getElementById('set-motion').checked);
+  await tap(page, B.B);
+  const out = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden));
+  r.check('Settings by D-pad: down visits every row, A flips a switch, B goes back', missed.length === 0 && before !== after && Boolean(out),
+    missed.length ? `missed ${missed.join(', ')}` : '');
   await page.close();
 
   /* ------------------------------------------------------- Steam Deck */

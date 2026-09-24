@@ -61,7 +61,8 @@ export function applyGlyphs(family: PadFamily): void {
     const l = (a: Action): string => label(a, family);
     el.innerHTML =
       `<b>Drive</b> ${l('throttle')} · <b>Brake</b> ${l('brake')} · <b>Steer</b> ${l('steer')} · ` +
-      `<b>Handbrake</b> ${l('handbrake')} · <b>Turbo</b> ${l('turbo')} · <b>Menu</b> ${l('menu')}`;
+      `<b>Handbrake</b> ${l('handbrake')} · <b>Turbo</b> ${l('turbo')} · ` +
+      `<b>Missile</b> ${l('front')} · <b>Mine / rear</b> ${l('rear')} · <b>Menu</b> ${l('menu')}`;
   };
   line('menu-keys');
   line('hud-help');

@@ -123,6 +123,10 @@ export class NetRace {
   private finishes = new Map<string, number>();
   private phaseSince = 0;
   private started = false;
+  /** Hits this client has already taken, keyed `shooter:seq`, so a repeated `H` never hurts twice. */
+  private taken = new Set<string>();
+  /** Highest shot/mine counter seen from each car, so a host adopting a bot carries on from it. */
+  private lastSeq = new Map<string, number>();
 
   constructor(opts: NetRaceOptions) {
     this.net = opts.transport;
@@ -330,6 +334,9 @@ export class NetRace {
       e.lap.s = e.s;
       e.lap.nextCp = e.lap.completed < 0 ? w.track.checkpoints.length : w.track.checkpoints.filter((c) => c < e.s).length;
       e.safeS = e.s;
+      // Carry on the bot's shot numbering: reusing a number would make its
+      // next mine look like one everybody already has.
+      e.seq = Math.max(e.seq, this.lastSeq.get(e.id) ?? 0);
       this.owned.set(e.id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0 });
       this.remotes.delete(e.id);
     }
@@ -387,6 +394,8 @@ export class NetRace {
     this.worldZero = s.goAt - w.goTime * 1000;
     this.raceGoAt = s.goAt;
     this.resultsSent = false;
+    this.taken.clear();
+    this.lastSeq.clear();
 
     const line = racingLine(w.track);
     s.grid.forEach((id, slot) => {
@@ -463,6 +472,8 @@ export class NetRace {
       c.handbrake = (p.flags & CAR_FLAG.handbrake) !== 0;
       c.boosting = (p.flags & CAR_FLAG.boost) !== 0;
       e.ghost = (p.flags & CAR_FLAG.ghost) !== 0 ? 0.1 : 0;
+      e.wrecked = (p.flags & CAR_FLAG.wrecked) !== 0 ? 0.1 : 0;
+      e.hp = p.hp;
       // Its lap count is its owner's word; distance is ours to compute.
       e.lap.completed = p.lap;
       e.lap.s = p.s;
@@ -481,9 +492,10 @@ export class NetRace {
     if (c.airborne) flags |= CAR_FLAG.airborne;
     if (e.ghost > 0) flags |= CAR_FLAG.ghost;
     if (e.lap.finished) flags |= CAR_FLAG.finished;
+    if (e.wrecked > 0) flags |= CAR_FLAG.wrecked;
     return {
       t, x: c.x, z: c.z, yaw: c.yaw, vx: c.vx, vz: c.vz, w: c.w, steer: c.steer, y: c.y, vy: c.vy,
-      flags, hp: 100, lap: e.lap.completed, s: e.s,
+      flags, hp: Math.round(e.hp), lap: e.lap.completed, s: e.s,
     };
   }
 
@@ -523,7 +535,49 @@ export class NetRace {
           o.entrant.car.vx += ev.dvx;
           o.entrant.car.vz += ev.dvz;
         }
+      } else if (w) {
+        this.onWeaponEvent(w, id, ev);
       }
+    }
+  }
+
+  /**
+   * Somebody else's weapons (§5.4). Their shots and mines are copied into this
+   * world as scenery; their hits are applied here only if the victim is a car
+   * this client drives, once per shot however often the message is repeated.
+   */
+  private onWeaponEvent(w: World, id: string, ev: CarEvent): void {
+    const time = (ms: number): number => w.goTime + ms / 1000;
+    if (ev.k === 'fire' || ev.k === 'mine') {
+      this.lastSeq.set(id, Math.max(this.lastSeq.get(id) ?? 0, ev.seq));
+    }
+    if (ev.k === 'fire') {
+      if (w.armoury.findMissile(id, ev.seq)) return;
+      // Fired a moment ago on the shooter's screen: the flight is a function
+      // of time, so spawning it late puts it exactly where it now is.
+      w.armoury.launch(id, ev.seq, ev.weapon === 1 ? 'rear' : 'front', ev.x, ev.z, ev.yaw, time(ev.t), false);
+    } else if (ev.k === 'mine') {
+      if (w.armoury.findMine(id, ev.seq)) return;
+      w.armoury.place(id, ev.seq, ev.x, ev.z, time(ev.t));
+    } else if (ev.k === 'hit') {
+      const victim = this.state.grid[ev.slot];
+      if (!victim) return;
+      const m = w.armoury.findMissile(id, ev.seq);
+      const key = `${id}:${ev.seq}`;
+      const mine = this.owned.has(victim);
+      if (mine && this.taken.has(key)) return;
+      if (mine) this.taken.add(key);
+      w.hit(victim, id, ev.seq, ev.weapon === 1 ? 'rear' : 'front', ev.dmg, ev.x, ev.z);
+      if (m) m.done = true;
+    } else if (ev.k === 'trigger') {
+      const owner = this.state.grid[ev.slot];
+      const m = owner ? w.armoury.findMine(owner, ev.seq) : undefined;
+      if (!owner || !m || m.done) return;
+      m.done = true;
+      w.hit(id, owner, ev.seq, 'mine', 0, m.x, m.z);
+    } else if (ev.k === 'wreck') {
+      const by = ev.slot >= 0 ? (this.state.grid[ev.slot] ?? null) : null;
+      w.creditWreck(id, by);
     }
   }
 
@@ -542,6 +596,34 @@ export class NetRace {
         }
         if (ev.kind === 'respawn') o.pending.push({ k: 'respawn', x: o.entrant.car.x, z: o.entrant.car.z, yaw: o.entrant.car.yaw });
       }
+    } else if (ev.kind === 'fire' || ev.kind === 'mine') {
+      const o = this.owned.get(ev.id);
+      if (o && ev.kind === 'fire') {
+        o.pending.push({ k: 'fire', seq: ev.seq, weapon: ev.weapon === 'rear' ? 1 : 0, x: ev.x, z: ev.z, yaw: ev.yaw, t: toMs(ev.time) });
+      } else if (o && ev.kind === 'mine') {
+        o.pending.push({ k: 'mine', seq: ev.seq, x: ev.x, z: ev.z, t: toMs(ev.time) });
+      }
+      this.flushSoon(o);
+    } else if (ev.kind === 'hit') {
+      const slot = this.state.grid.indexOf(ev.id);
+      if (ev.weapon === 'mine') {
+        // The victim reports a mine it drove over, so every screen clears it.
+        const o = this.owned.get(ev.id);
+        const ownerSlot = this.state.grid.indexOf(ev.by);
+        if (o && ownerSlot >= 0) o.pending.push({ k: 'trigger', slot: ownerSlot, seq: ev.seq });
+        this.flushSoon(o);
+      } else {
+        // The shooter reports every hit its own shots make — on a remote car
+        // for its owner to apply, on one of its own so the others see it land.
+        const o = this.owned.get(ev.by);
+        if (o && slot >= 0) {
+          o.pending.push({ k: 'hit', seq: ev.seq, slot, weapon: ev.weapon === 'rear' ? 1 : 0, dmg: Math.round(ev.damage), x: ev.x, z: ev.z });
+        }
+        this.flushSoon(o);
+      }
+    } else if (ev.kind === 'wreck') {
+      const o = this.owned.get(ev.id);
+      if (o) o.pending.push({ k: 'wreck', slot: ev.by ? this.state.grid.indexOf(ev.by) : -1 });
     } else if (ev.kind === 'bump' && ev.remote) {
       const local = ev.remote === ev.a ? ev.b : ev.a;
       const o = this.owned.get(local);
@@ -549,6 +631,14 @@ export class NetRace {
       if (o && slot >= 0) o.pending.push({ k: 'bump', slot, dvx: ev.dvx, dvz: ev.dvz });
     }
     this.events.emit('race', { ev });
+  }
+
+  /**
+   * Weapons go out on the next update rather than waiting out the event
+   * batching interval: a shot is worth its 50 ms.
+   */
+  private flushSoon(o: Owned | undefined): void {
+    if (o) o.lastFlushAt = -Infinity;
   }
 
   private publishOwned(): void {

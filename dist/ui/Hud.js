@@ -42,6 +42,11 @@ export class Hud {
     update(hud) {
         const now = performance.now();
         $('hud-turbo').style.transform = `scaleX(${Math.max(0, hud.turbo / SIM.car.turboCapacity)})`;
+        const hp = $('hud-hp');
+        hp.style.transform = `scaleX(${Math.max(0, hud.hp / SIM.weapons.health)})`;
+        hp.classList.toggle('low', hud.hp < 50 && hud.hp >= 25);
+        hp.classList.toggle('critical', hud.hp < 25);
+        $('hud-arms').hidden = hud.spectating;
         // Countdown: 3, 2, 1, GO — GO lingers for a second after the lights.
         const cd = $('hud-countdown');
         const racing = hud.mode !== 'free';
@@ -68,6 +73,10 @@ export class Hud {
         else if (now < this.bannerUntil) {
             bannerEl.textContent = this.bannerText;
             bannerEl.classList.toggle('warn', this.bannerWarn);
+        }
+        else if (hud.wrecked) {
+            bannerEl.textContent = 'WRECKED';
+            bannerEl.classList.add('warn');
         }
         else {
             bannerEl.textContent = '';
@@ -96,6 +105,11 @@ export class Hud {
         this.textAt = now;
         $('hud-speed').textContent = String(Math.round(hud.speedKmh));
         $('hud-auto').hidden = !hud.autopilot;
+        for (const k of ['front', 'rear', 'mines']) {
+            const el = $(`hud-ammo-${k}`);
+            el.textContent = String(hud.ammo[k]);
+            el.classList.toggle('empty', hud.ammo[k] === 0);
+        }
         if (racing) {
             $('hud-pos').textContent = String(hud.position);
             $('hud-of').textContent = `/${hud.of}`;
@@ -130,6 +144,12 @@ export class Hud {
         }
         else if (ev.kind === 'respawn' && ev.id === me) {
             this.banner('BACK ON TRACK', 1.5, true);
+        }
+        else if (ev.kind === 'wreck' && ev.by === me && ev.id !== me) {
+            this.banner(`YOU WRECKED ${this.session.cars.get(ev.id)?.name ?? 'A RIVAL'}`, 2.2);
+        }
+        else if (ev.kind === 'wreck' && ev.id === me && ev.by) {
+            this.banner(`WRECKED BY ${this.session.cars.get(ev.by)?.name ?? 'A RIVAL'}`, 2.5, true);
         }
     }
     banner(text, seconds, warn = false) {

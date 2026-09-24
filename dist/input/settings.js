@@ -99,6 +99,10 @@ function save(settings) {
 export const HAPTIC = {
     /** Hit by something. Sharp, mostly low-end. */
     damage: { weak: 0.35, strong: 0.85, ms: 160 },
+    /** Your car wrecked. Long and heavy. */
+    wreck: { weak: 0.7, strong: 1, ms: 420 },
+    /** You fired. A tick in the light motor, so a shot is felt leaving. */
+    fire: { weak: 0.3, strong: 0.05, ms: 45 },
     /** A wall. Scaled by impact speed at the call site. */
     crash: { weak: 0.2, strong: 0.7, ms: 120 },
     /** Coming down off a jump. */

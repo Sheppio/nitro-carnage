@@ -77,11 +77,32 @@ export const SIM = {
     /** Wall restitution and tangential friction. */
     wallBounce: 0.25,
     wallFriction: 0.3,
-    /** A normal impact faster than this hurts (M4). */
+    /** A normal wall impact faster than this hurts, and each m/s past it costs this much health. */
     impactDamageSpeed: 12,
+    impactDamage: 1.4,
     /** Landing faster than this costs speed. */
     hardLandingSpeed: 6,
     hardLandingLoss: 0.1,
+  },
+  /** Weapons, health and wrecks (PLAN.md §3.6). */
+  weapons: {
+    front: { speed: 90, life: 1.4, damage: 20, cooldown: 0.3 },
+    rear: { speed: 70, life: 1.2, damage: 20, cooldown: 0.45 },
+    mine: { arm: 0.6, life: 45, damage: 30, cooldown: 0.5, radius: 1.3 },
+    /** A missile's own radius, for hitting a car. */
+    missileRadius: 0.35,
+    /** How far from the car's centre a shot leaves: just past the bumper. */
+    muzzle: 2.8,
+    /** What every car starts a race with, until the shop (M5) sells more. */
+    loadout: { front: 10, rear: 5, mines: 3 },
+    health: 100,
+    /** Seconds a wrecked car burns before it is put back on the road, and with how much health. */
+    wreckTime: 2.5,
+    respawnHealth: 35,
+    /** Seconds after GO before anyone may fire: the grid is not a firing range. */
+    startGrace: 4,
+    /** A wall that wrecks a car this soon after somebody hit it counts as their wreck. */
+    creditWindow: 4,
   },
 } as const;
 

@@ -75,6 +75,13 @@ try {
   }), { timeout: 30000 });
   r.check('after GO every car moves on every screen', Boolean(moving));
 
+  // Somebody on autopilot opens fire: B sees a shot that was fired in the other tab.
+  const remoteShot = await until(() => b.evaluate(() => {
+    const me = window.nitro.room.net.playerId;
+    return window.nitro.session.world.armoury.missiles.some((m) => m.owner !== me && !m.live) || null;
+  }), { timeout: 90000, interval: 50 });
+  r.check('a missile fired in one tab flies in the other', Boolean(remoteShot));
+
   const gridA = await a.evaluate(() => window.nitro.room.net.state.grid.join('.'));
   const gridB = await b.evaluate(() => window.nitro.room.net.state.grid.join('.'));
   r.check('the grid is the same on both screens: two humans and a bot', gridA === gridB && gridA.split('.').length === 3 && /\.b2$/.test(gridA));

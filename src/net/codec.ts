@@ -46,6 +46,7 @@ export const CAR_FLAG = {
   airborne: 32,
   ghost: 64,
   finished: 128,
+  wrecked: 256,
 } as const;
 
 export interface CarPacket {
@@ -131,7 +132,19 @@ export type CarEvent =
   /** Respawned: a teleport, so peers snap instead of sliding. */
   | { k: 'respawn'; x: number; z: number; yaw: number }
   /** Bumped the car in grid slot `slot`, which should receive this velocity change (m/s). */
-  | { k: 'bump'; slot: number; dvx: number; dvz: number };
+  | { k: 'bump'; slot: number; dvx: number; dvz: number }
+  /** Fired shot `seq` (0 front, 1 rear) from the car's centre and heading, at race time `t` ms. */
+  | { k: 'fire'; seq: number; weapon: 0 | 1; x: number; z: number; yaw: number; t: number }
+  /** Dropped mine `seq` at (x, z), race time `t` ms. */
+  | { k: 'mine'; seq: number; x: number; z: number; t: number }
+  /** My shot `seq` hit the car in grid slot `slot` for `dmg`, at (x, z). */
+  | { k: 'hit'; seq: number; slot: number; weapon: 0 | 1; dmg: number; x: number; z: number }
+  /** I drove over mine `seq` of the car in grid slot `slot`. */
+  | { k: 'trigger'; slot: number; seq: number }
+  /** I was wrecked, by the car in grid slot `slot` (-1: nobody). */
+  | { k: 'wreck'; slot: number };
+
+const yaw36 = (yaw: number): string => b36(((Math.round((yaw / TURN) * 1296) % 1296) + 1296) % 1296);
 
 export function encodeEvents(events: readonly CarEvent[]): string {
   const parts: string[] = [];
@@ -149,6 +162,21 @@ export function encodeEvents(events: readonly CarEvent[]): string {
       case 'bump':
         parts.push(`B:${b36(e.slot)},${b36(e.dvx * 100)},${b36(e.dvz * 100)}`);
         break;
+      case 'fire':
+        parts.push(`F:${b36(e.seq)},${e.weapon},${b36(e.x * 10)},${b36(e.z * 10)},${yaw36(e.yaw)},${b36(e.t)}`);
+        break;
+      case 'mine':
+        parts.push(`M:${b36(e.seq)},${b36(e.x * 10)},${b36(e.z * 10)},${b36(e.t)}`);
+        break;
+      case 'hit':
+        parts.push(`H:${b36(e.seq)},${b36(e.slot)},${e.weapon},${b36(e.dmg)},${b36(e.x * 10)},${b36(e.z * 10)}`);
+        break;
+      case 'trigger':
+        parts.push(`T:${b36(e.slot)},${b36(e.seq)}`);
+        break;
+      case 'wreck':
+        parts.push(`D:${b36(e.slot)}`);
+        break;
     }
   }
   return parts.join(REC);
@@ -165,6 +193,13 @@ export function decodeEvents(payload: string): CarEvent[] {
     else if (tag === 'X' && f.length >= 1) out.push({ k: 'finish', t: un36(f[0]) });
     else if (tag === 'R' && f.length >= 3) out.push({ k: 'respawn', x: un36(f[0]) / 10, z: un36(f[1]) / 10, yaw: (un36(f[2]) / 1296) * TURN });
     else if (tag === 'B' && f.length >= 3) out.push({ k: 'bump', slot: un36(f[0]), dvx: un36(f[1]) / 100, dvz: un36(f[2]) / 100 });
+    else if (tag === 'F' && f.length >= 6) {
+      out.push({ k: 'fire', seq: un36(f[0]), weapon: f[1] === '1' ? 1 : 0, x: un36(f[2]) / 10, z: un36(f[3]) / 10, yaw: (un36(f[4]) / 1296) * TURN, t: un36(f[5]) });
+    } else if (tag === 'M' && f.length >= 4) out.push({ k: 'mine', seq: un36(f[0]), x: un36(f[1]) / 10, z: un36(f[2]) / 10, t: un36(f[3]) });
+    else if (tag === 'H' && f.length >= 6) {
+      out.push({ k: 'hit', seq: un36(f[0]), slot: un36(f[1]), weapon: f[2] === '1' ? 1 : 0, dmg: un36(f[3]), x: un36(f[4]) / 10, z: un36(f[5]) / 10 });
+    } else if (tag === 'T' && f.length >= 2) out.push({ k: 'trigger', slot: un36(f[0]), seq: un36(f[1]) });
+    else if (tag === 'D' && f.length >= 1) out.push({ k: 'wreck', slot: un36(f[0]) });
   }
   return out;
 }

@@ -64,6 +64,8 @@ export interface CarState {
   lastLanding: number;
   impacts: number;
   lastImpact: number;
+  /** The hardest wall impact during the last step, m/s: what damage is charged on. */
+  peakImpact: number;
 }
 
 /** Upgrade multipliers. Stock is all ones; `economy.ts` (M5) supplies the rest. */
@@ -71,9 +73,11 @@ export interface CarStats {
   engine: number;
   grip: number;
   turbo: number;
+  /** Damage taken, as a multiplier: armour upgrades bring it below 1. */
+  armour: number;
 }
 
-export const STOCK: Readonly<CarStats> = Object.freeze({ engine: 1, grip: 1, turbo: 1 });
+export const STOCK: Readonly<CarStats> = Object.freeze({ engine: 1, grip: 1, turbo: 1, armour: 1 });
 
 /** What the car needs to know about the world it drives in. `Track` implements it. */
 export interface CarEnv extends WallSource {
@@ -101,7 +105,7 @@ export function createCar(x: number, z: number, yaw: number): CarState {
     x, z, yaw, vx: 0, vz: 0, w: 0, y: 0, vy: 0, airborne: false, steer: 0, turbo: C.turboCapacity,
     forward: 0, slip: 0, drifting: false, handbrake: false, braking: false, throttle: 0, boosting: false,
     accelLong: 0, accelLat: 0, surfaceFront: Surface.Tarmac, surfaceRear: Surface.Tarmac, hint: -1,
-    landings: 0, lastLanding: 0, impacts: 0, lastImpact: 0,
+    landings: 0, lastLanding: 0, impacts: 0, lastImpact: 0, peakImpact: 0,
   };
 }
 
@@ -131,6 +135,7 @@ export function stepCar(car: CarState, intent: DriveIntent, env: CarEnv, dt: num
   car.throttle = intent.throttle;
   car.boosting = false;
   car.braking = false;
+  car.peakImpact = 0;
 
   for (let k = 0; k < n; k++) substep(car, intent, env, h, stats);
 
@@ -367,5 +372,6 @@ function hitWalls(car: CarState, env: CarEnv): void {
   if (hit > 0) {
     car.impacts++;
     car.lastImpact = hit;
+    car.peakImpact = Math.max(car.peakImpact, hit);
   }
 }

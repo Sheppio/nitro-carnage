@@ -1,7 +1,7 @@
 import { SIM } from '../config.js';
 import { resolveWalls } from './collide.js';
 import { Surface, SURFACES } from './surfaces.js';
-export const STOCK = Object.freeze({ engine: 1, grip: 1, turbo: 1 });
+export const STOCK = Object.freeze({ engine: 1, grip: 1, turbo: 1, armour: 1 });
 const C = SIM.car;
 const WHEELBASE = C.cgToFront + C.cgToRear;
 const G = 9.81;
@@ -18,7 +18,7 @@ export function createCar(x, z, yaw) {
         x, z, yaw, vx: 0, vz: 0, w: 0, y: 0, vy: 0, airborne: false, steer: 0, turbo: C.turboCapacity,
         forward: 0, slip: 0, drifting: false, handbrake: false, braking: false, throttle: 0, boosting: false,
         accelLong: 0, accelLat: 0, surfaceFront: Surface.Tarmac, surfaceRear: Surface.Tarmac, hint: -1,
-        landings: 0, lastLanding: 0, impacts: 0, lastImpact: 0,
+        landings: 0, lastLanding: 0, impacts: 0, lastImpact: 0, peakImpact: 0,
     };
 }
 /** Steering lock tightens with speed: full lock at 45 m/s would spin any car. */
@@ -44,6 +44,7 @@ export function stepCar(car, intent, env, dt, stats = STOCK) {
     car.throttle = intent.throttle;
     car.boosting = false;
     car.braking = false;
+    car.peakImpact = 0;
     for (let k = 0; k < n; k++)
         substep(car, intent, env, h, stats);
     // Body-frame acceleration over the whole step, for body roll and pitch.
@@ -267,6 +268,7 @@ function hitWalls(car, env) {
     if (hit > 0) {
         car.impacts++;
         car.lastImpact = hit;
+        car.peakImpact = Math.max(car.peakImpact, hit);
     }
 }
 //# sourceMappingURL=car.js.map

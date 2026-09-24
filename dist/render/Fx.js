@@ -79,6 +79,9 @@ const KINDS = {
     smoke: { colour: new THREE.Color(0xd8d6de), life: 1.3, size0: 1.2, size1: 4.2, alpha: 0.42, gravity: -0.6, drag: 1.6 },
     dust: { colour: new THREE.Color(0xa08a64), life: 1.0, size0: 1.0, size1: 3.4, alpha: 0.5, gravity: -0.3, drag: 1.8 },
     spark: { colour: new THREE.Color(0xffc14a), life: 0.35, size0: 0.35, size1: 0.12, alpha: 1, gravity: 14, drag: 0.6 },
+    fire: { colour: new THREE.Color(0xff7a1c), life: 0.55, size0: 1.6, size1: 0.6, alpha: 0.95, gravity: -4, drag: 2.2 },
+    flash: { colour: new THREE.Color(0xfff2c0), life: 0.18, size0: 7, size1: 11, alpha: 1, gravity: 0, drag: 0 },
+    soot: { colour: new THREE.Color(0x2c2a2e), life: 1.8, size0: 1.4, size1: 5.2, alpha: 0.55, gravity: -1.2, drag: 1.4 },
 };
 /**
  * Pooled particles, drawn as one `Points` call.
@@ -102,7 +105,7 @@ class Particles {
     alive = 0;
     uScale = { value: 1 };
     kinds = Object.values(KINDS);
-    kindIndex = { smoke: 0, dust: 1, spark: 2 };
+    kindIndex = { smoke: 0, dust: 1, spark: 2, fire: 3, flash: 4, soot: 5 };
     constructor(n) {
         this.n = n;
         this.pos = new Float32Array(n * 3);
@@ -209,6 +212,7 @@ export class Fx {
     impacts = new Map();
     time = 0;
     emitCarry = new Map();
+    damageCarry = new WeakMap();
     constructor(tyreMarks, particles) {
         this.group.name = 'fx';
         this.marks = new TyreMarks(tyreMarks);
@@ -220,6 +224,58 @@ export class Fx {
     }
     emit(kind, x, y, z, vx = 0, vy = 0, vz = 0) {
         this.particles.emit(kind, x, y, z, vx, vy, vz);
+    }
+    /**
+     * A car's damage, as smoke: grey from under the bonnet below 30% health,
+     * thicker with sparks below 15%, and a wreck burns — fire and black smoke —
+     * until it is put back on the road.
+     */
+    condition(car, hp, wrecked, dt, key) {
+        const rate = wrecked ? 40 : hp < 15 ? 16 : hp < 30 ? 7 : 0;
+        if (!rate)
+            return;
+        let carry = (this.damageCarry.get(key) ?? 0) + rate * dt;
+        const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
+        while (carry >= 1) {
+            carry -= 1;
+            const x = car.x + fx * 1.3 + (Math.random() - 0.5) * 0.8;
+            const z = car.z + fz * 1.3 + (Math.random() - 0.5) * 0.8;
+            if (wrecked) {
+                this.emit(Math.random() < 0.55 ? 'fire' : 'soot', car.x + (Math.random() - 0.5) * 1.6, 0.9, car.z + (Math.random() - 0.5) * 2.4, (Math.random() - 0.5) * 1.5, 2 + Math.random() * 2, (Math.random() - 0.5) * 1.5);
+            }
+            else {
+                this.emit(hp < 15 ? 'soot' : 'smoke', x, 1, z, car.vx * 0.3, 1.5, car.vz * 0.3);
+                if (hp < 15 && Math.random() < 0.15)
+                    this.emit('spark', x, 1, z, (Math.random() - 0.5) * 6, 4, (Math.random() - 0.5) * 6);
+            }
+        }
+        this.damageCarry.set(key, carry);
+    }
+    /** An explosion: a flash, a fireball, debris and a column of smoke. `size` 1 is a missile. */
+    explode(x, z, size) {
+        this.emit('flash', x, 1.2, z);
+        const n = Math.round(14 * size);
+        for (let i = 0; i < n; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const v = (3 + Math.random() * 7) * size;
+            this.emit('fire', x, 0.8, z, Math.cos(a) * v, 2 + Math.random() * 4, Math.sin(a) * v);
+            this.emit('spark', x, 0.8, z, Math.cos(a) * v * 2, 4 + Math.random() * 8, Math.sin(a) * v * 2);
+        }
+        for (let i = 0; i < Math.round(8 * size); i++) {
+            this.emit('soot', x + (Math.random() - 0.5) * 2, 1, z + (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 3, 2.5, (Math.random() - 0.5) * 3);
+        }
+    }
+    /** A missile's exhaust trail, laid at a rate so the trail is as dense at 30 fps as at 144. */
+    trail(key, x, z, dx, dz, speed, dt) {
+        let carry = (this.damageCarry.get(key) ?? 0) + 70 * dt;
+        const count = Math.floor(carry);
+        carry -= count;
+        for (let k = 0; k < count; k++) {
+            // Spread back along the stretch flown this frame, not heaped at the nose.
+            const back = (k / Math.max(1, count)) * speed * dt;
+            this.emit('smoke', x - dx * back, 0.75, z - dz * back, (Math.random() - 0.5) * 1.2, 0.6, (Math.random() - 0.5) * 1.2);
+        }
+        this.damageCarry.set(key, carry);
     }
     /** Per-car effects from its current state. */
     car(car, dt) {

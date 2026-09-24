@@ -19,7 +19,8 @@ import { TRACKS } from '../dist/sim/track/index.js';
 import { autopilot, createAutopilot, SKILLS } from '../dist/sim/autopilot.js';
 import { racingLine } from '../dist/sim/racingLine.js';
 import { World } from '../dist/sim/World.js';
-import { mulberry32 } from '../dist/util.js';
+import { mulberry32, wrapAngle } from '../dist/util.js';
+import { SIM } from '../dist/config.js';
 
 let pass = 0;
 let fail = 0;
@@ -93,7 +94,7 @@ console.log('\nnet.test\n\ncodecs');
   check('car state round-trips to decimetre and 0.3° precision', ok, `"${enc}" (${enc.length} bytes)`);
 
   // Worst case: far corner, flat out in reverse, airborne, every flag, lap 9.
-  const worst = encodeCar({ t: STAMP_WRAP - 1, x: -9999, z: -9999, yaw: 6.2, vx: -60, vz: -60, w: -9.99, steer: -0.6, y: 9.99, vy: -30, flags: 255, hp: 100, lap: 9, s: 1799 });
+  const worst = encodeCar({ t: STAMP_WRAP - 1, x: -9999, z: -9999, yaw: 6.2, vx: -60, vz: -60, w: -9.99, steer: -0.6, y: 9.99, vy: -30, flags: 511, hp: 100, lap: 9, s: 1799 });
   check('a car state packet is at most 54 bytes', worst.length <= 54, `worst ${worst.length} bytes`);
   const topic = `nc/room/ABCD/c/${'0'.repeat(13)}`;
   check('and a whole publish, topic included, stays under 90 bytes', topic.length + worst.length + 4 <= 90, `${topic.length + worst.length + 4} bytes`);
@@ -104,6 +105,20 @@ console.log('\nnet.test\n\ncodecs');
   const back = decodeEvents(encodeEvents(events));
   check('car events round-trip', back.length === 4 && back[0].lap === 2 && back[1].t === 204011 && back[2].x === 12.3 && back[3].slot === 4 && back[3].dvx === -1.23,
     `"${encodeEvents(events)}"`);
+
+  const weapons = [
+    { k: 'fire', seq: 1295, weapon: 1, x: 4095.9, z: 4095.9, yaw: 6.2, t: 36 ** 5 - 1 },
+    { k: 'mine', seq: 1295, x: 4095.9, z: 4095.9, t: 36 ** 5 - 1 },
+    { k: 'hit', seq: 1295, slot: 5, weapon: 0, dmg: 30, x: 4095.9, z: 4095.9 },
+    { k: 'trigger', slot: 5, seq: 1295 },
+    { k: 'wreck', slot: -1 },
+  ];
+  const wb = decodeEvents(encodeEvents(weapons));
+  const sizes = weapons.map((e) => encodeEvents([e]).length);
+  check('weapon events (fire, mine, hit, mine trigger, wreck) round-trip', wb.length === 5 && wb[0].weapon === 1 && Math.abs(wb[0].yaw - 6.2) < 0.005
+    && wb[1].x === 4095.9 && wb[2].slot === 5 && wb[2].dmg === 30 && wb[3].seq === 1295 && wb[4].slot === -1);
+  // PLAN §5.9 budgets them at 22, 18, 16, 6 and 4 bytes typical; these are the worst cases.
+  check('and stay small at their worst', sizes[0] <= 26 && sizes[1] <= 22 && sizes[2] <= 22 && sizes[3] <= 8 && sizes[4] <= 5, sizes.join(' / ') + ' bytes');
 
   const grid = Array.from({ length: 6 }, (_, i) => 'mfy2k3x9a' + String(i).padStart(4, '0'));
   const hb = { hostId: grid[0], seq: 1295, roomT: 36 ** 6 - 1, phase: 'F', race: 9, of: 9, track: 2, laps: 9, goAt: 36 ** 6 - 1, grid,
@@ -407,6 +422,137 @@ const toResults = (room, ms = 200000) => room.run(ms, () => room.clients.filter(
   check('six racing cars publish 20-30 packets a second each', perCar >= 19 && perCar <= 30, `${perCar.toFixed(1)} per car per second`);
   check('and the whole room stays inside the budget (under 90 KB/s out of the broker)', egress < 90,
     `${(bytes / secs / 1024).toFixed(1)} KB/s in, ${egress.toFixed(1)} KB/s out at six subscribers`);
+}
+
+/* -------------------------------------------------------------- weapons */
+
+console.log('\nweapons');
+
+/** Where on a track the road runs straightest for `len` metres. */
+function straightAt(track, len = 80) {
+  let best = 0, bestTurn = Infinity;
+  for (let s = 0; s < track.length; s += 5) {
+    let turn = 0;
+    for (let a = 0; a < len; a += 5) turn += Math.abs(wrapAngle(track.poseAt(s + a + 5).yaw - track.poseAt(s + a).yaw));
+    if (turn < bestTurn) { bestTurn = turn; best = s; }
+  }
+  return best;
+}
+
+const idle = () => ({ throttle: 0, brake: 0, steer: 0, handbrake: false, fireFront: false, fireRear: false, turbo: false });
+
+/** Two clients on a straight, parked `gap` metres apart (A behind), weapons live. */
+function duel(gap = 30, opts = {}) {
+  const room = makeRoom(2, { latency: 40, ...opts });
+  room.run(2500);
+  const host = hostOf(room);
+  host.net.configure(2, 3);
+  host.net.startRace();
+  const [a, b] = room.clients;
+  for (const c of [a, b]) c.net.drive = idle;
+  room.run(NET.countdownMs + SIM.weapons.startGrace * 1000 + 500);
+  const track = a.net.world.track;
+  const s0 = straightAt(track);
+  const put = (c, s) => {
+    const pose = track.poseAt(s);
+    Object.assign(c.net.me.car, { x: pose.x, z: pose.z, yaw: pose.yaw, vx: 0, vz: 0, w: 0, hint: pose.i });
+    Object.assign(c.net.me.prev, c.net.me.car);
+  };
+  put(a, s0);
+  put(b, s0 + gap);
+  room.run(600);
+  const once = (c, what) => {
+    let n = 0;
+    c.net.drive = () => (n++ === 0 ? { ...idle(), [what]: true } : idle());
+  };
+  const view = (c, id) => c.net.world.entrants.find((e) => e.id === id);
+  return { room, a, b, once, view, put, s0 };
+}
+
+{
+  const { room, a, b, once, view } = duel(30);
+  const aId = a.net.playerId, bId = b.net.playerId;
+  once(a, 'fireFront');
+  let copy = null;
+  room.run(700, () => {
+    copy ??= b.net.world.armoury.missiles.find((m) => m.owner === aId) ?? null;
+    return false;
+  });
+  check('a shot fired on one screen flies on the other, as scenery', copy !== null && copy.live === false);
+  room.run(800);
+  check('the shooter\'s hit is applied once, by the victim: 20 off, on both screens',
+    view(b, bId).hp === 80 && view(a, bId).hp === 80, `victim sees ${view(b, bId).hp}, shooter sees ${view(a, bId).hp}`);
+  check('and the missile is gone everywhere', a.net.world.armoury.missiles.length === 0 && b.net.world.armoury.missiles.length === 0);
+
+  // The same hit delivered again (a duplicate on the wire) changes nothing.
+  const dup = encodeEvents([{ k: 'hit', seq: copy.seq, slot: b.net.state.grid.indexOf(bId), weapon: 0, dmg: 20, x: 0, z: 0 }]);
+  b.net['onCarEvents'](aId, dup);
+  room.run(300);
+  check('a repeated hit message is not a second hit', view(b, bId).hp === 80);
+}
+
+{
+  // A mine dropped on one screen is placed on the other; the car that drives
+  // over it is the one that notices, and every screen clears it.
+  const { room, a, b, once, view, put, s0 } = duel(40);
+  const aId = a.net.playerId, bId = b.net.playerId;
+  once(b, 'fireRear');
+  room.run(400);
+  const mb = b.net.world.armoury.mines[0];
+  const ma = a.net.world.armoury.mines.find((m) => m.owner === bId);
+  check('a mine appears on the other screen where it was dropped', mb && ma && Math.hypot(ma.x - mb.x, ma.z - mb.z) < 0.1);
+  room.run(700);
+  Object.assign(a.net.me.car, { x: ma.x, z: ma.z, vx: 0, vz: 0 });
+  room.run(600);
+  check('the car on it takes 30, seen on both screens', view(a, aId).hp === 70 && view(b, aId).hp === 70,
+    `${view(a, aId).hp} / ${view(b, aId).hp}`);
+  check('and the mine is gone on both', a.net.world.armoury.mines.length === 0 && b.net.world.armoury.mines.length === 0);
+}
+
+{
+  // A wreck: the victim's owner decides it and says who did it; every screen credits the kill.
+  const { room, a, b, once, view } = duel(25);
+  const aId = a.net.playerId, bId = b.net.playerId;
+  b.net.me.hp = 10;
+  room.run(200);
+  once(a, 'fireFront');
+  room.run(1500);
+  const credited = [a, b].every((c) => view(c, aId).kills === 1 && view(c, bId).wrecks === 1);
+  check('a car shot to zero is wrecked and the kill is credited on every screen', credited && b.net.me.wrecked > 0,
+    [a, b].map((c) => `${view(c, aId).kills}/${view(c, bId).wrecks}`).join(' '));
+  room.run(SIM.weapons.wreckTime * 1000 + 600);
+  check('and it comes back with 35 health, seen by both', view(b, bId).hp === SIM.weapons.respawnHealth && view(a, bId).hp === SIM.weapons.respawnHealth);
+}
+
+{
+  // A whole armed race on a lossy link: three humans and three bots on
+  // autopilot, shooting at each other, to the results.
+  const room = makeRoom(3, { latency: 60, loss: 0.03, seed: 7 });
+  room.run(2500);
+  const host = hostOf(room);
+  host.net.configure(6, 2);
+  host.net.startRace();
+  const tally = { fire: 0, hit: 0, wreck: 0 };
+  host.net.events.on('race', ({ ev }) => {
+    if (ev.kind in tally) tally[ev.kind]++;
+  });
+  let drift = 0;
+  const done = room.run(300000, () => {
+    // Each car's health as its owner has it, against every other screen's copy.
+    for (const c of room.clients) {
+      if (!c.net.me) continue;
+      for (const o of room.clients) {
+        const seen = o.net.world?.entrants.find((e) => e.id === c.net.playerId);
+        if (seen && Math.abs(seen.hp - Math.round(c.net.me.hp)) > 0) drift++;
+      }
+    }
+    return room.clients.every((c) => c.net.phase === 'X');
+  });
+  check('an armed six-car race on a 3% lossy link reaches the results', done && tally.fire > 10 && tally.hit > 3,
+    `${tally.fire} shots by the host's own cars, ${tally.hit} hits and ${tally.wreck} wrecks among all`);
+  // Frames where some screen still shows an old health: a packet in flight, not a disagreement.
+  const frames = 300000 / 16;
+  check('and every screen agrees on every car\'s health, bar a packet in flight', drift / frames < 0.3, `${(100 * drift / frames).toFixed(1)}% of frame-pairs behind`);
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);

@@ -181,8 +181,13 @@ export class RaceSession {
             for (const ev of this.world.drain())
                 this.handle(ev);
         }
-        for (const e of this.world.entrants)
+        for (const e of this.world.entrants) {
             interpolateCar(e.prev, e.car, alpha, this.drawn.get(e.id));
+            this.view.setCondition(e.id, e.hp, e.wrecked > 0, e.ghost > 0);
+        }
+        // The cars are drawn `1 - alpha` of a step behind the latest one; the shots are drawn at the same moment.
+        const drawTime = this.world.time - (1 - alpha) * STEP;
+        this.view.drawWeapons(this.world.armoury, drawTime, this.paused && !this.net ? 0 : dt, this.drawn.values());
         // Spectating: follow whoever is leading.
         if (!this.player)
             this.view.focusId = standings(this.world.entrants)[0]?.id ?? this.view.focusId;
@@ -199,6 +204,23 @@ export class RaceSession {
     handle(ev) {
         if (ev.kind === 'go')
             this.input.rumble(HAPTIC.go.weak, HAPTIC.go.strong, HAPTIC.go.ms);
+        const focus = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
+        if (ev.kind === 'hit') {
+            this.view.explode(ev.x, ev.z, ev.weapon === 'mine' ? 1.4 : 1, focus);
+            if (ev.id === this.playerId)
+                this.input.rumble(HAPTIC.damage.weak, HAPTIC.damage.strong, HAPTIC.damage.ms);
+        }
+        else if (ev.kind === 'blast') {
+            this.view.explode(ev.x, ev.z, 0.6, focus);
+        }
+        else if (ev.kind === 'wreck') {
+            this.view.explode(ev.x, ev.z, 2, focus);
+            if (ev.id === this.playerId)
+                this.input.rumble(HAPTIC.wreck.weak, HAPTIC.wreck.strong, HAPTIC.wreck.ms);
+        }
+        else if (ev.kind === 'fire' && ev.id === this.playerId) {
+            this.input.rumble(HAPTIC.fire.weak, HAPTIC.fire.strong, HAPTIC.fire.ms);
+        }
         if (ev.kind === 'finish' && ev.id === this.playerId)
             this.playerFinishedAt = ev.time;
         this.onEvent?.(ev);
@@ -248,6 +270,9 @@ export class RaceSession {
             autopilot: this.autopilot,
             spectating: this.spectating,
             paused: this.paused,
+            hp: e.hp,
+            ammo: { ...e.ammo },
+            wrecked: e.wrecked > 0,
         };
     }
     /** Interpolated states as last drawn, for the minimap, the arrows and the debug hooks. */

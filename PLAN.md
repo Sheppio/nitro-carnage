@@ -11,8 +11,8 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status:** M1, M2 and M3 are built (see README). Where M1 changed a decision, this plan has been
-> updated to match and the change is marked *(M1)*.
+> **Status:** M1 to M4 are built (see README). Where building changed a decision, this plan has been
+> updated to match, and the change is marked with its milestone, as in *(M1)* or *(M4)*.
 
 ---
 
@@ -274,15 +274,27 @@ Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
 
 | Weapon | Behaviour | Damage | Bought in |
 | --- | --- | --- | --- |
-| Front missile | 90 m/s straight, 1.4 s life, stops at walls | 30 | packs of 5 |
-| Rear missile | fired backwards, 70 m/s, 1.2 s | 25 | packs of 5 |
-| Mine | dropped behind, arms after 0.6 s, lasts 45 s, pulsing light | 35 | packs of 3 |
+| Front missile | 90 m/s straight, 1.4 s life, stops at walls | 20 *(M4: was 30)* | packs of 5 |
+| Rear missile | fired backwards, 70 m/s, 1.2 s | 20 *(M4: was 25)* | packs of 5 |
+| Mine | dropped behind, arms after 0.6 s, lasts 45 s, pulsing light | 30 *(M4: was 35)* | packs of 3 |
 | Turbo | meter, not ammo; capacity and power by upgrade | — | upgrade + pickup refill |
 | Super weapon | one-shot, slot reserved in the codec and ledger, designed later | — | M6+ |
 
 - A projectile is fully determined by `(origin, angle, weapon, t_fire, seed)`. Every
   client simulates it, fast-forwarding from `t_fire` on arrival so late packets catch up.
   Walls stop it identically everywhere, because the walls are identical everywhere.
+  *(M4: better than fast-forwarding. A missile flies straight at a constant speed, so
+  one ray cast when it's fired gives its whole flight, and its position is a function
+  of time. A late arrival is just evaluated later. No seed is needed.)*
+- *(M4)* **Balance, measured.** The damages above, a 4 s no-fire grace after GO, and
+  3.5–7 s between a bot's shots give 5–7 wrecks in a 6-bot, 3-lap race, about one per
+  car. The first numbers gave 13. Until the shop in M5, every car starts a race with
+  10 front missiles, 5 rear missiles and 3 mines. The rear button drops mines while
+  you have them, then fires rear missiles. A selector can come with the shop.
+- *(M4)* Car-to-car contact does **not** cause damage. It would need both owners to
+  agree on the impact, and walls and weapons already give plenty. It may be revisited.
+- *(M4)* A wall hit faster than 12 m/s costs 1.4 health per m/s over. A wall that
+  wrecks a car within 4 s of somebody hitting it credits them with the kill.
 - A projectile is **inert everywhere except on the shooter's client** (§5.4).
 - Health is 100 base, reduced by armour. At 0 health the car is **wrecked**: it
   explodes, respawns after 2.5 s with 35 health, and the killer earns a bounty. The time
@@ -943,7 +955,7 @@ mid-race, late joiner, frozen tab, overflow; the whole flow by pad only) and 6 c
 (humans plus bots) race on a public broker inside the §5.10 budget, with the budget
 measured and written up in the README.
 
-**M4 — Weapons, damage and respawn.**
+**M4 — Weapons, damage and respawn.** *(built)*
 `weapons.ts` with front and rear missiles and mines, hit, mine and bump events, damage,
 wreck and respawn, ghost time, and effects (trails, explosions, sparks, smoke, mine
 lights). Haptics.
@@ -974,6 +986,46 @@ look is cosmetic only: handling and the collision capsule are the same for every
 - a `smoke` pixel test that a stripe renders and each body builds without errors;
 - `gamepad.test` covering the Garage by pad alone, and at 1280×800;
 - `multiplayer.test` showing that a second tab sees your body, stripe and number.
+
+**M8 — Track of the day, hotlaps, and a race-only mode** *(added after M3)*.
+Build it in this order:
+
+1. **Track of the day.** A track generated from a seed, and the day's seed derived
+   from the UTC date: `seed = hash("YYYY-MM-DD")`. The generator is pure and
+   deterministic:
+   - integer maths and its own PRNG, with no `Math.random` and no date or locale
+     formatting that could differ between machines;
+   - it produces an ordinary `TrackDef` (control points, width, checkpoints, a ramp or
+     two, a theme and a scenery mix), so everything downstream just works: the
+     collision walls, the racing line, the bots and the renderer;
+   - a candidate must pass the existing track validation (the corner radius against
+     the wall offset, no self-crossing, a lap length within limits, the grid on the
+     road). If it fails, the generator retries from the next derived seed, and the
+     number of retries is part of the determinism.
+
+   Any seed can be typed in, as a short word or number, so a track can be shared by
+   name. In a room, the host's heartbeat carries the seed instead of a track index.
+   Tests:
+   - the same seed gives a byte-identical `TrackDef` in Node and in the browser;
+   - a stored table of seeds pins the exact output, so a change to the generator can't
+     silently change yesterday's track;
+   - a thousand seeds all validate and are lapped by the autopilot inside a time
+     limit;
+   - two tabs on different clocks agree on today's track at UTC midnight.
+2. **Hotlap** replaces *Free drive*. You drive alone on the chosen track (the track of
+   the day, a built-in track, or a seed you enter) for as many laps as you like, with no
+   bots and no weapons. The HUD shows the current lap against your best, with a live
+   split at each checkpoint. Your best lap per track or seed is kept in
+   `localStorage`, for bragging rights. (A shared leaderboard would need a server or
+   the public broker's retained messages, so it's left for later.) An optional ghost of
+   your best lap, replayed from recorded poses, is a stretch goal.
+3. **Race only.** A lobby and Quick-race option that turns weapons off for the race
+   (`World` already supports `weapons: false`). Mines and missiles are neither
+   allowed nor drawn, and the HUD hides the ammo. It rides in the heartbeat, so every
+   client agrees.
+
+*Done when* the generator tests above are green, a hotlap on today's track records and
+reloads a best lap, and a race-only room races with no weapon events on the wire.
 
 ---
 

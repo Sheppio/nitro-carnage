@@ -40,6 +40,7 @@ export const CAR_FLAG = {
     airborne: 32,
     ghost: 64,
     finished: 128,
+    wrecked: 256,
 };
 const TURN = Math.PI * 2;
 const MAX_STEER = 0.6;
@@ -91,6 +92,7 @@ export function decodeCar(payload, nowRoomMs) {
         s: un36(f[13]),
     };
 }
+const yaw36 = (yaw) => b36(((Math.round((yaw / TURN) * 1296) % 1296) + 1296) % 1296);
 export function encodeEvents(events) {
     const parts = [];
     for (const e of events) {
@@ -106,6 +108,21 @@ export function encodeEvents(events) {
                 break;
             case 'bump':
                 parts.push(`B:${b36(e.slot)},${b36(e.dvx * 100)},${b36(e.dvz * 100)}`);
+                break;
+            case 'fire':
+                parts.push(`F:${b36(e.seq)},${e.weapon},${b36(e.x * 10)},${b36(e.z * 10)},${yaw36(e.yaw)},${b36(e.t)}`);
+                break;
+            case 'mine':
+                parts.push(`M:${b36(e.seq)},${b36(e.x * 10)},${b36(e.z * 10)},${b36(e.t)}`);
+                break;
+            case 'hit':
+                parts.push(`H:${b36(e.seq)},${b36(e.slot)},${e.weapon},${b36(e.dmg)},${b36(e.x * 10)},${b36(e.z * 10)}`);
+                break;
+            case 'trigger':
+                parts.push(`T:${b36(e.slot)},${b36(e.seq)}`);
+                break;
+            case 'wreck':
+                parts.push(`D:${b36(e.slot)}`);
                 break;
         }
     }
@@ -127,6 +144,18 @@ export function decodeEvents(payload) {
             out.push({ k: 'respawn', x: un36(f[0]) / 10, z: un36(f[1]) / 10, yaw: (un36(f[2]) / 1296) * TURN });
         else if (tag === 'B' && f.length >= 3)
             out.push({ k: 'bump', slot: un36(f[0]), dvx: un36(f[1]) / 100, dvz: un36(f[2]) / 100 });
+        else if (tag === 'F' && f.length >= 6) {
+            out.push({ k: 'fire', seq: un36(f[0]), weapon: f[1] === '1' ? 1 : 0, x: un36(f[2]) / 10, z: un36(f[3]) / 10, yaw: (un36(f[4]) / 1296) * TURN, t: un36(f[5]) });
+        }
+        else if (tag === 'M' && f.length >= 4)
+            out.push({ k: 'mine', seq: un36(f[0]), x: un36(f[1]) / 10, z: un36(f[2]) / 10, t: un36(f[3]) });
+        else if (tag === 'H' && f.length >= 6) {
+            out.push({ k: 'hit', seq: un36(f[0]), slot: un36(f[1]), weapon: f[2] === '1' ? 1 : 0, dmg: un36(f[3]), x: un36(f[4]) / 10, z: un36(f[5]) / 10 });
+        }
+        else if (tag === 'T' && f.length >= 2)
+            out.push({ k: 'trigger', slot: un36(f[0]), seq: un36(f[1]) });
+        else if (tag === 'D' && f.length >= 1)
+            out.push({ k: 'wreck', slot: un36(f[0]) });
     }
     return out;
 }

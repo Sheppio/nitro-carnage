@@ -16,15 +16,17 @@ export interface Skill {
   wander: number;
   /** Whether the driver uses the turbo on straights. */
   turbo: boolean;
+  /** Seconds between shots at best: how trigger-happy the driver is. */
+  trigger: number;
 }
 
 export const SKILLS: readonly Skill[] = [
-  { pace: 1.0, wander: 0.4, turbo: true },
-  { pace: 0.985, wander: 0.7, turbo: true },
-  { pace: 0.97, wander: 0.9, turbo: true },
-  { pace: 0.96, wander: 1.0, turbo: false },
-  { pace: 0.95, wander: 1.2, turbo: true },
-  { pace: 0.94, wander: 1.4, turbo: false },
+  { pace: 1.0, wander: 0.4, turbo: true, trigger: 3.5 },
+  { pace: 0.985, wander: 0.7, turbo: true, trigger: 4.5 },
+  { pace: 0.97, wander: 0.9, turbo: true, trigger: 4 },
+  { pace: 0.96, wander: 1.0, turbo: false, trigger: 6 },
+  { pace: 0.95, wander: 1.2, turbo: true, trigger: 5 },
+  { pace: 0.94, wander: 1.4, turbo: false, trigger: 7 },
 ];
 
 /** What the autopilot needs to know about another car. */
@@ -36,7 +38,17 @@ export interface Rival {
   vz: number;
   s: number;
   d: number;
+  /** Worth shooting at: not a finisher. (Ghosts and wrecks are not rivals at all.) */
+  target: boolean;
 }
+
+/** A front shot is taken at a rival within this cone either side of the nose, radians... */
+const FIRE_CONE = (6 * Math.PI) / 180;
+/** ...and this far ahead along the road, metres: far enough to be worth it, near enough to be on the same straight. */
+const FIRE_RANGE = 55;
+/** A mine or rear missile goes back at a rival this close behind, metres, and this near our line. */
+const REAR_RANGE = 15;
+const REAR_LANE = 1.6;
 
 export interface AutopilotState {
   skill: Skill;
@@ -52,11 +64,13 @@ export interface AutopilotState {
   stuck: number;
   /** Smoothed steering output. */
   steer: number;
+  /** Earliest time the next shot may be taken. */
+  fireAt: number;
 }
 
 export function createAutopilot(seed: number, skill: Skill): AutopilotState {
   const rand = mulberry32(seed);
-  return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0 };
+  return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0, fireAt: 0 };
 }
 
 /**
@@ -174,6 +188,8 @@ export function autopilot(
     out.throttle = 0.3;
   }
 
+  aim(st, out, car, p.s, p.d, track, rivals, time);
+
   // Turbo where the profile says flat out for a good while yet.
   if (st.skill.turbo && car.turbo > 1 && out.throttle > 0.9) {
     let straight = true;
@@ -181,4 +197,36 @@ export function autopilot(
     out.turbo = straight;
   }
   return out;
+}
+
+/**
+ * Weapons: a front missile at a rival in a narrow cone ahead and on the same
+ * stretch of road; a mine (or a rear missile) at one right behind and on our
+ * line. The world ignores a trigger with no ammo behind it, so this does not
+ * count ammo — it only paces itself, by the driver's `trigger` interval, so a
+ * bot does not empty its rack into the first car it sees.
+ */
+function aim(
+  st: AutopilotState, out: DriveIntent, car: CarState, s: number, d: number, track: Track, rivals: readonly Rival[], time: number,
+): void {
+  if (time < st.fireAt) return;
+  const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
+  for (const r of rivals) {
+    if (!r.target) continue;
+    const gap = track.deltaS(s, r.s);
+    if (gap > 4 && gap < FIRE_RANGE) {
+      const dx = r.x - car.x, dz = r.z - car.z;
+      const bearing = Math.atan2(dx * fz - dz * fx, dx * fx + dz * fz);
+      if (Math.abs(bearing) < FIRE_CONE) {
+        out.fireFront = true;
+        st.fireAt = time + st.skill.trigger;
+        return;
+      }
+    }
+    if (gap < -3 && gap > -REAR_RANGE && Math.abs(r.d - d) < REAR_LANE) {
+      out.fireRear = true;
+      st.fireAt = time + st.skill.trigger;
+      return;
+    }
+  }
 }
