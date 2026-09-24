@@ -11,7 +11,8 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status: plan only.** Nothing is built yet. Open questions are at the end.
+> **Status:** M1 is built (see README). Where M1 changed a decision, this plan has been
+> updated to match and the change is marked *(M1)*.
 
 ---
 
@@ -20,7 +21,7 @@ explains why.
 | Convention | What we do |
 | --- | --- |
 | `tsc` only, no bundler | ES2022 modules emitted to `dist/`. `dist/` is committed and served by GitHub Pages from `main` at `/`. CI fails if `dist/` is stale. |
-| Import map to jsDelivr | `three@0.186.1` (`build/three.module.min.js`) and `mqtt@5.15.2`. Nothing needs installing to *play*. `@types/three` is a dev dependency for `tsc` only. |
+| Import map to jsDelivr | `three@0.186.1` (`build/three.module.js`, which pulls in `three.core.js`) and `mqtt@5.15.2`. Nothing needs installing to *play*. `@types/three` is a dev dependency for `tsc` only. *(M1: the npm package has no minified build any more, so we load the one file we know exists rather than rely on the CDN minifying on the fly.)* |
 | MQTT.js over `wss://`, QoS 0 | We keep the same `BROKERS` list (HiveMQ, EMQX, Mosquitto) and `MqttNet` almost verbatim. Pages is HTTPS, so every endpoint is `wss://`. |
 | Distributed host | The alive player with the lowest time-prefixed ID is host. Heartbeat at 2 Hz, failover after 2.5 s, the lower ID wins a split brain, and the host claim also rides on presence. The `RoomSession` logic is ported. |
 | Presence | Last Will with `alive:0`, an explicit `alive:0` on leave, a 15 s backstop timeout, and a sleep-aware roster tick (a gap over 2 s means *we* slept, so everyone gets a fresh window). |
@@ -56,7 +57,7 @@ src/
 │   │   ├── downtown.ts       ┐
 │   │   ├── greenbelt.ts      ├ data only: no logic, validated by tests
 │   │   ├── docks.ts          ┘
-│   │   ├── spline.ts         closed centripetal Catmull-Rom, arc-length table
+│   │   ├── centreline.ts     closed fillet polygon (straights + arcs), arc-length table
 │   │   ├── buildTrack.ts     TrackDef → Track (walls, surfaces, grid, props)
 │   │   └── scatter.ts        seeded procedural prop placement from rules
 │   ├── car.ts                CarState, stepCar() — the 60 Hz physics
@@ -97,6 +98,9 @@ src/
 ├── audio/            AudioBus/volume (ported), Engine synth, Sfx, Music
 └── main.ts           wiring
 ```
+
+*(M1: `DriveSession.ts` at the top level owns the frame loop for a free drive; it grows
+into the race client in M2.)*
 
 The rule for `sim/` is that it's deterministic given its inputs. It advances only in
 fixed steps of `1/60` s, draws randomness only from seeded `mulberry32`, and never calls
@@ -143,11 +147,12 @@ This is an arcade model built on the bicycle model. We deliberately avoid a phys
   `y` and `vy`, steer angle, and flags.
 - **Longitudinal force.** Engine force from a torque curve that falls off with speed,
   brake force, reverse below 1 m/s with the brake held, and rolling resistance plus
-  aerodynamic drag. Base car: 0–100 km/h in about 3.2 s and a top speed of about
-  48 m/s (173 km/h). Engine upgrades raise force and top speed.
+  aerodynamic drag. Base car: 0–100 km/h in about 3.4 s and a top speed of about
+  47 m/s (170 km/h). Engine upgrades raise force and top speed.
 - **Lateral force.** Slip angles are computed per axle. The force is
-  `F = clamp(-Cα·α, ±μ·N_axle)` inside a friction circle shared with the drive force at
-  the rear. `μ` comes from the surface under each axle:
+  `F = clamp(-Cα·α, ±μ·N_axle)` inside a friction circle shared with that axle's share
+  of the drive force. Drive is split 40/60 front/rear *(M1: rear-only drive was
+  grip-limited to 6 m/s², and 0–100 took 4.8 s)*. `μ` comes from the surface under each axle:
 
   | Surface | μ | Rolling drag | Notes |
   | --- | --- | --- | --- |
@@ -203,7 +208,7 @@ ordered.
 interface TrackDef {
   id: string; name: string; laps: number; seed: number;
   theme: ThemeId;                               // sky, fog, ground, light angle, palette
-  centre: [x: number, z: number][];             // closed control polygon, metres
+  corners: [x: number, z: number, r: number][];  // closed polygon, fillet radius per corner
   width: number | { at: number; w: number }[];  // road width, can vary along s
   verge: { left: VergeDef; right: VergeDef };   // width + surface + wall? on each side
   start: { s: number };                         // start/finish line (fraction of lap)
@@ -218,8 +223,12 @@ interface TrackDef {
 
 `buildTrack()` turns that into a `Track`:
 
-- An arc-length table sampled every 1 m, holding position, tangent, normal, width and
-  banking. Projecting a point to `s` is a local search from the car's last `s`, with a
+- The centreline is **straights joined by circular fillets**, one radius per corner,
+  rather than a Catmull-Rom spline *(M1)*. A radius is the one number that decides both
+  how fast a corner can be taken and whether the inside wall (offset by half the road
+  plus the pavement) folds back over itself. With a spline that has to be discovered;
+  with a fillet it's written down, and the test checks it.
+- An arc-length table sampled every 1 m, holding position, tangent and curvature. Projecting a point to `s` is a local search from the car's last `s`, with a
   grid lookup as a fallback, so it's O(1) per step.
 - Wall segments from the left and right offset curves, with a verge where one is defined.
 - Surface lookup `(x,z) → surface`: road if `|d| < w/2`, otherwise the verge surface,
@@ -342,16 +351,17 @@ export const ECONOMY = {
 
 ### 4.1 Camera (`CameraRig.ts`)
 
-- A perspective camera with a vertical FOV of 48° that widens to 55° at top speed.
-- Height is 70 m, rising to 84 m at top speed. The camera looks almost straight down
+- A perspective camera with a vertical FOV of 50° that widens to 56° at top speed.
+- Height is 56 m, rising to 68 m at top speed *(M1: lowered from 70 m, where a car was
+  4% of the screen height)*. The camera looks almost straight down
   with a **10° forward tilt**. Screen orientation is **fixed north-up**, as in the
   original genre, so the car rotates on screen and multiplayer and the minimap stay
   readable. (A rotate-with-car mode can be a setting later.)
 - **Lead.** The look-at point is offset along velocity by `v × 0.5 s`, capped at 22 m,
   through a critically damped spring. At speed you see where you're going, and the car
   sits off-centre towards the back.
-- **Parallax** comes from the perspective itself. Towers up to 42 m tall under a camera
-  at 70 m lean visibly away from screen centre as you pass.
+- **Parallax** comes from the perspective itself. Towers up to 34 m tall under a camera
+  at 56 m lean visibly away from screen centre as you pass.
 - **Shake.** A trauma model: `trauma ∈ [0,1]` decays at 1.5/s, and the offset and roll
   are `trauma² × noise(t)`. Hits add 0.5, wrecks 1.0, and landings add
   `impulse × k`. There's a "reduce motion" setting that scales it down.
@@ -377,8 +387,13 @@ car. And per-instance raycasts cost CPU per building per car.
   stays correctly in shadow.
 - `strength` eases per car in about 180 ms. A car driving under a tower gets a hole that
   opens and closes smoothly rather than popping.
-- There's a pixel test for it: park a car in the lee of the tallest tower, read back the
-  pixel at its projected position, and assert that it's the car's body colour.
+- There's a pixel test for it: park a car where a tower provably blocks the line of
+  sight, read back the pixels at its projected position with the cut-away off and on,
+  and assert the car's colour is hidden without it and visible with it.
+- *(M1 finding)* With this camera, a car on the road is covered only from about one
+  camera position in six on Neon Downtown, and then nearly always at the frame's edge,
+  because a roof at height h covers only the first (h−1)/55 of the ground path from the
+  car to the lens. The cut-away matters more for overhanging trees and cranes (M6).
 
 ### 4.3 Look and lighting
 

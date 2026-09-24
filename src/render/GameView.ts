@@ -1,0 +1,227 @@
+import * as THREE from 'three';
+import { QUALITY } from '../config.js';
+import type { QualityId } from '../config.js';
+import type { CarState } from '../sim/car.js';
+import type { Track } from '../sim/track/buildTrack.js';
+import { CameraRig } from './CameraRig.js';
+import { CarMesh } from './CarMesh.js';
+import { Fx } from './Fx.js';
+import { cutawayUniforms, MAX_CUT_CARS } from './materials.js';
+import { Scenery } from './Scenery.js';
+import { ShadowRig } from './ShadowRig.js';
+import { themeFor } from './themes.js';
+import { buildTrackMesh } from './TrackMesh.js';
+
+/** How far out the cut-away hole reaches around a car, in metres at the car. */
+const CUT_RADIUS_M = 6.5;
+
+export interface CarView {
+  id: string;
+  mesh: CarMesh;
+  /** Last seen event counters, for one-shot effects. */
+  landings: number;
+  impacts: number;
+}
+
+/**
+ * Everything three.js, for one race.
+ *
+ * The rest of the game hands this a `Track` and, each frame, the car states
+ * to draw. It never reads input, never steps physics and never touches the
+ * network; `render/` is the only directory that imports three, which keeps
+ * the renderer swappable and the simulation runnable in Node.
+ */
+export class GameView {
+  readonly renderer: THREE.WebGLRenderer;
+  readonly scene = new THREE.Scene();
+  readonly rig: CameraRig;
+  readonly cars = new Map<string, CarView>();
+  readonly scenery: Scenery;
+  private shadows: ShadowRig;
+  private fx: Fx;
+  private quality: QualityId;
+  private resizeObserver: ResizeObserver;
+  private v = new THREE.Vector3();
+  private v2 = new THREE.Vector3();
+  private right = new THREE.Vector3();
+  private size = new THREE.Vector2();
+  /** The car the camera follows. */
+  focusId: string | null = null;
+  /** Fired with a 0..1 strength when the focused car lands or hits a wall, for haptics. */
+  onJolt: ((kind: 'landing' | 'crash', strength: number) => void) | null = null;
+
+  constructor(private host: HTMLElement, readonly track: Track, quality: QualityId) {
+    this.quality = quality;
+    const preset = QUALITY[quality];
+    this.renderer = new THREE.WebGLRenderer({ antialias: preset.antialias, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatioCap));
+    this.renderer.shadowMap.enabled = preset.shadowMapSize > 0;
+    this.renderer.shadowMap.type = preset.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    this.renderer.domElement.className = 'game-canvas';
+    host.appendChild(this.renderer.domElement);
+
+    const theme = themeFor(track.def.theme);
+    this.scene.background = new THREE.Color(theme.sky);
+    this.scene.fog = new THREE.Fog(theme.fog, preset.drawDistance * 0.45, preset.drawDistance);
+
+    this.shadows = new ShadowRig(theme, preset.shadowMapSize, preset.softShadows);
+    this.scene.add(this.shadows.hemi, this.shadows.sun, this.shadows.sun.target);
+
+    this.scene.add(buildTrackMesh(track, theme));
+    this.scenery = new Scenery(track, theme);
+    this.scene.add(this.scenery.group);
+
+    this.fx = new Fx(preset.tyreMarks, preset.particles);
+    this.scene.add(this.fx.group);
+
+    this.rig = new CameraRig(1);
+    this.rig.setFar(preset.drawDistance + 60);
+
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(host);
+    this.resize();
+  }
+
+  get qualityId(): QualityId {
+    return this.quality;
+  }
+
+  addCar(id: string, colour: number): CarView {
+    const mesh = new CarMesh(colour, QUALITY[this.quality].shadowMapSize > 0);
+    this.scene.add(mesh.root, mesh.blob);
+    const view: CarView = { id, mesh, landings: 0, impacts: 0 };
+    this.cars.set(id, view);
+    this.focusId ??= id;
+    return view;
+  }
+
+  resize(): void {
+    const w = Math.max(1, this.host.clientWidth);
+    const h = Math.max(1, this.host.clientHeight);
+    this.renderer.setSize(w, h, false);
+    this.rig.setAspect(w / h);
+    this.rig.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Draw one frame.
+   * @param states car id -> the state to draw it in (already interpolated)
+   * @param dt real seconds since the last frame
+   */
+  render(states: ReadonlyMap<string, CarState>, dt: number): void {
+    for (const [id, state] of states) {
+      const view = this.cars.get(id);
+      if (!view) continue;
+      view.mesh.update(state, dt);
+      this.fx.car(state, dt);
+      if (id === this.focusId) this.jolts(view, state);
+    }
+    this.fx.update(dt);
+
+    const focus = this.focusId ? states.get(this.focusId) : undefined;
+    if (focus) {
+      this.rig.update(focus, dt);
+      this.shadows.follow(focus.x, focus.z);
+    }
+    const cam = this.rig.camera;
+    cam.updateMatrixWorld();
+
+    this.renderer.getDrawingBufferSize(this.size);
+    this.fx.setPointScale(this.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)));
+    this.updateCutaway(states);
+    this.renderer.render(this.scene, cam);
+  }
+
+  private jolts(view: CarView, state: CarState): void {
+    if (state.landings !== view.landings) {
+      view.landings = state.landings;
+      const k = Math.min(1, state.lastLanding / 10);
+      if (k > 0.15) {
+        this.rig.addTrauma(k * 0.5);
+        this.onJolt?.('landing', k);
+      }
+    }
+    if (state.impacts !== view.impacts) {
+      view.impacts = state.impacts;
+      const k = Math.min(1, state.lastImpact / 25);
+      if (k > 0.12) {
+        this.rig.addTrauma(k * 0.6);
+        this.onJolt?.('crash', k);
+      }
+    }
+  }
+
+  /** Project every car to the screen for the cut-away shader. */
+  private updateCutaway(states: ReadonlyMap<string, CarState>): void {
+    const cam = this.rig.camera;
+    const u = cutawayUniforms;
+    u.uCutRes.value.copy(this.size);
+    u.uCutAspect.value = cam.aspect;
+    this.right.setFromMatrixColumn(cam.matrixWorld, 0);
+    let k = 0;
+    for (const state of states.values()) {
+      if (k >= MAX_CUT_CARS) break;
+      this.v.set(state.x, state.y + 0.8, state.z);
+      const depth = -this.v.clone().applyMatrix4(cam.matrixWorldInverse).z;
+      this.v2.copy(this.v).addScaledVector(this.right, CUT_RADIUS_M).project(cam);
+      this.v.project(cam);
+      const radius = Math.abs(this.v2.x - this.v.x) * cam.aspect;
+      u.uCutCars.value[k]!.set(this.v.x, this.v.y, depth, 1);
+      u.uCutRadius.value[k] = radius;
+      k++;
+    }
+    for (; k < MAX_CUT_CARS; k++) u.uCutCars.value[k]!.w = 0;
+  }
+
+  /* ---------------------------------------------------------------- debug */
+
+  /** Where a world point lands on screen, in CSS pixels from the canvas's top left. */
+  toScreen(x: number, y: number, z: number): { x: number; y: number; onScreen: boolean } {
+    const p = new THREE.Vector3(x, y, z).project(this.rig.camera);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return {
+      x: ((p.x + 1) / 2) * rect.width,
+      y: ((1 - p.y) / 2) * rect.height,
+      onScreen: Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1 && p.z < 1,
+    };
+  }
+
+  /**
+   * Render now and read back a square of pixels centred on a world point.
+   * Reading straight after `render` in the same task means the drawing buffer
+   * has not been presented and cleared yet, so no `preserveDrawingBuffer`.
+   */
+  samplePixels(states: ReadonlyMap<string, CarState>, x: number, y: number, z: number, half = 4): number[][] {
+    this.render(states, 0);
+    const p = new THREE.Vector3(x, y, z).project(this.rig.camera);
+    const px = Math.round(((p.x + 1) / 2) * this.size.x);
+    const py = Math.round(((p.y + 1) / 2) * this.size.y);
+    const side = half * 2 + 1;
+    const buf = new Uint8Array(side * side * 4);
+    const gl = this.renderer.getContext();
+    gl.readPixels(px - half, py - half, side, side, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    const out: number[][] = [];
+    for (let i = 0; i < side * side; i++) out.push([buf[i * 4]!, buf[i * 4 + 1]!, buf[i * 4 + 2]!]);
+    return out;
+  }
+
+  /** Draw calls in the last frame, including the shadow pass. */
+  get drawCalls(): number {
+    return this.renderer.info.render.calls;
+  }
+
+  setCutaway(on: boolean): void {
+    cutawayUniforms.uCutEnabled.value = on ? 1 : 0;
+  }
+
+  dispose(): void {
+    this.resizeObserver.disconnect();
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
+    for (const view of this.cars.values()) view.mesh.blob.removeFromParent();
+    this.scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      mesh.geometry?.dispose?.();
+    });
+  }
+}

@@ -1,0 +1,252 @@
+import { applyDeadzone1, EMPTY_SAMPLE, filterAxis, HARDWARE_DEADZONE } from './sources.js';
+const AXIS_LEFT_X = 0;
+const AXIS_LEFT_Y = 1;
+/** Standard Gamepad mapping. Xbox names first, PlayStation equivalent in the comment. */
+export const BTN = {
+    A: 0, // Cross
+    B: 1, // Circle
+    X: 2, // Square
+    Y: 3, // Triangle
+    LB: 4, // L1
+    RB: 5, // R1
+    LT: 6, // L2
+    RT: 7, // R2
+    VIEW: 8, // Share / Create
+    MENU: 9, // Options / Start
+    DPAD_UP: 12,
+    DPAD_DOWN: 13,
+    DPAD_LEFT: 14,
+    DPAD_RIGHT: 15,
+};
+/**
+ * Whether a button is down.
+ *
+ * Analogue triggers report a `value` and may never set `pressed`; digital ones
+ * only set `pressed`. Reading both is what makes L2/R2 work across the pads and
+ * firmwares that disagree about which they are.
+ */
+const held = (button) => button ? button.value > 0.35 || button.pressed : false;
+/**
+ * An analogue trigger as 0..1, with a small floor so a resting trigger that
+ * reports 0.02 does not creep the car forward. A digital trigger reports only
+ * `pressed`, which reads as full travel.
+ */
+const trigger = (button) => {
+    if (!button)
+        return 0;
+    const v = button.value > 0.06 ? Math.min(1, (button.value - 0.06) / 0.9) : 0;
+    return v > 0 ? v : button.pressed ? 1 : 0;
+};
+const NAV_REPEAT_DELAY = 420;
+const NAV_REPEAT_RATE = 130;
+/**
+ * Driving over the HTML5 Gamepad API, tuned for
+ * living-room and handheld browsers: Xbox Edge, the PlayStation web browser,
+ * and the Steam Deck's Chrome/Edge flatpaks.
+ *
+ * The Gamepad API has no events for stick movement — a snapshot is only valid
+ * for the frame you asked for it — so this polls `getGamepads()` fresh on every
+ * call rather than caching a pad reference. Console browsers also hand out and
+ * revoke pad slots aggressively when the system UI takes focus, which is why
+ * `pad()` re-resolves the index instead of trusting the one it was given.
+ */
+export class GamepadSource {
+    id = 'pad';
+    label = 'Controller';
+    index = null;
+    navHeld = new Map();
+    navRepeat = new Map();
+    constructor() {
+        window.addEventListener('gamepadconnected', this.onConnect);
+        window.addEventListener('gamepaddisconnected', this.onDisconnect);
+    }
+    available() {
+        return this.pad() !== null;
+    }
+    get connected() {
+        return this.pad() !== null;
+    }
+    /** Pad identifier string, e.g. for showing Xbox vs PlayStation glyphs. */
+    get padId() {
+        return this.pad()?.id ?? '';
+    }
+    /**
+     * Driving: RT throttle, LT brake and reverse, left stick steers, A
+     * handbrake, RB front weapon, LB rear weapon, B turbo. Triggers are
+     * analogue, so half a trigger is half throttle.
+     */
+    poll(_dt, settings) {
+        const pad = this.pad();
+        if (!pad)
+            return EMPTY_SAMPLE;
+        // Drift filter first, feel curve second. See `sources.ts`.
+        const lx = filterAxis(pad.axes[AXIS_LEFT_X] ?? 0);
+        const dz = Math.max(HARDWARE_DEADZONE, settings.deadzone);
+        const steer = applyDeadzone1(lx, dz);
+        const throttle = trigger(pad.buttons[BTN.RT]);
+        const brake = trigger(pad.buttons[BTN.LT]);
+        const handbrake = held(pad.buttons[BTN.A]);
+        const front = held(pad.buttons[BTN.RB]);
+        const rear = held(pad.buttons[BTN.LB]);
+        const turbo = held(pad.buttons[BTN.B]);
+        return {
+            throttle,
+            brake,
+            steer,
+            handbrake,
+            front,
+            rear,
+            turbo,
+            active: steer !== 0 || throttle > 0 || brake > 0 || handbrake || front || rear || turbo,
+        };
+    }
+    /**
+     * Reusable haptics entry point (Gamepad Haptics API).
+     *
+     * Every browser that ships this exposes `dual-rumble`; Chromium also accepts
+     * `trigger-rumble` on some pads, but no console browser does, so this sticks
+     * to the one effect that works everywhere. Unsupported pads reject the
+     * promise, which is a no-op rather than an error — haptics are a garnish and
+     * must never break a frame.
+     *
+     * @param weakIntensity   0..1, the high-frequency motor (buzz)
+     * @param strongIntensity 0..1, the low-frequency motor (thump)
+     * @param durationMs      how long to run the effect
+     */
+    triggerRumble(weakIntensity, strongIntensity, durationMs) {
+        const actuator = this.actuator();
+        if (!actuator)
+            return;
+        void actuator
+            .playEffect?.('dual-rumble', {
+            startDelay: 0,
+            duration: Math.max(1, Math.round(durationMs)),
+            weakMagnitude: clamp01(weakIntensity),
+            strongMagnitude: clamp01(strongIntensity),
+        })
+            .catch(() => {
+            /* effect type unsupported on this pad — nothing to recover from */
+        });
+    }
+    stopRumble() {
+        this.actuator()?.reset?.().catch(() => undefined);
+    }
+    /**
+     * Start / Options, edge-triggered, on its own latch.
+     *
+     * The pause key is read by the game scene while `readNav` is read by the menu
+     * navigator, and both can be live at once — paused, with the pause card open.
+     * Sharing one latch made it a race: whichever polled first that frame
+     * consumed the edge and the other saw nothing, so pressing Start to resume
+     * either resumed or silently went fullscreen depending on rAF ordering. A
+     * separate latch lets both observe the same physical button independently.
+     */
+    readPause() {
+        const pad = this.pad();
+        if (!pad) {
+            this.pauseHeld = false;
+            return false;
+        }
+        const down = pad.buttons[BTN.MENU]?.pressed === true;
+        const pressed = down && !this.pauseHeld;
+        this.pauseHeld = down;
+        return pressed;
+    }
+    /**
+     * Edge-detected menu navigation, so the front end is fully playable from the
+     * pad without a virtual cursor. The D-pad and the left stick both drive it,
+     * with key-repeat so holding a direction scrolls a long list.
+     */
+    readNav() {
+        const pad = this.pad();
+        if (!pad) {
+            this.navHeld.clear();
+            this.navRepeat.clear();
+            return { up: false, down: false, left: false, right: false, confirm: false, back: false, menu: false, connected: false };
+        }
+        const lx = filterAxis(pad.axes[AXIS_LEFT_X] ?? 0);
+        const ly = filterAxis(pad.axes[AXIS_LEFT_Y] ?? 0);
+        const stickThreshold = 0.55;
+        const down = (button, stick = false) => pad.buttons[button]?.pressed === true || stick;
+        return {
+            up: this.edge(BTN.DPAD_UP, down(BTN.DPAD_UP, ly < -stickThreshold), true),
+            down: this.edge(BTN.DPAD_DOWN, down(BTN.DPAD_DOWN, ly > stickThreshold), true),
+            left: this.edge(BTN.DPAD_LEFT, down(BTN.DPAD_LEFT, lx < -stickThreshold), true),
+            right: this.edge(BTN.DPAD_RIGHT, down(BTN.DPAD_RIGHT, lx > stickThreshold), true),
+            confirm: this.edge(BTN.A, down(BTN.A), false),
+            back: this.edge(BTN.B, down(BTN.B), false),
+            menu: this.edge(BTN.MENU, down(BTN.MENU), false),
+            connected: true,
+        };
+    }
+    destroy() {
+        window.removeEventListener('gamepadconnected', this.onConnect);
+        window.removeEventListener('gamepaddisconnected', this.onDisconnect);
+    }
+    /* ------------------------------------------------------------- internals */
+    pauseHeld = false;
+    /** True on the press edge, then again on the repeat schedule while held. */
+    edge(button, isDown, repeat) {
+        const now = performance.now();
+        const since = this.navHeld.get(button);
+        if (!isDown) {
+            this.navHeld.delete(button);
+            this.navRepeat.delete(button);
+            return false;
+        }
+        if (since === undefined) {
+            this.navHeld.set(button, now);
+            return true;
+        }
+        if (!repeat)
+            return false;
+        const held = now - since;
+        if (held < NAV_REPEAT_DELAY)
+            return false;
+        const ticks = Math.floor((held - NAV_REPEAT_DELAY) / NAV_REPEAT_RATE);
+        const lastTick = this.navRepeat.get(button) ?? -1;
+        if (ticks > lastTick) {
+            this.navRepeat.set(button, ticks);
+            return true;
+        }
+        return false;
+    }
+    actuator() {
+        const pad = this.pad();
+        if (!pad)
+            return null;
+        // `vibrationActuator` is the modern path; `hapticActuators[0]` is the older
+        // Firefox shape. Either is fine — both expose playEffect.
+        const modern = pad.vibrationActuator;
+        if (typeof modern?.playEffect === 'function')
+            return modern;
+        const legacy = pad.hapticActuators?.[0];
+        return typeof legacy?.playEffect === 'function' ? legacy : null;
+    }
+    pad() {
+        const pads = navigator.getGamepads?.() ?? [];
+        if (this.index !== null) {
+            const known = pads[this.index];
+            if (known?.connected)
+                return known;
+            this.index = null;
+        }
+        for (const pad of pads) {
+            if (pad?.connected) {
+                this.index = pad.index;
+                return pad;
+            }
+        }
+        return null;
+    }
+    onConnect = (e) => {
+        this.index = e.gamepad.index;
+    };
+    onDisconnect = () => {
+        this.index = null;
+        this.navHeld.clear();
+        this.navRepeat.clear();
+    };
+}
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+//# sourceMappingURL=GamepadSource.js.map

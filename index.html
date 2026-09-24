@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#16131f" />
+    <link rel="icon" href="data:," />
+    <title>NITRO CARNAGE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./css/ui.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+          "mqtt": "https://cdn.jsdelivr.net/npm/mqtt@5.15.2/dist/mqtt.esm.js"
+        }
+      }
+    </script>
+  </head>
+
+  <body>
+    <div id="game-root" aria-hidden="true"></div>
+
+    <div id="ui-root" class="ui-root">
+      <!-- ------------------------------------------------------- MAIN MENU -->
+      <section class="screen menu" id="screen-menu">
+        <div class="menu-card">
+          <h1 class="title" data-brand>NITRO CARNAGE</h1>
+          <p class="tagline">Top-down combat racing. Up to six players, no server.</p>
+          <nav class="menu-actions">
+            <button class="btn primary" id="btn-free-drive" data-nav-default>Free drive</button>
+            <button class="btn" id="btn-settings">Settings</button>
+          </nav>
+          <p class="menu-note">Multiplayer rooms, rivals and weapons arrive in later milestones.</p>
+          <p class="version" id="version"></p>
+        </div>
+      </section>
+
+      <!-- -------------------------------------------------------- SETTINGS -->
+      <section class="screen menu" id="screen-settings" hidden>
+        <div class="menu-card">
+          <h2>Settings</h2>
+          <label class="field">
+            <span>Graphics</span>
+            <select id="set-quality">
+              <option value="low">Low — phones</option>
+              <option value="medium">Medium</option>
+              <option value="high">High — laptop</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Touch controls</span>
+            <select id="set-touch">
+              <option value="auto">Automatic</option>
+              <option value="on">Always</option>
+              <option value="off">Never</option>
+            </select>
+          </label>
+          <label class="field check"><input type="checkbox" id="set-vibration" /> <span>Vibration</span></label>
+          <label class="field check"><input type="checkbox" id="set-motion" /> <span>Reduce camera shake</span></label>
+          <p class="menu-note">Graphics changes apply from the next drive.</p>
+          <nav class="menu-actions">
+            <button class="btn primary" id="btn-settings-back" data-nav-default>Back</button>
+          </nav>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- HUD -->
+      <section class="screen hud" id="screen-hud" hidden>
+        <div class="hud-top">
+          <button class="btn small" id="btn-leave" aria-label="Back to menu">☰ Menu</button>
+          <div class="hud-track" id="hud-track"></div>
+        </div>
+        <div class="hud-bottom">
+          <div class="speedo"><span id="hud-speed">0</span><small>km/h</small></div>
+          <div class="turbo" aria-label="Turbo"><div class="turbo-fill" id="hud-turbo"></div></div>
+        </div>
+        <div class="hud-help" id="hud-help">
+          <b>Drive</b> ↑↓ / WS &nbsp; <b>Steer</b> ←→ / AD &nbsp; <b>Handbrake</b> Space &nbsp; <b>Turbo</b> Shift
+          <br />Pad: RT / LT, left stick, A handbrake, B turbo
+        </div>
+        <div class="hud-debug" id="hud-debug"></div>
+      </section>
+    </div>
+
+    <script type="module" src="./dist/main.js"></script>
+  </body>
+</html>
