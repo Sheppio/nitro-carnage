@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.6**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.8**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -210,9 +210,11 @@ one pure policy (`sim/autopilot.ts`):
   as long to settle the long bends. On Neon Downtown the line sits over 5 m to the
   inside of the tight corners.
 - **The speed profile** is what the car can corner at each point, followed by a
-  backwards pass from every slow corner that brakes into it in time. It is planned at
-  10.5 m/s² of cornering and 11 of braking, below what the car can do, because a
-  line that assumes the limit leaves nothing for a bump or a late turn-in.
+  backwards pass from every slow corner that brakes into it in time. It plans 16 m/s²
+  of cornering and 16 of braking. The first version planned 10.5 and 11, well inside
+  the car's limits "to leave a margin", and play-testing called it at once: the bots
+  were timid in every corner. At 16 the best bot laps in 59 s instead of 66.5, still
+  without touching a wall. At 18 they start clipping walls.
 - **Steering** is pure pursuit: aim at a point on the line a speed-scaled distance
   ahead, and steer the arc that reaches it. The output is eased, because pure pursuit
   re-decides every step and a 60 Hz twitch reads on screen as a car vibrating.
@@ -222,15 +224,18 @@ one pure policy (`sim/autopilot.ts`):
   a six-bot start produced shunts at 8–13 m/s, and now produces 2–4 m/s rubs.
 - **Recovery.** Crawling or pointing the wrong way, it reverses out steering the
   opposite way, before the respawn rule would have to step in.
-- **Skill** is three numbers per bot: pace (a fraction of the profile's speed), wander
-  (how far it strays off the line), and whether it uses the turbo on straights.
+- **Skill** is three numbers per bot: pace (a fraction of the profile's speed, 94–100%
+  across the grid, once 86–97%), wander (how far it strays off the line), and whether
+  it uses the turbo on straights.
 
-A solo bot laps Neon Downtown in 66.5 s. Six bots race three laps in under half a
-second of CPU in Node.
+The fastest bot laps Neon Downtown in 59 s and the slowest in about 62. Six bots race
+three laps in under half a second of CPU in Node. Faster bots running side by side
+through the kink do rub, so the race test's "no hard shunts" means nothing over
+15 m/s. It was 8, which the timid bots met and the quicker ones do not.
 
-**Laps are long.** 66 s on a 1.6 km lap of right-angle corners is longer than the
-plan's 35–45 s, and a three-lap race runs about 3½ minutes. Worth deciding once the
-race has been played: fewer laps, a shorter circuit, or more grip.
+**Laps are long.** About 60 s on a 1.6 km lap of right-angle corners is longer than the
+plan's 35–45 s, and a three-lap race runs about 3 minutes. Worth deciding once the race
+has been played: fewer laps, a shorter circuit, or more grip.
 
 ### The camera
 

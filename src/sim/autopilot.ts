@@ -10,7 +10,7 @@ const WHEELBASE = SIM.car.cgToFront + SIM.car.cgToRear;
 
 /** How good a driver is. Three numbers, so a grid of bots can be tuned by eye. */
 export interface Skill {
-  /** Fraction of the racing line's planned speed the driver dares, 0.8-1. */
+  /** Fraction of the racing line's planned speed the driver dares, 0.9-1. */
   pace: number;
   /** How far the driver drifts off the ideal line, metres. */
   wander: number;
@@ -19,12 +19,12 @@ export interface Skill {
 }
 
 export const SKILLS: readonly Skill[] = [
-  { pace: 0.97, wander: 0.4, turbo: true },
-  { pace: 0.94, wander: 0.8, turbo: true },
-  { pace: 0.92, wander: 1.0, turbo: true },
-  { pace: 0.9, wander: 1.2, turbo: false },
-  { pace: 0.88, wander: 1.4, turbo: true },
-  { pace: 0.86, wander: 1.6, turbo: false },
+  { pace: 1.0, wander: 0.4, turbo: true },
+  { pace: 0.985, wander: 0.7, turbo: true },
+  { pace: 0.97, wander: 0.9, turbo: true },
+  { pace: 0.96, wander: 1.0, turbo: false },
+  { pace: 0.95, wander: 1.2, turbo: true },
+  { pace: 0.94, wander: 1.4, turbo: false },
 ];
 
 /** What the autopilot needs to know about another car. */

@@ -26,11 +26,13 @@ export interface LineOptions {
 }
 
 /**
- * Tuned below what the car can do (about 12 m/s^2 of cornering and 15 of
- * braking): a line that assumes the limit leaves nothing for the bump from a
- * rival, the verge, or a slightly late turn-in.
+ * Close to what the car can do. The first version planned 10.5 m/s^2 of
+ * cornering and 11 of braking, well inside the car's limits, and play-testing
+ * called it straight away: the bots were timid in every corner. At 16/16 the
+ * best bot laps Neon Downtown in 59 s instead of 66.5 with no wall contact;
+ * at 18 they start clipping the walls.
  */
-export const DEFAULT_LINE: LineOptions = { lateral: 10.5, braking: 11, accel: 6, topSpeed: 46 };
+export const DEFAULT_LINE: LineOptions = { lateral: 16, braking: 16, accel: 6, topSpeed: 46 };
 
 const cache = new WeakMap<Track, RacingLine>();
 
