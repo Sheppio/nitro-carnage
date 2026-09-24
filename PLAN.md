@@ -760,6 +760,38 @@ interface DriveIntent {
 
 ---
 
+## 6b. Console and handheld *(added after M2)*
+
+**Targets:** Steam Deck (Chrome or Edge in Gaming Mode, 1280×800, controls plus a
+touchscreen), Xbox Series and One (Edge), and PlayStation (its built-in browser).
+The game has to be fully playable from a controller alone: no mouse, no keyboard, no
+pointer emulation. glitchburst was tuned for the same three devices, and most of what
+follows is ported from it.
+
+| Requirement | How |
+| --- | --- |
+| **Every screen works from the pad** | The ported spatial `GamepadNavigator` drives every menu. D-pad or left stick moves the focus ring, A/✕ selects, B/○ backs out. Dropdowns cycle in place, because a native `select` popup is browser chrome a pad cannot reach. The ring is confined to the topmost open overlay. |
+| **Text entry without a keyboard** | An on-screen keyboard (ported) for the name and the room code, which are the game's front door in M3. It is ordinary buttons in a grid, so the navigator needs no special code. |
+| **Focus lock** | Xbox Edge and the PlayStation browser only route pad input to a page while it holds focus. When a pad is present, the menu shows "Press Menu / Options to lock the controller to this window". That button goes fullscreen and pulls focus back (ported `lockFocus`). |
+| **Start / Options in a race** | Opens the in-race menu: Resume, Settings, Leave. In a solo race it **pauses** the world. In a multiplayer race it **cannot**, since nobody can pause a PvP race for everyone else, so the car is held on brakes while the menu is up and the menu says so. |
+| **Button prompts match the pad** | Detected from the Gamepad API `id`: Xbox (`045e`, "Xbox"), PlayStation (`054c`, "DualSense", "Wireless Controller"), Steam Deck (`28de`, "Steam Deck"). Hints show A/B/X/Y, ✕/○/□/△, or the Deck's A/B/X/Y and L/R labels. Keyboard hints show when no pad is present. |
+| **Triggers** | Read as `value` with `pressed` as a fallback, because pads and firmwares disagree about which one analogue triggers set (ported). |
+| **Haptics** | Dual-rumble through the Gamepad Haptics API on landings, crashes, hits and GO, off in settings (built in M1). |
+| **Steam Deck** | The HUD, lobby and results are laid out for 1280×800 and checked at that size in tests. Default graphics is **Medium** when the user agent or pad says Steam Deck. The touchscreen stays usable alongside the pad: most recent device wins. |
+
+**Honest limits.** None of this can be tested on real hardware from the dev container.
+The suite drives a virtual pad through a stubbed `navigator.getGamepads()` in headless
+Chromium. PlayStation browser support depends on the console: its browser is limited
+and not always reachable, so it is best effort. Xbox Edge and the Deck's Chromium are
+the primary console targets.
+
+**Tests (`gamepad.test.mjs`, built in M3, not M6):**
+- The whole front end driven by a virtual pad only, with no click and no keypress:
+  menu → quick race → Start opens the pause → resume → leave; name and room code
+  typed on the on-screen keyboard → lobby → start.
+- Button prompts switch between Xbox, PlayStation and Deck glyphs from the pad `id`.
+- At 1280×800, nothing on the lobby, HUD or results screens is clipped or covered.
+
 ## 7. HUD and UI (DOM overlay)
 
 - **HUD.** Position (big), lap `2/4`, race time, last lap and best lap, speed, a
@@ -805,7 +837,7 @@ poll for outcomes and never sleep for a fixed time.
 | `net.test.mjs` | Node | **every codec's round trip and worst-case byte size**, truncation tolerance, timestamp wrap, dead-reckoning error bounds on recorded laps through a jittery and lossy link, clock-sync convergence and failover continuity, and a **multi-client room with an in-memory broker and a fake clock**: election, 7th client backs out, split brain healing over presence, frozen-tab wake, host failover mid-race with bots adopted, finish order by timestamp, pickup first-claim, ledger purchase validation |
 | `smoke.test.mjs` | browser, 1 tab | boot, menus, settings persistence, drive a lap on autopilot, **occlusion pixel test**, draw-call budget per track, camera lead and shake, quality auto-drop, hidden-tab worker ticker holds 20 Hz |
 | `multiplayer.test.mjs` | browser, 2–3 tabs | two clients race to the finish, both see the same finish order, A fires and B's health drops on both screens, mine trigger removes the mine everywhere, bump without a position snap, **failover mid-race** (close the host tab and the race completes), **a late joiner lands in the lobby** and spectates, then joins the next race, **a frozen tab** (CDP `Page.setWebLifecycleState: frozen`) wakes without splitting the room, and the shop round trip |
-| `gamepad.test.mjs`, `mobile.test.mjs` | browser | the whole front end by virtual pad only, and by touch only on an emulated phone, with hit-tests for nothing invisible covering buttons |
+| `gamepad.test.mjs` (M3), `mobile.test.mjs` (M6) | browser | the whole front end by virtual pad only (see §6b), and by touch only on an emulated phone, with hit-tests for nothing invisible covering buttons |
 
 The biggest change from glitchburst is that `net/` gets a **fake `Clock`** injected in
 place of `window.setInterval` and `performance.now()`. Glitchburst's frozen-tab test had
@@ -845,11 +877,15 @@ test finishes a 2-lap race on autopilot.
 **M3 — MQTT rooms, 6 cars.**
 Ported `MqttNet` and `RoomSession` with clock injection, lobby, colours, `ClockSync`,
 the car codec, `deadReckoning`, `RaceNet`, and `HostRace` phases, grid, finish order,
-bots on the host and failover adoption. Also room full, late-joiner spectating, the
-worker ticker, and off-screen rival arrows.
-*Done when* `net.test` and `multiplayer.test` are green (race, failover mid-race, late
-joiner, frozen tab, overflow) and 6 cars (humans plus bots) race on a public broker
-inside the §5.10 budget, with the budget measured and written up in the README.
+bots on the host and failover adoption. Also room full, late-joiner spectating and the
+worker ticker. (Off-screen rival arrows landed early, in M2.) **Plus the console and
+handheld work in §6b:** on-screen keyboard, focus lock, Start/Options menu (pausing
+solo races), pad-matched button prompts, the 1280×800 Deck layout, and the
+`gamepad.test.mjs` suite.
+*Done when* `net.test`, `multiplayer.test` and `gamepad.test` are green (race, failover
+mid-race, late joiner, frozen tab, overflow; the whole flow by pad only) and 6 cars
+(humans plus bots) race on a public broker inside the §5.10 budget, with the budget
+measured and written up in the README.
 
 **M4 — Weapons, damage and respawn.**
 `weapons.ts` with front and rear missiles and mines, hit, mine and bump events, damage,
@@ -866,7 +902,7 @@ bots plays through.
 
 **M6 — More tracks, hazards, audio and polish.**
 Greenbelt and Tidewater Docks, the host-timed train and crossing, oil, water and dirt
-zones, the engine and SFX synth, music, the gamepad and mobile suites, a performance
+zones, the engine and SFX synth, music, the mobile suite, a performance
 pass on a real iGPU, and a super-weapon design pass.
 *Done when* the autopilot laps every track in Node, the train is identical across two
 clients to within one frame, and every suite is green.

@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.5**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.6**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
