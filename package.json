@@ -1,6 +1,6 @@
 {
   "name": "nitrocarnage",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Serverless top-down 3D combat racer for 1-6 players over MQTT/WebSockets.",
   "type": "module",

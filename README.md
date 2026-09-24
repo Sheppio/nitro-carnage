@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.3**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.4**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -42,7 +42,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 58 checks: simulation (Node) and a real browser
+npm test           # 59 checks: simulation (Node) and a real browser
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -295,10 +295,10 @@ picking up a controller mid-race just works.
 npm test
 ```
 
-58 checks across two suites. The browser suite swaps the CDN for a local three.js and a
+59 checks across two suites. The browser suite swaps the CDN for a local three.js and a
 loopback MQTT stub (ready for M3), and runs Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (41, Node):
+- **`sim.test.mjs`** (42, Node):
   - **Tracks:** lap length; corner radius against the wall offset; no wall crossing
     another; the centreline clear of every wall; projection round-trips; ordered
     checkpoints; s = 0 at the start line; deterministic scenery; no tower on the road;
@@ -306,8 +306,8 @@ loopback MQTT stub (ready for M3), and runs Chromium on SwiftShader.
   - **Physics:** 0–100 km/h time; top speed; turbo; braking distance; reverse; steering
     lock against speed; grip order tarmac > dirt > grass > oil; handbrake slides; no
     control in the air; landings; ramp launches; a minute of random input without NaN;
-    full throttle through a corner never spins; an ordinary corner keeps the lock you
-    asked for.
+    full throttle through a corner never spins; an ordinary corner keeps most of the
+    lock you asked for; at speed, full lock still turns the car.
   - **Collisions:** no tunnelling at 5× top speed into any wall; head-on bounces.
   - **Determinism:** identical worlds; 144 Hz against 24 Hz; stall clamping; a
     line-follower lapping cleanly and taking the ramp.
@@ -335,6 +335,14 @@ These caught real bugs:
   stability aids and more grip (1.25 → 1.45). A test for each half of the report now
   fails against the old physics and passes against the new: peak slip is 0.44 rad and
   the wheels keep 95% of their lock.
+- **Then: "can I steer more before it understeers?"** At 25–35 m/s on full lock the
+  car turned at only 30% of the rate its front wheels asked for, because the fronts
+  ran out of grip long before the rears. The front now has 5% more grip, a shade
+  under the rear, and light downforce lets the tyres bite harder the faster you go.
+  That gives 73% at full lock, with no spins. The balance is steep: at 1.08× front grip
+  the car oversteers at full lock. The price is that a hard corner now carries enough
+  slip for the counter-steer assist to act, so that check's floor is 75% of the lock
+  asked for (the original bug left 59%).
 
 - **The walls did not close.** Wall segments are laid every 2 m of centreline, and
   Neon Downtown is 1,589 m, which is odd. The last segment wrapped past the start line

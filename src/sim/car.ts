@@ -203,7 +203,7 @@ function substep(car: CarState, intent: DriveIntent, env: CarEnv, h: number, sta
   const sr = env.surfaceAt(car.x - fx * C.cgToRear, car.z - fz * C.cgToRear, car.hint);
   car.surfaceFront = sf;
   car.surfaceRear = sr;
-  const gripF = C.grip * SURFACES[sf].grip * stats.grip;
+  const gripF = C.grip * C.frontGripBias * SURFACES[sf].grip * stats.grip;
   // A little more grip at the rear than the front: a car that pushes wide
   // when overdriven is one you can steer; one that snaps round is not.
   let gripR = C.grip * C.rearGripBias * SURFACES[sr].grip * stats.grip;
@@ -211,8 +211,11 @@ function substep(car: CarState, intent: DriveIntent, env: CarEnv, h: number, sta
 
   // Static axle loads. Weight transfer is left out: it adds realism nobody can
   // see from 70 m up and makes the handling harder to tune.
-  const nF = (C.mass * G * C.cgToRear) / WHEELBASE;
-  const nR = (C.mass * G * C.cgToFront) / WHEELBASE;
+  // Downforce: extra load growing with the square of speed, so the tyres
+  // grip harder the faster you go and fast corners stay steerable.
+  const load = C.mass * G + C.downforce * speed * speed;
+  const nF = (load * C.cgToRear) / WHEELBASE;
+  const nR = (load * C.cgToFront) / WHEELBASE;
   const maxR = gripR * nR;
 
   // --- Longitudinal: drive, brakes, reverse. ---

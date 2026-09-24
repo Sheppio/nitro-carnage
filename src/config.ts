@@ -47,8 +47,12 @@ export const SIM = {
     counterSteer: 0.55,
     /** Body slip an ordinary corner produces; the assist ignores slip up to here. */
     assistSlip: 0.12,
-    /** Rear grip relative to the front. Above 1 is stable, below 1 is loose. */
+    /** Rear grip relative to base. Above the front bias is stable, below it is loose. */
     rearGripBias: 1.06,
+    /** Front grip relative to base: how much steering the car takes before it pushes wide. */
+    frontGripBias: 1.05,
+    /** Downforce, N per (m/s)^2, split between the axles like the car's weight. */
+    downforce: 1,
     /** Fraction of the drive force charged against cornering grip (1 = true friction circle). */
     driveGripShare: 0.4,
     /** Yaw rate allowed beyond what the steering asks for, rad/s, before the stability aid acts. */

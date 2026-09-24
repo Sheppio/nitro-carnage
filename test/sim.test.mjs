@@ -247,8 +247,34 @@ function turnIn(v0, throttle) {
     if (t > 0.3) lowest = Math.min(lowest, Math.abs(c.steer) / steerLimit(c.forward));
     return false;
   }, 1.2);
-  check('an ordinary corner off the throttle keeps the lock the driver asked for', lowest > 0.9,
+  // Not 100%: past 0.12 rad the assist is meant to act, and a hard corner
+  // with the grip this car has gets there. The bug left 59%.
+  check('an ordinary corner off the throttle keeps most of the lock the driver asked for', lowest > 0.75,
     `wheels at ${(lowest * 100).toFixed(0)}% of full lock at worst`);
+}
+
+// Follow-up report: "can I steer more before it understeers?" At 25-35 m/s
+// on full lock the car turned at only 30% of the rate its wheels asked for.
+{
+  const achieved = (v) => {
+    const car = createCar(0, 0, 0);
+    car.vz = v;
+    let steer = 0;
+    let got = 0;
+    let asked = 0;
+    run(car, new OpenGround(), (c, t) => {
+      steer = Math.min(1, steer + STEP / 0.14);
+      if (t > 1) {
+        got += Math.abs(c.w);
+        asked += Math.abs((speed(c) * Math.tan(c.steer)) / (SIM.car.cgToFront + SIM.car.cgToRear));
+      }
+      return intent({ steer, throttle: 0.35 });
+    }, () => false, 2);
+    return got / asked;
+  };
+  const worst = Math.min(achieved(25), achieved(35));
+  check('at speed, full lock turns the car at least 60% as hard as the wheels ask', worst > 0.6,
+    `${(worst * 100).toFixed(0)}% at worst`);
 }
 
 {
