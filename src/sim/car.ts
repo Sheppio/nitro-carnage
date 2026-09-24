@@ -68,7 +68,7 @@ export interface CarState {
   peakImpact: number;
 }
 
-/** Upgrade multipliers. Stock is all ones; `economy.ts` (M5) supplies the rest. */
+/** Upgrade multipliers. Stock is all ones; `economy.ts` (M8) supplies the rest. */
 export interface CarStats {
   engine: number;
   grip: number;

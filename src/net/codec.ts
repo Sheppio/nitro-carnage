@@ -216,7 +216,7 @@ export interface Heartbeat {
   /** The host's room time as it sent this, ms. */
   roomT: number;
   phase: Phase;
-  /** Race number, and how many are planned (the championship, M5). */
+  /** Race number, and how many are planned (the championship, M8). */
   race: number;
   of: number;
   /** Track index and race length. */

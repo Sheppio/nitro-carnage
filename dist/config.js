@@ -91,7 +91,7 @@ export const SIM = {
         missileRadius: 0.35,
         /** How far from the car's centre a shot leaves: just past the bumper. */
         muzzle: 2.8,
-        /** What every car starts a race with, until the shop (M5) sells more. */
+        /** What every car starts a race with, until the shop (M8) sells more. */
         loadout: { front: 10, rear: 5, mines: 3 },
         health: 100,
         /** Seconds a wrecked car burns before it is put back on the road, and with how much health. */

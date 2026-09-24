@@ -5,7 +5,7 @@ import { Topics, segment } from './topics.js';
 const WINDOW = 8;
 /**
  * The room clock: one timeline every client agrees on, to within a few
- * milliseconds, for GO, lap and finish stamps and (M6) the train.
+ * milliseconds, for GO, lap and finish stamps and (M5) the train.
  *
  * Room time is the host's clock. A client pings, the host answers straight
  * away with its room time, and the client takes

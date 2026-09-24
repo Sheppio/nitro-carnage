@@ -249,8 +249,8 @@ clipping through the camera.
 | Track | Theme | Character | Hazards |
 | --- | --- | --- | --- |
 | **Neon Downtown** (M1) | skyscraper grid at dusk, emissive windows | 90° corners, a chicane, a long straight between towers, a plaza ramp; walls on both sides | none (it's the clean one) |
-| **Greenbelt** (M6) | park and forest, afternoon | flowing curves, grass verges instead of walls in places, a dirt shortcut, a creek jump | grass, dirt |
-| **Tidewater Docks** (M6) | container port, overcast | tight container canyons, cranes as tall occluders, quay edge | railway level crossing with a host-timed train, oil patches, water off the quay (respawn) |
+| **Greenbelt** (M5) | park and forest, afternoon | flowing curves, grass verges instead of walls in places, a dirt shortcut, a creek jump | grass, dirt |
+| **Tidewater Docks** (M5) | container port, overcast | tight container canyons, cranes as tall occluders, quay edge | railway level crossing with a host-timed train, oil patches, water off the quay (respawn) |
 
 Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
 
@@ -278,7 +278,7 @@ Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
 | Rear missile | fired backwards, 70 m/s, 1.2 s | 20 *(M4: was 25)* | packs of 5 |
 | Mine | dropped behind, arms after 0.6 s, lasts 45 s, pulsing light | 30 *(M4: was 35)* | packs of 3 |
 | Turbo | meter, not ammo; capacity and power by upgrade | — | upgrade + pickup refill |
-| Super weapon | one-shot, slot reserved in the codec and ledger, designed later | — | M6+ |
+| Super weapon | one-shot, slot reserved in the codec and ledger, designed later | — | M5+ |
 
 - A projectile is fully determined by `(origin, angle, weapon, t_fire, seed)`. Every
   client simulates it, fast-forwarding from `t_fire` on arrival so late packets catch up.
@@ -288,7 +288,7 @@ Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
   of time. A late arrival is just evaluated later. No seed is needed.)*
 - *(M4)* **Balance, measured.** The damages above, a 4 s no-fire grace after GO, and
   3.5–7 s between a bot's shots give 5–7 wrecks in a 6-bot, 3-lap race, about one per
-  car. The first numbers gave 13. Until the shop in M5, every car starts a race with
+  car. The first numbers gave 13. Until the shop in M8, every car starts a race with
   10 front missiles, 5 rear missiles and 3 mines. The rear button drops mines while
   you have them, then fires rear missiles. A selector can come with the shop.
 - *(M4)* Car-to-car contact does **not** cause damage. It would need both owners to
@@ -406,7 +406,7 @@ car. And per-instance raycasts cost CPU per building per car.
 - *(M1 finding)* With this camera, a car on the road is covered only from about one
   camera position in six on Neon Downtown, and then nearly always at the frame's edge,
   because a roof at height h covers only the first (h−1)/55 of the ground path from the
-  car to the lens. The cut-away matters more for overhanging trees and cranes (M6).
+  car to the lens. The cut-away matters more for overhanging trees and cranes (M5).
 
 ### 4.3 Look and lighting
 
@@ -443,12 +443,12 @@ car. And per-instance raycasts cost CPU per building per car.
 - Below 30% health the car smokes, and below 15% it smokes more with a spark. The
   shadow blob grows while airborne. A ghost car is dithered at 50%.
 
-### 4.5b Car customisation: liveries and body styles *(M7, added after M3)*
+### 4.5b Car customisation: liveries and body styles *(M6, added after M3)*
 
 Players choose how their car **looks**. How it drives doesn't change: every body style
 uses the same `SIM.car` tunables and the same collision capsule, so choosing a style is
 never a competitive decision. Handling per model is a possible later step (see below),
-but it isn't part of M7.
+but it isn't part of M6.
 
 **What stays fixed.** The **body colour is still the room colour.** It's unique per room
 and resolved by `resolveColours`, because it's how you tell cars apart on the minimap,
@@ -491,12 +491,12 @@ from the lobby colour picker, and the Garage shows it but doesn't change it.
   isn't affected.
 - Damage smoke, the airborne shadow and the ghost dither work the same on every body.
 
-**Handling per model (future, not M7).** If body styles are ever made to drive
+**Handling per model (future, not M6).** If body styles are ever made to drive
 differently, it would be a small multiplier table on top of `SIM.car`: mass, grip, top
 speed and turn-in. It would be balanced by a test in which the autopilot laps every
 track in every body, and the fastest and slowest lap times must be within about 1.5%. The
-table would sit behind a room option so that equal cars stay the default. M5 upgrades
-already provide the "different cars drive differently" idea, so this can wait until M5
+table would sit behind a room option so that equal cars stay the default. M8 upgrades
+already provide the "different cars drive differently" idea, so this can wait until M8
 has been played.
 
 ### 4.6 Effects (`Fx.ts`)
@@ -853,7 +853,7 @@ Chromium. PlayStation browser support depends on the console: its browser is lim
 and not always reachable, so it is best effort. Xbox Edge and the Deck's Chromium are
 the primary console targets.
 
-**Tests (`gamepad.test.mjs`, built in M3, not M6):**
+**Tests (`gamepad.test.mjs`, built in M3, not M5):**
 - The whole front end driven by a virtual pad only, with no click and no keypress:
   menu → quick race → Start opens the pause → resume → leave; name and room code
   typed on the on-screen keyboard → lobby → start.
@@ -905,7 +905,7 @@ poll for outcomes and never sleep for a fixed time.
 | `net.test.mjs` | Node | **every codec's round trip and worst-case byte size**, truncation tolerance, timestamp wrap, dead-reckoning error bounds on recorded laps through a jittery and lossy link, clock-sync convergence and failover continuity, and a **multi-client room with an in-memory broker and a fake clock**: election, 7th client backs out, split brain healing over presence, frozen-tab wake, host failover mid-race with bots adopted, finish order by timestamp, pickup first-claim, ledger purchase validation |
 | `smoke.test.mjs` | browser, 1 tab | boot, menus, settings persistence, drive a lap on autopilot, **occlusion pixel test**, draw-call budget per track, camera lead and shake, quality auto-drop, hidden-tab worker ticker holds 20 Hz |
 | `multiplayer.test.mjs` | browser, 2–3 tabs | two clients race to the finish, both see the same finish order, A fires and B's health drops on both screens, mine trigger removes the mine everywhere, bump without a position snap, **failover mid-race** (close the host tab and the race completes), **a late joiner lands in the lobby** and spectates, then joins the next race, **a frozen tab** (CDP `Page.setWebLifecycleState: frozen`) wakes without splitting the room, and the shop round trip |
-| `gamepad.test.mjs` (M3), `mobile.test.mjs` (M6) | browser | the whole front end by virtual pad only (see §6b), and by touch only on an emulated phone, with hit-tests for nothing invisible covering buttons |
+| `gamepad.test.mjs` (M3), `mobile.test.mjs` (M5) | browser | the whole front end by virtual pad only (see §6b), and by touch only on an emulated phone, with hit-tests for nothing invisible covering buttons |
 
 The biggest change from glitchburst is that `net/` gets a **fake `Clock`** injected in
 place of `window.setInterval` and `performance.now()`. Glitchburst's frozen-tab test had
@@ -962,20 +962,14 @@ lights). Haptics.
 *Done when* the determinism, dedupe and bump tests are green and the two-client weapon
 tests pass.
 
-**M5 — Shop, upgrades and the championship.**
-`economy.ts`, `championship.ts`, the host ledger, shop UI, upgrades feeding physics,
-reverse-order grids, the summary screen, and bot shopping.
-*Done when* the ledger survives host failover in tests and a 3-race championship with
-bots plays through.
-
-**M6 — More tracks, hazards, audio and polish.**
+**M5 — More tracks, hazards, audio and polish.**
 Greenbelt and Tidewater Docks, the host-timed train and crossing, oil, water and dirt
 zones, the engine and SFX synth, music, the mobile suite, a performance
 pass on a real iGPU, and a super-weapon design pass.
 *Done when* the autopilot laps every track in Node, the train is identical across two
 clients to within one frame, and every suite is green.
 
-**M7 — Car customisation: liveries and body styles** *(added after M3; see §4.5b)*.
+**M6 — Car customisation: liveries and body styles** *(added after M3; see §4.5b)*.
 Five procedural body styles, stripe patterns, stripe and rim colours, and race numbers.
 Also the `look` field on presence and its sanitiser, bot looks from the room seed, the
 Garage screen (pad-driven, and fitting the Deck), and look icons in the lobby roster. The
@@ -987,7 +981,7 @@ look is cosmetic only: handling and the collision capsule are the same for every
 - `gamepad.test` covering the Garage by pad alone, and at 1280×800;
 - `multiplayer.test` showing that a second tab sees your body, stripe and number.
 
-**M8 — Track of the day, hotlaps, and a race-only mode** *(added after M3)*.
+**M7 — Track of the day, hotlaps, and a race-only mode** *(added after M3)*.
 Build it in this order:
 
 1. **Track of the day.** A track generated from a seed, and the day's seed derived
@@ -1026,6 +1020,12 @@ Build it in this order:
 
 *Done when* the generator tests above are green, a hotlap on today's track records and
 reloads a best lap, and a race-only room races with no weapon events on the wire.
+
+**M8 — Shop, upgrades and the championship** *(deferred: moved to the end after M4; it may be dropped to keep the game simple)*.
+`economy.ts`, `championship.ts`, the host ledger, shop UI, upgrades feeding physics,
+reverse-order grids, the summary screen, and bot shopping.
+*Done when* the ledger survives host failover in tests and a 3-race championship with
+bots plays through.
 
 ---
 
