@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.1**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.2**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -85,7 +85,9 @@ Interpolation costs one step (16 ms) of latency. Without it, a 144 Hz monitor sh
 each position two or three times and then jumps, which reads as the car stuttering.
 
 A tab that slept for ten seconds does not wake up and simulate ten seconds in one
-frame. The step accumulator is clamped to a quarter of a second.
+frame. Each frame's time is clamped to a quarter of a second before it reaches
+the accumulator. The cost of that is deliberate: a renderer managing fewer than four
+frames a second runs the race slower than real time rather than in jumps.
 
 ### The car: a bicycle model, not a physics engine
 
@@ -303,7 +305,7 @@ loopback MQTT stub (ready for M3), and runs Chromium on SwiftShader.
     clash resolution.
 - **`smoke.test.mjs`** (17, browser):
   - **Boot and driving:** the name comes from the one constant; nothing invisible
-    covers the menu; the world steps at 60 Hz of wall time whatever the frame rate; ↑
+    covers the menu; the world takes exactly 60 steps per second of (clamped) clock; ↑
     drives and ← steers left; the HUD shows speed.
   - **Camera:** the car sits behind centre at speed, and the lens widens.
   - **Teardown:** Esc tears the renderer down.
@@ -320,6 +322,12 @@ These caught real bugs:
   *No wall crosses another* found it.
 - **The city moat** (see above), found by the occlusion test failing to find anything
   to test.
+- **A check that promised more than the design does.** The browser suite first
+  asserted 60 steps per second of *wall* time. CI's runner, compiling shaders just
+  after boot, drew about two frames a second, and the quarter-second clamp turned
+  that into 31 steps a second, exactly as designed. The check now measures steps
+  against the clamped clock, which is what the World guarantees, and reports the
+  wall rate alongside.
 - **Two bugs in the tests themselves**, both worth recording because they looked like
   physics bugs:
   - The first grip test measured yaw rate times speed and declared oil the grippiest

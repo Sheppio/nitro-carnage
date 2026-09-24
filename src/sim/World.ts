@@ -30,6 +30,8 @@ export class World {
   readonly entrants: Entrant[] = [];
   /** Fixed steps taken since the world was created. */
   steps = 0;
+  /** Time handed to `advance` after the stall clamp: what the world was asked to simulate. */
+  clockTime = 0;
   private accumulator = 0;
 
   constructor(def: TrackDef | Track) {
@@ -55,7 +57,9 @@ export class World {
   advance(dtSec: number): number {
     // A tab that was asleep for ten seconds must not wake up and simulate ten
     // seconds in one frame: that is a frozen screen followed by a teleport.
-    this.accumulator += Math.min(dtSec, 0.25);
+    const dt = Math.min(dtSec, 0.25);
+    this.clockTime += dt;
+    this.accumulator += dt;
     while (this.accumulator >= STEP) {
       this.step();
       this.accumulator -= STEP;
