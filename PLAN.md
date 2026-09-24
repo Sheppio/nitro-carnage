@@ -431,6 +431,62 @@ car. And per-instance raycasts cost CPU per building per car.
 - Below 30% health the car smokes, and below 15% it smokes more with a spark. The
   shadow blob grows while airborne. A ghost car is dithered at 50%.
 
+### 4.5b Car customisation: liveries and body styles *(M7, added after M3)*
+
+Players choose how their car **looks**. How it drives doesn't change: every body style
+uses the same `SIM.car` tunables and the same collision capsule, so choosing a style is
+never a competitive decision. Handling per model is a possible later step (see below),
+but it isn't part of M7.
+
+**What stays fixed.** The **body colour is still the room colour.** It's unique per room
+and resolved by `resolveColours`, because it's how you tell cars apart on the minimap,
+on the rival arrows and on the results screen. Customisation adds to that colour; it
+never replaces it.
+
+**What you choose.**
+
+| Choice | Options | Notes |
+| --- | --- | --- |
+| Body style | 5 to start: **Coupé** (today's car), **Hatch**, **Muscle**, **Wedge** (low supercar), **Buggy** (open wheels, roll cage) | Each one is procedural like today's car: chamfered boxes, about 300–500 triangles, and no model files. Each has to fit inside the shared capsule footprint, and a test checks that. |
+| Stripe pattern | none, twin racing stripes, single offset stripe, side flash, chequer bonnet, number roundel | Drawn into a small `CanvasTexture` per car, the same way procedural windows are drawn now. There are no image assets. |
+| Stripe colour | any colour from the palette, including the one your body already uses | It doesn't have to be unique, so it's chosen freely. Contrast with the body is kept automatically: if the two colours are too close, the stripe is drawn darker. |
+| Wheel rims | silver, black, gold, body colour | This is a colour only, not a mesh change. |
+| Race number | 0–99, shown on the roundel and the roof | |
+
+**Networking.** A car's look goes out **once**, on presence, and never in the 20 Hz car
+packets. It's a compact `look` field of 4 base-36 characters: body, pattern, stripe
+colour and rims, with 2 more for the number. That adds about 7 bytes to presence, so the
+§5.10 budget doesn't change. Older clients ignore the unknown field. An unknown or
+malformed look falls back to the stock Coupé with no stripe, the same way `sanitizeName`
+treats bad names, so a bad packet can't crash a renderer. Bots get a look from the room
+seed, so every screen shows them the same way.
+
+**Storage.** The look is saved in `localStorage` (`nitrocarnage.look`) next to your name
+and colour.
+
+**UI: the Garage.** The Garage opens from the menu and from the lobby. It has a turntable
+preview of your car rendered by the normal `CarMesh`, and the choices above laid out as
+left/right pickers. It's driven by the same `GamepadNavigator` as the other screens, with
+LB/RB to cycle body styles. It has to fit the Deck's 1280×800 screen. In the lobby, each
+roster row gets a small car icon in that player's look. The room colour stays the one
+from the lobby colour picker, and the Garage shows it but doesn't change it.
+
+**Render.**
+- `CarMesh` takes a `look` and builds one of the body builders (`render/cars/*.ts`).
+- Wheel positions come from the shared car dimensions, so the steering, spin, roll and
+  pitch code doesn't change.
+- Meshes are cached per `(body, look)` in a room of up to 6, so the draw-call budget
+  isn't affected.
+- Damage smoke, the airborne shadow and the ghost dither work the same on every body.
+
+**Handling per model (future, not M7).** If body styles are ever made to drive
+differently, it would be a small multiplier table on top of `SIM.car`: mass, grip, top
+speed and turn-in. It would be balanced by a test in which the autopilot laps every
+track in every body, and the fastest and slowest lap times must be within about 1.5%. The
+table would sit behind a room option so that equal cars stay the default. M5 upgrades
+already provide the "different cars drive differently" idea, so this can wait until M5
+has been played.
+
 ### 4.6 Effects (`Fx.ts`)
 
 - **Tyre marks.** A ring buffer of 4096 quads in one `BufferGeometry`, written in place
@@ -906,6 +962,18 @@ zones, the engine and SFX synth, music, the mobile suite, a performance
 pass on a real iGPU, and a super-weapon design pass.
 *Done when* the autopilot laps every track in Node, the train is identical across two
 clients to within one frame, and every suite is green.
+
+**M7 — Car customisation: liveries and body styles** *(added after M3; see §4.5b)*.
+Five procedural body styles, stripe patterns, stripe and rim colours, and race numbers.
+Also the `look` field on presence and its sanitiser, bot looks from the room seed, the
+Garage screen (pad-driven, and fitting the Deck), and look icons in the lobby roster. The
+look is cosmetic only: handling and the collision capsule are the same for every body.
+*Done when* the following are green:
+- the codec round-trip and malformed-look fallback in `net.test`;
+- a sim check that every body fits the shared capsule and the triangle budget;
+- a `smoke` pixel test that a stripe renders and each body builds without errors;
+- `gamepad.test` covering the Garage by pad alone, and at 1280×800;
+- `multiplayer.test` showing that a second tab sees your body, stripe and number.
 
 ---
 
