@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.2**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.3**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -42,7 +42,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 56 checks: simulation (Node) and a real browser
+npm test           # 58 checks: simulation (Node) and a real browser
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -105,7 +105,15 @@ integrated in the world frame, so the textbook rotating-frame terms are not need
   3 m/s.
 - **Counter-steer assist.** The front wheels lean towards the direction of travel in
   a slide. A keyboard player has full lock or nothing, and without the assist they
-  cannot hold a drift at all.
+  cannot hold a drift at all. It only acts on slip *beyond* 0.12 rad: every
+  ordinary corner has some slip, and the first version, acting on all of it,
+  quietly wound off 40% of the lock the driver asked for (see *Tests* below).
+- **Stability aids, off with the handbrake.** The car may rotate a little faster
+  than its steering asks for, enough to feel the tail step out under power, and past
+  0.3 rad of slide the velocity swings back towards the nose at the same speed. Only
+  part of the drive force is charged against cornering grip. A true friction circle,
+  with 60% of the drive at the rear, left the rear tyres almost nothing at full
+  throttle. The handbrake switches all of this off, which is the point of the handbrake.
 - **Steering lock tightens with speed.** It halves by 22 m/s. Full lock at 45 m/s
   would spin any car.
 - **Height is a scalar.** A ramp is a wedge in the track data. When the ground drops
@@ -287,17 +295,19 @@ picking up a controller mid-race just works.
 npm test
 ```
 
-56 checks across two suites. The browser suite swaps the CDN for a local three.js and a
+58 checks across two suites. The browser suite swaps the CDN for a local three.js and a
 loopback MQTT stub (ready for M3), and runs Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (39, Node):
+- **`sim.test.mjs`** (41, Node):
   - **Tracks:** lap length; corner radius against the wall offset; no wall crossing
     another; the centreline clear of every wall; projection round-trips; ordered
     checkpoints; s = 0 at the start line; deterministic scenery; no tower on the road;
     six grid slots on the road and not touching.
   - **Physics:** 0–100 km/h time; top speed; turbo; braking distance; reverse; steering
     lock against speed; grip order tarmac > dirt > grass > oil; handbrake slides; no
-    control in the air; landings; ramp launches; a minute of random input without NaN.
+    control in the air; landings; ramp launches; a minute of random input without NaN;
+    full throttle through a corner never spins; an ordinary corner keeps the lock you
+    asked for.
   - **Collisions:** no tunnelling at 5× top speed into any wall; head-on bounces.
   - **Determinism:** identical worlds; 144 Hz against 24 Hz; stall clamping; a
     line-follower lapping cleanly and taking the ramp.
@@ -315,6 +325,16 @@ loopback MQTT stub (ready for M3), and runs Chromium on SwiftShader.
     console errors.
 
 These caught real bugs:
+
+- **The car was hard to steer**, reported from the first playable build: it pushed
+  wide off the throttle, and on the throttle the tail came round and it spun. Both
+  were measurable once looked for. The counter-steer assist was treating the ordinary
+  slip of every corner as a slide to catch, leaving the front wheels at 59% of the
+  lock asked for. Full throttle into a corner reached 1.56 rad of body slip at every
+  speed from 15 to 35 m/s, which is a spin. The fixes are the assist deadband, the
+  stability aids and more grip (1.25 → 1.45). A test for each half of the report now
+  fails against the old physics and passes against the new: peak slip is 0.44 rad and
+  the wheels keep 95% of their lock.
 
 - **The walls did not close.** Wall segments are laid every 2 m of centreline, and
   Neon Downtown is 1,589 m, which is odd. The last segment wrapped past the start line

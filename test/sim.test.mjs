@@ -211,6 +211,46 @@ function cornering(surface) {
     g.map((x) => x.toFixed(1)).join(' > ') + ' m/s^2');
 }
 
+/**
+ * A keyboard driver turning in: full right lock wound on over 0.14 s, held
+ * for 1.5 s at a fixed throttle. Returns how far the velocity turned and the
+ * peak body slip.
+ */
+function turnIn(v0, throttle) {
+  const car = createCar(0, 0, 0);
+  car.vz = v0;
+  let steer = 0;
+  let peak = 0;
+  const h0 = Math.atan2(car.vx, car.vz);
+  run(car, new OpenGround(), () => {
+    steer = Math.min(1, steer + STEP / 0.14);
+    return intent({ steer, throttle });
+  }, (c) => {
+    peak = Math.max(peak, Math.abs(c.slip));
+    return false;
+  }, 1.5);
+  return { turned: Math.abs(wrapAngle(Math.atan2(car.vx, car.vz) - h0)), peak };
+}
+
+// Reported from the first playable build: the car pushed wide unless you were
+// on the power, and on the power the tail came round and it spun.
+{
+  const worst = Math.max(...[15, 25, 35].map((v) => turnIn(v, 1).peak));
+  check('full throttle through a corner slides the tail but never spins', worst < 0.55 && worst > 0.2,
+    `peak slip ${worst.toFixed(2)} rad at 15-35 m/s`);
+  // The push came from the counter-steer assist treating the ordinary slip of
+  // every corner as a slide to catch, and winding off the lock you asked for.
+  const car = createCar(0, 0, 0);
+  car.vz = 25;
+  let lowest = Infinity;
+  run(car, new OpenGround(), intent({ steer: 1 }), (c, t) => {
+    if (t > 0.3) lowest = Math.min(lowest, Math.abs(c.steer) / steerLimit(c.forward));
+    return false;
+  }, 1.2);
+  check('an ordinary corner off the throttle keeps the lock the driver asked for', lowest > 0.9,
+    `wheels at ${(lowest * 100).toFixed(0)}% of full lock at worst`);
+}
+
 {
   const drift = (handbrake) => {
     const car = createCar(0, 0, 0);

@@ -24,7 +24,7 @@ export const SIM = {
     stiffnessFront: 60000,
     stiffnessRear: 66000,
     /** Base tyre friction on tarmac; surfaces and the tyre upgrade scale it. */
-    grip: 1.25,
+    grip: 1.45,
     /** Peak engine force at standstill, and the speed it tapers to nothing at. */
     engineForce: 9800,
     /** Share of the drive force at the rear axle. */
@@ -34,7 +34,7 @@ export const SIM = {
     reverseTopSpeed: 12,
     brakeForce: 16000,
     /** Off-throttle engine braking plus rolling resistance, as a deceleration. */
-    coastDecel: 1.4,
+    coastDecel: 0.9,
     /** Quadratic drag coefficient, N per (m/s)^2. */
     drag: 0.9,
     /** Steering lock at a standstill; it tightens with speed (see `steerLimit`). */
@@ -45,6 +45,20 @@ export const SIM = {
     steerRate: 5,
     /** How much the front wheels follow the direction of travel in a slide. */
     counterSteer: 0.55,
+    /** Body slip an ordinary corner produces; the assist ignores slip up to here. */
+    assistSlip: 0.12,
+    /** Rear grip relative to the front. Above 1 is stable, below 1 is loose. */
+    rearGripBias: 1.06,
+    /** Fraction of the drive force charged against cornering grip (1 = true friction circle). */
+    driveGripShare: 0.4,
+    /** Yaw rate allowed beyond what the steering asks for, rad/s, before the stability aid acts. */
+    yawSlack: 0.22,
+    /** How fast the stability aid removes excess yaw rate, 1/s. */
+    yawDamping: 10,
+    /** Body slip beyond which a slide is caught (without the handbrake), rad. */
+    slideLimit: 0.3,
+    /** How fast a slide past the limit is caught, 1/s. */
+    slideCatch: 4,
     /** Rear grip multiplier with the handbrake on. */
     handbrakeGrip: 0.4,
     handbrakeDecel: 5,

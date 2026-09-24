@@ -71,8 +71,13 @@ function substep(car, intent, env, h, stats) {
         // Counter-steer assist: the front wheels lean towards the direction of
         // travel, so a slide is caught rather than spun. Without it a keyboard
         // player — who has full lock or nothing — cannot hold a drift at all.
-        if (u > 2)
-            target += C.counterSteer * Math.max(-0.5, Math.min(0.5, Math.atan2(v, u)));
+        // Only slip beyond what an ordinary corner produces counts: every corner
+        // has some, and an assist acting on all of it steers out of every bend.
+        if (u > 2) {
+            const beta = Math.atan2(v, u);
+            const excess = Math.sign(beta) * Math.max(0, Math.abs(beta) - C.assistSlip);
+            target += C.counterSteer * Math.max(-0.5, Math.min(0.5, excess));
+        }
     }
     const maxDelta = C.steerRate * h;
     car.steer += Math.max(-maxDelta, Math.min(maxDelta, target - car.steer));
@@ -107,7 +112,9 @@ function substep(car, intent, env, h, stats) {
     car.surfaceFront = sf;
     car.surfaceRear = sr;
     const gripF = C.grip * SURFACES[sf].grip * stats.grip;
-    let gripR = C.grip * SURFACES[sr].grip * stats.grip;
+    // A little more grip at the rear than the front: a car that pushes wide
+    // when overdriven is one you can steer; one that snaps round is not.
+    let gripR = C.grip * C.rearGripBias * SURFACES[sr].grip * stats.grip;
     if (car.handbrake)
         gripR *= C.handbrakeGrip;
     // Static axle loads. Weight transfer is left out: it adds realism nobody can
@@ -169,11 +176,16 @@ function substep(car, intent, env, h, stats) {
     const wheelLat = -u * sn + vFront * cs;
     const alphaF = Math.atan2(wheelLat, Math.max(Math.abs(wheelLong), floor));
     // Friction circles: whatever grip the drive force uses is not there for cornering.
-    const latF = Math.sqrt(Math.max(0, maxF * maxF - driveF * driveF));
+    // Only part of the drive force is charged against cornering grip. A true
+    // friction circle is realistic and, at full throttle with 60% of the drive
+    // at the rear, leaves the rear tyres almost nothing: the car spins on every
+    // corner exit.
+    const k = C.driveGripShare;
+    const latF = Math.sqrt(Math.max(0, maxF * maxF - (k * driveF) ** 2));
     const fyF = Math.max(-latF, Math.min(latF, -C.stiffnessFront * alphaF));
     const vRear = v - C.cgToRear * car.w;
     const alphaR = Math.atan2(vRear, Math.max(Math.abs(u), floor));
-    const latR = Math.sqrt(Math.max(0, maxR * maxR - driveR * driveR));
+    const latR = Math.sqrt(Math.max(0, maxR * maxR - (k * driveR) ** 2));
     const fyR = Math.max(-latR, Math.min(latR, -C.stiffnessRear * alphaR));
     // Front forces act in the wheel's frame, turned by the steering angle.
     const fLong = driveR + driveF * cs - fyF * sn - C.drag * u * Math.abs(u);
@@ -183,6 +195,31 @@ function substep(car, intent, env, h, stats) {
     car.vx += ((fLong * fx + fLat * lx) / C.mass) * h;
     car.vz += ((fLong * fz + fLat * lz) / C.mass) * h;
     car.w += (torque / C.inertia) * h;
+    // Stability aid: the car may rotate a little faster than the steering asks
+    // for — enough to feel the tail move under power — but not run away into a
+    // spin. The handbrake switches it off; that is what the handbrake is for.
+    if (!car.handbrake && u > 3) {
+        const asked = (u * Math.tan(car.steer)) / WHEELBASE;
+        const limit = Math.abs(asked) + C.yawSlack;
+        const excess = Math.abs(car.w) - limit;
+        if (excess > 0)
+            car.w -= Math.sign(car.w) * excess * Math.min(1, C.yawDamping * h);
+        // And the slide itself is caught: past `slideLimit`, the velocity swings
+        // back towards the nose at the same speed. Power slides stay a flick of
+        // the tail you can hold, not a spin you have to recover from.
+        const sp = Math.hypot(car.vx, car.vz);
+        const beta = Math.atan2(car.vx * lx + car.vz * lz, car.vx * fx + car.vz * fz);
+        const over = Math.abs(beta) - C.slideLimit;
+        if (sp > 3 && over > 0) {
+            const turn = -Math.sign(beta) * over * Math.min(1, C.slideCatch * h);
+            const c = Math.cos(turn), sn2 = Math.sin(turn);
+            // Rotate the velocity by `turn` towards the heading (positive = towards the left).
+            const nvx = car.vx * c + car.vz * sn2;
+            const nvz = -car.vx * sn2 + car.vz * c;
+            car.vx = nvx;
+            car.vz = nvz;
+        }
+    }
     // Decelerations act along the direction of motion and stop at zero rather
     // than reversing it.
     if (decel > 0) {
