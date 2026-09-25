@@ -7,6 +7,7 @@ export const RANGES = {
     sfxVolume: { min: 0, max: 1 },
     musicVolume: { min: 0, max: 1 },
     ghostLead: { min: -1, max: 3 },
+    fov: { min: 35, max: 70 },
 };
 const STORAGE_KEY = `${SLUG}.settings.v1`;
 const QUALITIES = ['potato', 'low', 'medium', 'high'];
@@ -21,6 +22,7 @@ export const DEFAULT_SETTINGS = {
     musicVolume: 0.8,
     ghostLead: 0,
     nameTags: 'rivals',
+    fov: 50,
     broker: BROKERS[0].id,
 };
 /**

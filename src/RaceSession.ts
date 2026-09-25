@@ -215,6 +215,7 @@ export class RaceSession {
     }
     this.view.focusId = this.player?.id ?? this.world.entrants[0]?.id ?? null;
     this.view.rig.shakeScale = settings.current.reduceMotion ? 0.25 : 1;
+    this.view.rig.baseFov = settings.current.fov;
     this.view.onJolt = (kind, k) => {
       const p = kind === 'landing' ? HAPTIC.landing : HAPTIC.crash;
       this.input.rumble(p.weak * k, p.strong * k, p.ms);

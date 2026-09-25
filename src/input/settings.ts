@@ -27,6 +27,11 @@ export interface InputSettings {
    * shows the line before you get there. Negative hides it.
    */
   ghostLead: number;
+  /**
+   * The race camera's vertical field of view at rest, in degrees: smaller is
+   * zoomed in, bigger shows more of the track. Also on the mouse wheel.
+   */
+  fov: number;
   /** Driver names over the cars in a race: rivals only, every car, or none. */
   nameTags: NameTags;
   /** Which public MQTT broker rooms meet on; see `BROKERS`. */
@@ -39,6 +44,7 @@ export const RANGES = {
   sfxVolume: { min: 0, max: 1 },
   musicVolume: { min: 0, max: 1 },
   ghostLead: { min: -1, max: 3 },
+  fov: { min: 35, max: 70 },
 } as const satisfies Record<string, { min: number; max: number }>;
 
 const STORAGE_KEY = `${SLUG}.settings.v1`;
@@ -55,6 +61,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   musicVolume: 0.8,
   ghostLead: 0,
   nameTags: 'rivals',
+  fov: 50,
   broker: BROKERS[0]!.id,
 };
 

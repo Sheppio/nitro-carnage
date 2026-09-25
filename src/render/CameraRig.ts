@@ -24,6 +24,8 @@ export class CameraRig {
   private trauma = 0;
   private time = 0;
   private started = false;
+  /** The player's field of view at rest (the Settings slider and the mouse wheel). */
+  baseFov = CAMERA.fov;
   /** Scales shake; 0.25 under "reduce motion". */
   shakeScale = 1;
 
@@ -76,7 +78,8 @@ export class CameraRig {
     // Speed pulls the camera up and widens the lens a little, framerate-independently.
     this.speedFrac += (frac - this.speedFrac) * (1 - Math.exp(-dt * 1.5));
     const height = CAMERA.height + (CAMERA.heightFast - CAMERA.height) * this.speedFrac;
-    let fov = CAMERA.fov + (CAMERA.fovFast - CAMERA.fov) * this.speedFrac;
+    // Speed widens the lens by the same few degrees whatever the player's zoom.
+    let fov = this.baseFov + (CAMERA.fovFast - CAMERA.fov) * this.speedFrac;
 
     // A phone in portrait: widen until the narrow axis still shows `minSpan`
     // metres of ground, or the screen is a keyhole.

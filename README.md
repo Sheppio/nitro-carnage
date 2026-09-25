@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.30**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.31**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 737 checks: simulation and networking (Node), and real browsers
+npm test           # 738 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -290,6 +290,15 @@ is what stops a roof clipping through the lens.
 
 The camera started at 70 m. That made the car 4% of the screen height, which was
 fine for admiring the city and bad for driving.
+
+**Zoom is the player's.** Settings has a "Field of view" slider, 35° to 70° (50° by
+default), and the mouse wheel changes the same setting during a race, 2° a notch:
+towards you shows more of the track, away closes in. Because the wheel and the
+slider change the same saved setting, a zoom picked mid-race is still there next time.
+Speed still widens the lens by the same 6° on top, and a portrait phone still widens
+it to keep 50 m of ground across the screen. The wheel does nothing in the pause
+menu, so it can't change the zoom while you're paused. Changing the field of view
+rather than the camera's height keeps the towers' lean the same at every zoom.
 
 ### Tall things must never hide a car
 
@@ -969,7 +978,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-737 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+738 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1054,7 +1063,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (52, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (53, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the

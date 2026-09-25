@@ -558,6 +558,14 @@ document.addEventListener('focusin', () => {
   if (!session || session.paused) audio.blip();
 });
 $('set-ghost').addEventListener('change', (e) => settings.set('ghostLead', Number((e.target as HTMLSelectElement).value)));
+$('set-fov').addEventListener('input', (e) => settings.set('fov', Number((e.target as HTMLInputElement).value)));
+// The mouse wheel zooms the race camera: down (towards you) widens the view, up
+// closes in. It changes the same setting as the slider, so it is kept.
+addEventListener('wheel', (e) => {
+  if (!session || $('screen-hud').hidden || !$('pause-veil').hidden) return;
+  e.preventDefault();
+  settings.set('fov', settings.current.fov + Math.sign(e.deltaY) * 2);
+}, { passive: false });
 $('set-names').addEventListener('change', (e) => settings.set('nameTags', (e.target as HTMLSelectElement).value as NameTags));
 $('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number((e.target as HTMLInputElement).value)));
 $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number((e.target as HTMLInputElement).value)));
@@ -575,6 +583,7 @@ function openSettings(fromPause: boolean): void {
   $<HTMLInputElement>('set-sfx').value = String(settings.current.sfxVolume);
   $<HTMLSelectElement>('set-ghost').value = String(settings.current.ghostLead);
   $<HTMLSelectElement>('set-names').value = settings.current.nameTags;
+  $<HTMLInputElement>('set-fov').value = String(settings.current.fov);
   $<HTMLInputElement>('set-music').value = String(settings.current.musicVolume);
   // The race stays where it is underneath: paused offline, held on the brakes online.
   if (fromPause) $('pause-veil').hidden = true;
@@ -595,6 +604,7 @@ $('btn-settings-back').addEventListener('click', () => {
 settings.events.on('change', () => {
   if (!session) return;
   session.view.rig.shakeScale = settings.current.reduceMotion ? 0.25 : 1;
+  session.view.rig.baseFov = settings.current.fov;
   if (!params.has('autopilot')) session.autopilot = settings.current.autopilot;
 });
 $('set-quality').addEventListener('change', (e) => settings.set('quality', (e.target as HTMLSelectElement).value as QualityId));

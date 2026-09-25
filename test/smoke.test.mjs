@@ -365,6 +365,24 @@ try {
   r.check('high quality renders with shadows inside 150 draw calls', shadows && calls > 0 && calls < 150, `${calls} draw calls`);
   await hi.close();
 
+  /* ---------------------------------------------------------------- zoom */
+  // The mouse wheel zooms the race camera by changing the field-of-view setting;
+  // it is kept, clamped, and the slider shows it.
+  {
+    const zp = await openPage('quality=potato&drive');
+    await until(() => zp.evaluate(() => window.nitro.session?.world.time > 0.5), { timeout: 30000 });
+    const fov0 = await zp.evaluate(() => window.nitro.session.view.rig.camera.fov);
+    await zp.mouse.move(400, 225);
+    for (let k = 0; k < 5; k++) await zp.mouse.wheel(0, 100);
+    const wide = await until(() => zp.evaluate((f) => (window.nitro.session.view.rig.camera.fov > f + 8 ? window.nitro.settings.current.fov : null), fov0), { timeout: 5000 });
+    for (let k = 0; k < 40; k++) await zp.mouse.wheel(0, -100);
+    const tight = await until(() => zp.evaluate(() => (window.nitro.settings.current.fov === 35 ? window.nitro.session.view.rig.camera.fov : null)), { timeout: 5000 });
+    r.check('the mouse wheel zooms the race camera out and in, down to the 35° limit', wide === 60 && tight !== null && tight < fov0,
+      `rest ${fov0.toFixed(1)}°, wheel out → setting ${wide}, wheel in → camera ${tight?.toFixed(1)}°`);
+    await zp.evaluate(() => window.nitro.settings.set('fov', 50));
+    await zp.close();
+  }
+
   /* -------------------------------------------------------------- garage */
   // Every body in every livery: built without error, inside the shared
   // collision footprint (4.4 m by 2.0 m, a few centimetres of bumper

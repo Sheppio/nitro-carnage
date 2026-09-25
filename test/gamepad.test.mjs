@@ -193,11 +193,11 @@ try {
   await tap(page, B.A);
   await until(() => page.evaluate(() => !document.getElementById('screen-settings').hidden));
   const visited = new Set();
-  for (let k = 0; k < 12; k++) {
+  for (let k = 0; k < 16; k++) {
     visited.add(await focused(page));
     await tap(page, B.DOWN);
   }
-  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-names', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
+  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-fov', 'set-names', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
   const missed = rows.filter((id) => !visited.has(id));
   await until(async () => (await focused(page)) === 'set-motion' || (await tap(page, B.DOWN), false), { timeout: 10000, interval: 0 });
   const before = await page.evaluate(() => document.getElementById('set-motion').checked);
