@@ -166,7 +166,9 @@ export class RaceSession {
         const touched = Math.abs(human.steer) > 0.05 || human.throttle > 0 || human.brake > 0 || human.handbrake;
         if (me.lap.finished || (this.autopilot && !touched)) {
             const line = racingLine(this.world.track);
-            return autopilot(this.pilot, me.car, this.world.track, line, this.world.rivalsOf(me.id), this.world.time, STEP, this.world.stopLine(me));
+            const auto = autopilot(this.pilot, me.car, this.world.track, line, this.world.rivalsOf(me.id), this.world.time, STEP, this.world.stopLine(me));
+            // The autopilot drives, but the trigger is still yours.
+            return { ...auto, fireFront: auto.fireFront || human.fireFront, fireRear: auto.fireRear || human.fireRear };
         }
         return human;
     }

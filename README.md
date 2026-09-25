@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.15**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.16**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -770,6 +770,11 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   doesn't brake; the missile button fires; pause and resume by tap.
 
 These caught real bugs:
+
+- **With the autopilot on, your own fire buttons did nothing** (M6). Only the
+  autopilot's intent was used, triggers included. Found in CI: the cross-tab missile
+  test waited for a bot to feel like shooting, and one CI race ended first. The test
+  now fires deliberately, and your triggers work whoever is steering.
 
 - **A phone could not pause** (M5). The steering zone takes the left half of the screen,
   and it covered the ☰ Menu button in the top bar. It now starts below the bar. Found by

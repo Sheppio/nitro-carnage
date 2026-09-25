@@ -96,11 +96,20 @@ try {
   }), { timeout: 30000 });
   r.check('after GO every car moves on every screen', Boolean(moving));
 
-  // Somebody on autopilot opens fire: B sees a shot that was fired in the other tab.
-  const remoteShot = await until(() => b.evaluate(() => {
-    const me = window.nitro.room.net.playerId;
-    return window.nitro.session.world.armoury.missiles.some((m) => m.owner !== me && !m.live) || null;
-  }), { timeout: 90000, interval: 50 });
+  // Alice fires (her autopilot drives; the trigger is hers): Bob sees the shot.
+  // Deliberately, rather than waiting for a bot to feel like it — in CI a
+  // one-lap race once ended before any bot had.
+  await until(() => a.evaluate(() => {
+    const w = window.nitro.session?.world;
+    return w && w.time - w.goTime > 4.5 ? true : null;
+  }), { timeout: 30000 });
+  const aliceId = await a.evaluate(() => window.nitro.room.net.playerId);
+  let remoteShot = null;
+  for (let k = 0; k < 6 && !remoteShot; k++) {
+    await a.keyboard.press('KeyZ');
+    remoteShot = await until(() => b.evaluate((id) => window.nitro.session?.world.armoury.missiles.some((m) => m.owner === id && !m.live) || null, aliceId),
+      { timeout: 1500, interval: 30 });
+  }
   r.check('a missile fired in one tab flies in the other', Boolean(remoteShot));
 
   const gridA = await a.evaluate(() => window.nitro.room.net.state.grid.join('.'));
