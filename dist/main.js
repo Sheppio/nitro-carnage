@@ -252,7 +252,7 @@ function begin(mode, s, track, label = track.name) {
         const online = mode === 'net';
         $('btn-again').hidden = online;
         $('results-note').hidden = !online;
-        $('btn-results-menu').textContent = online ? 'Leave room' : 'Menu';
+        $('btn-results-menu').textContent = online ? 'Leave room' : 'Back';
         if (!online)
             stopSession();
         closePause();
@@ -308,10 +308,19 @@ function stopSession() {
     hud = null;
     closePause();
 }
+/**
+ * Out of a race: back to the screen it was started from. Offline that is the
+ * track screen, set up as it was, so another go on the same track or a change
+ * of seed is one step away. Leaving a room leaves it, so that goes to the menu.
+ */
 function toMenu() {
+    const wasRoom = room !== null;
     leaveRoom();
     stopSession();
-    show('screen-menu');
+    if (wasRoom)
+        show('screen-menu');
+    else
+        chooseTrack(lastMode === 'hotlap' ? 'hotlap' : 'race');
 }
 /* ------------------------------------------------------------------ rooms */
 let room = null;
@@ -324,6 +333,7 @@ async function openRoom(code) {
         return;
     const broker = BROKERS.find((b) => b.id === settings.current.broker) ?? BROKERS[0];
     const client = new RoomClient(code, makePlayerId(), playerName(), colourId, encodeLook(look));
+    client.net.botLevel = settings.current.botLevel;
     room = client;
     $('connect-status').textContent = `Reaching ${broker.label}…`;
     show('screen-connecting');
@@ -524,6 +534,7 @@ addEventListener('wheel', (e) => {
     e.preventDefault();
     settings.set('fov', settings.current.fov + Math.sign(e.deltaY) * 2);
 }, { passive: false });
+$('set-bots').addEventListener('change', (e) => settings.set('botLevel', e.target.value));
 $('set-names').addEventListener('change', (e) => settings.set('nameTags', e.target.value));
 $('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number(e.target.value)));
 $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number(e.target.value)));
@@ -540,6 +551,7 @@ function openSettings(fromPause) {
     $('set-sfx').value = String(settings.current.sfxVolume);
     $('set-ghost').value = String(settings.current.ghostLead);
     $('set-names').value = settings.current.nameTags;
+    $('set-bots').value = settings.current.botLevel;
     $('set-fov').value = String(settings.current.fov);
     $('set-music').value = String(settings.current.musicVolume);
     // The race stays where it is underneath: paused offline, held on the brakes online.
@@ -561,6 +573,9 @@ $('btn-settings-back').addEventListener('click', () => {
 });
 // Settings that can change mid-race take effect at once.
 settings.events.on('change', () => {
+    // A host's bots take the new level from their next race.
+    if (room)
+        room.net.botLevel = settings.current.botLevel;
     if (!session)
         return;
     session.view.rig.shakeScale = settings.current.reduceMotion ? 0.25 : 1;

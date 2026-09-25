@@ -11,6 +11,18 @@ export const SKILLS = [
     { pace: 0.95, wander: 1.2, turbo: true, trigger: 5 },
     { pace: 0.94, wander: 1.4, turbo: false, trigger: 7 },
 ];
+export const BOT_LEVELS = {
+    easy: { pace: 0.72, top: 0.72, turbo: false, trigger: 2.5 },
+    medium: { pace: 0.84, top: 0.86, turbo: false, trigger: 1.8 },
+    hard: { pace: 0.94, top: 0.95, turbo: true, trigger: 1.3 },
+    expert: { pace: 1, top: 1, turbo: true, trigger: 1 },
+};
+/** The driver in a grid slot, at a level. */
+export function skillFor(slot, level = 'expert') {
+    const base = SKILLS[slot % SKILLS.length];
+    const l = BOT_LEVELS[level] ?? BOT_LEVELS.expert;
+    return { ...base, pace: base.pace * l.pace, top: l.top, turbo: base.turbo && l.turbo, trigger: base.trigger * l.trigger };
+}
 /** A front shot is taken at a rival within this cone either side of the nose, radians... */
 const FIRE_CONE = (6 * Math.PI) / 180;
 /** ...and this far ahead along the road, metres: far enough to be worth it, near enough to be on the same straight. */
@@ -18,6 +30,8 @@ const FIRE_RANGE = 55;
 /** A mine or rear missile goes back at a rival this close behind, metres, and this near our line. */
 const REAR_RANGE = 15;
 const REAR_LANE = 1.6;
+/** Steering against turn rate beyond what the path asks for, per rad/s. */
+const YAW_DAMP = 0.8;
 export function createAutopilot(seed, skill) {
     const rand = mulberry32(seed);
     return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0, fireAt: 0 };
@@ -92,7 +106,11 @@ export function autopilot(st, car, track, line, rivals, time, dt, stopAt = null)
     if (time >= st.shiftUntil)
         st.shift *= Math.max(0, 1 - dt * 1.5);
     // --- Steering: pure pursuit on the (shifted, wandering) line. ---
-    const look = 5 + v * 0.42;
+    // Short, so the car follows a chicane rather than cutting across it (but
+    // not so short that a car pulling away from the grid swings for a line six
+    // metres across at full lock); the
+    // yaw damping below keeps a short look-ahead steady at speed.
+    const look = Math.max(8, 3 + v * 0.2);
     const ti = idx(p.s + look);
     const limit = track.halfWidth - 1.3;
     const wander = st.skill.wander * Math.sin(time * 0.35 + st.phase);
@@ -120,13 +138,20 @@ export function autopilot(st, car, track, line, rivals, time, dt, stopAt = null)
     const dist = Math.hypot(dx, dz) || 1;
     const alpha = Math.atan2(left, fwd);
     const wheel = Math.atan((2 * Math.sin(alpha) * WHEELBASE) / dist);
-    const want = Math.max(-1, Math.min(1, -wheel / steerLimit(car.forward)));
+    // Yaw damping: the arc to the target asks for a turn rate; turning faster
+    // than that (the tail stepping out) steers against it, before the slide
+    // grows. Without it a short look-ahead fishtails at speed.
+    const wantRate = (v * 2 * Math.sin(alpha)) / dist;
+    const damp = YAW_DAMP * (car.w - wantRate);
+    const want = Math.max(-1, Math.min(1, -wheel / steerLimit(car.forward) + damp));
     // Ease the output: pure pursuit re-decides every step, and a 60 Hz twitch
     // reads on screen as a car vibrating.
     st.steer += (want - st.steer) * Math.min(1, dt * 14);
     out.steer = st.steer;
     // --- Speed: chase the profile, looked up a reaction time ahead. ---
     let target = line.speed[idx(p.s + v * 0.3 + 2)] * st.skill.pace;
+    if (st.skill.top !== undefined && st.skill.top < 1)
+        target = Math.min(target, SIM.car.topSpeed * st.skill.top);
     // The line was planned for tarmac. Off it, a corner's speed scales with the
     // square root of the grip: on grass that is about three quarters.
     const grip = Math.min(SURFACES[car.surfaceFront].grip, SURFACES[car.surfaceRear].grip);
@@ -170,9 +195,11 @@ export function autopilot(st, car, track, line, rivals, time, dt, stopAt = null)
     aim(st, out, car, p.s, p.d, track, rivals, time);
     // Turbo where the profile says flat out for a good while yet.
     if (st.skill.turbo && car.turbo > 1 && out.throttle > 0.9) {
+        // Only where the profile allows more than the car can reach without it,
+        // for two seconds' driving: a burst into a sweeper overshoots it.
         let straight = true;
-        for (let a = 0; a < 60 && straight; a += 6)
-            straight = line.speed[idx(p.s + a)] >= SIM.car.topSpeed * 0.85;
+        for (let a = 0; a < v * 2 + 20 && straight; a += 6)
+            straight = line.speed[idx(p.s + a)] >= SIM.car.topSpeed + 2;
         out.turbo = straight;
     }
     return out;

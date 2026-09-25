@@ -2,9 +2,11 @@ import type { Track } from './track/buildTrack.js';
 
 /** Clearance kept from the road edge, metres: half the car plus a little. */
 const EDGE_MARGIN = 1.7;
-/** Coarse spacing for the relaxation, metres. */
-const COARSE = 3;
-const ITERATIONS = 2500;
+/** Curvature for the speed profile is measured between points this many metres either side. */
+const CURVE_SPAN = 5;
+/** The line's refinement: strides in metres, coarse to fine, and sweeps at each. */
+const STRIDES = [64, 32, 16, 8, 4, 2, 1];
+const SWEEPS = 60;
 
 export interface RacingLine {
   /** Lateral offset from the centreline per sample, metres, positive left. */
@@ -16,13 +18,27 @@ export interface RacingLine {
 }
 
 export interface LineOptions {
-  /** Lateral acceleration the profile plans for, m/s^2. */
+  /**
+   * Lateral acceleration the profile plans for, m/s^2: `lateral` plus
+   * `lateralPerMs` for every m/s. Downforce gives the car more grip the faster
+   * it goes: measured on flat tarmac, about 14.8 at 20 m/s, 16.1 at 30 and
+   * 17.5 at 40.
+   */
   lateral: number;
+  lateralPerMs: number;
   /** Braking deceleration the profile plans for, m/s^2. */
   braking: number;
   /** Acceleration used only to estimate the par time, m/s^2. */
   accel: number;
+  /**
+   * The profile's ceiling. Above anything the car reaches, turbo included, so
+   * the braking curves reach up to every speed a car can arrive at: capped
+   * at the car's own top speed, a bot on turbo met a braking zone planned
+   * from 46 m/s at 55 and ran into the wall.
+   */
   topSpeed: number;
+  /** What the car reaches without turbo, for the par time. */
+  carTop: number;
 }
 
 /**
@@ -32,20 +48,29 @@ export interface LineOptions {
  * best bot laps Neon Downtown in 59 s instead of 66.5 with no wall contact;
  * at 18 they start clipping the walls.
  */
-export const DEFAULT_LINE: LineOptions = { lateral: 16, braking: 16, accel: 6, topSpeed: 46 };
+export const DEFAULT_LINE: LineOptions = { lateral: 16, lateralPerMs: 0, braking: 16, accel: 6, topSpeed: 64, carTop: 51 };
 
 const cache = new WeakMap<Track, RacingLine>();
 
 /**
- * The fast way round: a minimum-curvature line inside the road, and a speed
- * for every metre of it.
+ * The fast way round: a smooth line inside the road, and a speed for every
+ * metre of it.
  *
- * The line relaxes each point towards the midpoint of its neighbours — which
- * straightens the path, cutting apexes and running wide on entry and exit —
- * while clamped inside the road. That is the classic minimum-curvature line,
- * and close enough to the fastest line on tracks like these. It runs on a 3 m
- * grid, because relaxation spreads a correction one point per iteration and
- * a 1 m grid would need nine times the iterations to settle the long bends.
+ * The line is K1999's (Rémi Coulom's TORCS robot): each point in turn moves
+ * across the road until the line's curvature there is the average of its
+ * neighbours', clamped to the road. That evens the turning out along the lap,
+ * which is what a fast line does: out-in-out through a corner, one long arc
+ * through a run of small ones. It works on points 64 m apart first, then 32,
+ * and so on down to 1 m, so a change spreads across a whole corner in a few
+ * sweeps rather than creeping a metre at a time.
+ *
+ * Two earlier versions each failed on the real circuits (M9), whose outlines
+ * are short straights joined by 10 m fillets. Pulling each point to the
+ * midpoint of its neighbours is a taut string: it hugs the inside edge and
+ * kinks at every joint of it, and the bots braked for each kink as a hairpin
+ * (Indianapolis's turns planned at 13-18 m/s). Descent on the squared second
+ * difference weighs a line by its point spacing as well as its bending, which
+ * is wider on the outside of a turn, so it never settled either.
  *
  * The speed profile is what the car can corner at each point, then a pass
  * backwards from every slow corner that brakes into it in time.
@@ -58,57 +83,58 @@ export function racingLine(track: Track, opts: LineOptions = DEFAULT_LINE): Raci
   if (cached && opts === DEFAULT_LINE) return cached;
 
   const n = track.n;
-  const m = Math.floor(n / COARSE);
   const spacing = track.length / n;
   const limit = Math.max(0, track.halfWidth - EDGE_MARGIN);
   const { px, pz, tx, tz } = track.line;
-
-  // Coarse samples: position and left normal.
-  const cx = new Float64Array(m), cz = new Float64Array(m), nx = new Float64Array(m), nz = new Float64Array(m);
-  for (let k = 0; k < m; k++) {
-    const i = Math.floor((k * n) / m);
-    cx[k] = px[i]!;
-    cz[k] = pz[i]!;
-    nx[k] = tz[i]!;
-    nz[k] = -tx[i]!;
+  // Left normals.
+  const nx = new Float64Array(n), nz = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    nx[i] = tz[i]!;
+    nz[i] = -tx[i]!;
   }
-  const off = new Float64Array(m);
-  for (let it = 0; it < ITERATIONS; it++) {
-    for (let k = 0; k < m; k++) {
-      const a = (k - 1 + m) % m;
-      const b = (k + 1) % m;
-      const ax = cx[a]! + nx[a]! * off[a]!, az = cz[a]! + nz[a]! * off[a]!;
-      const bx = cx[b]! + nx[b]! * off[b]!, bz = cz[b]! + nz[b]! * off[b]!;
-      const x = cx[k]! + nx[k]! * off[k]!, z = cz[k]! + nz[k]! * off[k]!;
-      const move = ((ax + bx) / 2 - x) * nx[k]! + ((az + bz) / 2 - z) * nz[k]!;
-      off[k] = Math.max(-limit, Math.min(limit, off[k]! + move * 0.9));
+  const offset = new Float64Array(n);
+  const wrap = (i: number): number => ((i % n) + n) % n;
+  const X = (i: number, o = offset[wrap(i)]!): number => px[wrap(i)]! + nx[wrap(i)]! * o;
+  const Z = (i: number, o = offset[wrap(i)]!): number => pz[wrap(i)]! + nz[wrap(i)]! * o;
+
+  for (const stride of STRIDES) {
+    if (stride * 8 > n) continue;
+    for (let sweep = 0; sweep < SWEEPS; sweep++) {
+      for (let i = 0; i < n; i += stride) {
+        const a = i - stride, b = i + stride;
+        // What the neighbours turn at, and what this point should.
+        const kPrev = signedCurvature(X(a - stride), Z(a - stride), X(a), Z(a), X(i), Z(i));
+        const kNext = signedCurvature(X(i), Z(i), X(b), Z(b), X(b + stride), Z(b + stride));
+        const want = (kPrev + kNext) / 2;
+        // Curvature here is close to linear in the offset: two samples, and solve.
+        const o = offset[i]!;
+        const k0 = signedCurvature(X(a), Z(a), X(i, o), Z(i, o), X(b), Z(b));
+        const k1 = signedCurvature(X(a), Z(a), X(i, o + 1e-3), Z(i, o + 1e-3), X(b), Z(b));
+        const dk = (k1 - k0) / 1e-3;
+        if (Math.abs(dk) < 1e-9) continue;
+        offset[i] = Math.max(-limit, Math.min(limit, o + (want - k0) / dk));
+      }
+      // The points between follow in a straight line.
+      if (stride > 1) {
+        for (let i = 0; i < n; i += stride) {
+          const j = i + stride;
+          const oa = offset[i]!, ob = offset[wrap(j)]!;
+          const end = Math.min(j, n + stride);
+          for (let u = i + 1; u < end && u < n; u++) offset[u] = oa + ((ob - oa) * (u - i)) / (j - i);
+        }
+      }
     }
   }
 
-  // Back to one sample per metre, interpolating the offset.
-  const offset = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    const f = (i * m) / n;
-    const k = Math.floor(f) % m;
-    const t = f - Math.floor(f);
-    offset[i] = off[k]! + (off[(k + 1) % m]! - off[k]!) * t;
-  }
-
-  // Curvature of the line itself, from three points four metres apart.
+  // Speed from the curvature of the line as driven: three points
+  // CURVE_SPAN metres apart.
   const speed = new Float64Array(n);
-  const P = (i: number): [number, number] => {
-    const j = ((i % n) + n) % n;
-    return [px[j]! + tz[j]! * offset[j]!, pz[j]! - tx[j]! * offset[j]!];
-  };
   for (let i = 0; i < n; i++) {
-    const [ax, az] = P(i - 4);
-    const [bx, bz] = P(i);
-    const [qx, qz] = P(i + 4);
-    // Menger curvature: 4 * area / (product of side lengths).
-    const area2 = Math.abs((bx - ax) * (qz - az) - (bz - az) * (qx - ax));
-    const d = Math.hypot(bx - ax, bz - az) * Math.hypot(qx - bx, qz - bz) * Math.hypot(qx - ax, qz - az);
-    const kappa = d > 1e-9 ? (2 * area2) / d : 0;
-    speed[i] = Math.min(opts.topSpeed, kappa > 1e-6 ? Math.sqrt(opts.lateral / kappa) : opts.topSpeed);
+    const kappa = Math.abs(signedCurvature(X(i - CURVE_SPAN), Z(i - CURVE_SPAN), X(i), Z(i), X(i + CURVE_SPAN), Z(i + CURVE_SPAN)));
+    // v^2 * kappa = a + b v, solved for v.
+    const R = 1 / Math.max(kappa, 1e-6);
+    const b = opts.lateralPerMs;
+    speed[i] = Math.min(opts.topSpeed, (b * R + Math.sqrt(b * b * R * R + 4 * opts.lateral * R)) / 2);
   }
   // Brake in time: sweep backwards twice round the loop so the wrap is covered.
   for (let pass = 0; pass < 2; pass++) {
@@ -124,7 +150,7 @@ export function racingLine(track: Track, opts: LineOptions = DEFAULT_LINE): Raci
   for (let pass = 0; pass < 2; pass++) {
     parTime = 0;
     for (let i = 0; i < n; i++) {
-      v = Math.min(speed[i]!, Math.sqrt(v * v + 2 * opts.accel * spacing));
+      v = Math.min(speed[i]!, opts.carTop, Math.sqrt(v * v + 2 * opts.accel * spacing));
       parTime += spacing / Math.max(1, v);
     }
   }
@@ -132,4 +158,12 @@ export function racingLine(track: Track, opts: LineOptions = DEFAULT_LINE): Raci
   const line = { offset, speed, parTime };
   if (opts === DEFAULT_LINE) cache.set(track, line);
   return line;
+}
+
+
+/** Curvature of the circle through three points, positive turning left. */
+function signedCurvature(ax: number, az: number, bx: number, bz: number, cx: number, cz: number): number {
+  const cross = (bx - ax) * (cz - bz) - (bz - az) * (cx - bx);
+  const d = Math.hypot(bx - ax, bz - az) * Math.hypot(cx - bx, cz - bz) * Math.hypot(cx - ax, cz - az);
+  return d > 1e-12 ? (2 * cross) / d : 0;
 }

@@ -11,7 +11,7 @@ import { closestSegSeg, resolveCarPair } from '../dist/sim/collide.js';
 import { CAR_SHAPE } from '../dist/sim/car.js';
 import { createLapState, stepLaps, standings, displayLap, WRONG_WAY_AFTER } from '../dist/sim/race.js';
 import { racingLine, DEFAULT_LINE } from '../dist/sim/racingLine.js';
-import { SKILLS } from '../dist/sim/autopilot.js';
+import { SKILLS, skillFor } from '../dist/sim/autopilot.js';
 import { STUCK_RESPAWN, GHOST_TIME } from '../dist/sim/World.js';
 import { TRACKS } from '../dist/sim/track/index.js';
 import { World } from '../dist/sim/World.js';
@@ -569,9 +569,10 @@ for (const def of TRACKS) {
   const bot = w.addBot('b', 0, SKILLS[0], 1);
   while (!bot.lap.finished && w.steps < 60 * 400) w.step();
   const best = bot.lap.best ?? Infinity;
-  // Par is the line's own ideal; on a track of long, fast sweepers a real car
-  // on a real steering wheel gets within a few per cent of it, not under it.
-  tcheck(`${def.name}: the autopilot laps cleanly, within 5% of par`, bot.lap.finished && bot.respawns === 0 && bot.car.impacts <= 1 && best < line.parTime * 1.05,
+  // Par is the line's own ideal, driven at a constant 6 m/s^2 of
+  // acceleration the car only has at low speed; a real car on a real steering
+  // wheel gets within a few per cent of it, not under it.
+  tcheck(`${def.name}: the autopilot laps cleanly, within 7% of par`, bot.lap.finished && bot.respawns === 0 && bot.car.impacts <= 1 && best < line.parTime * 1.07,
     `best ${best.toFixed(1)} s vs par ${line.parTime.toFixed(1)} s, ${bot.car.impacts} wall hits, ${bot.respawns} respawns`);
 }
 
@@ -592,6 +593,26 @@ for (const def of TRACKS) {
   const ordered = standings(w.entrants).every((e, i, arr) => i === 0 || (arr[i - 1].lap.finishTime ?? 0) <= (e.lap.finishTime ?? 0));
   check('six bots race three laps: all finish, nobody respawns, no hard shunts', done === 6 && respawns === 0 && hardBumps === 0 && finite && ordered,
     `${done}/6 finished, spread ${(Math.max(...times) - Math.min(...times)).toFixed(1)} s, ${respawns} respawns, ${hardBumps} bumps over 15 m/s`);
+}
+
+{
+  // The bots are a match for a person. Play-testing: a lap of Indianapolis
+  // in 41 s without turbo, against the best bot's 58 s (M9's outlines of short
+  // straights read to the old racing line as a string of hairpins).
+  const indy = TRACKS.find((t) => t.id === 'indianapolis');
+  const lap = (level, slot) => {
+    const w = new World(indy, { laps: 2, countdown: 0, weapons: false });
+    const bot = w.addBot('b', 0, skillFor(slot, level), 5 + slot);
+    while (!bot.lap.finished && w.steps < 60 * 400) w.step();
+    return bot.lap.best ?? Infinity;
+  };
+  const best = lap('expert', 0);
+  const noTurbo = lap('expert', 3);
+  check('the best bot laps Indianapolis under 41 s, and one without turbo under 41 s too', best < 41 && noTurbo < 41,
+    `${best.toFixed(1)} s, ${noTurbo.toFixed(1)} s without turbo`);
+  const levels = ['easy', 'medium', 'hard', 'expert'].map((l) => lap(l, 0));
+  check('Rival skill orders the bots: Easy slowest, Expert fastest, each a clear step apart',
+    levels.every((t, i) => i === 0 || t < levels[i - 1] - 0.5), levels.map((t) => t.toFixed(1)).join(' > '));
 }
 
 {

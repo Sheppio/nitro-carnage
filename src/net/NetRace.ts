@@ -1,6 +1,7 @@
 import type { Clock } from '../clock.js';
 import { NET, STEP } from '../config.js';
-import { createAutopilot, autopilot, SKILLS } from '../sim/autopilot.js';
+import { createAutopilot, autopilot, skillFor } from '../sim/autopilot.js';
+import type { BotLevel } from '../sim/autopilot.js';
 import { BOT_NAMES } from '../sim/bots.js';
 import { COLOUR_ORDER, DEFAULT_COLOUR } from '../sim/palette.js';
 import { standings } from '../sim/race.js';
@@ -111,6 +112,8 @@ export class NetRace {
   state: RoomState = { ...LOBBY_STATE };
   /** What drives this client's own car. The session sets it (input, or the autopilot). */
   drive: () => DriveIntent = () => IDLE_INTENT;
+  /** How good the bots this client drives are, as host: its own Settings. */
+  botLevel: BotLevel = 'expert';
 
   private net: Transport;
   private clock: Clock;
@@ -344,7 +347,7 @@ export class NetRace {
     for (const e of w.entrants) {
       if (!e.remote || !/^b\d+$/.test(e.id)) continue;
       const slot = Number(e.id.slice(1));
-      const pilot = createAutopilot(hashString(`${this.raceGoAt}:${e.id}`), SKILLS[slot % SKILLS.length]!);
+      const pilot = createAutopilot(hashString(`${this.raceGoAt}:${e.id}`), skillFor(slot, this.botLevel));
       e.remote = false;
       e.drive = () => autopilot(pilot, e.car, w.track, line, w.rivalsOf(e.id), w.time, STEP, w.stopLine(e));
       // Its lap count came from its packets; checkpoints are inferred from where it is.
@@ -421,7 +424,7 @@ export class NetRace {
         this.me = e;
         this.owned.set(id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0 });
       } else if (/^b\d+$/.test(id) && this.isHost) {
-        const pilot = createAutopilot(hashString(`${s.goAt}:${id}`), SKILLS[slot % SKILLS.length]!);
+        const pilot = createAutopilot(hashString(`${s.goAt}:${id}`), skillFor(slot, this.botLevel));
         const e = w.addCar(id, slot, () => IDLE_INTENT);
         e.drive = () => autopilot(pilot, e.car, w.track, line, w.rivalsOf(id), w.time, STEP, w.stopLine(e));
         this.owned.set(id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0 });

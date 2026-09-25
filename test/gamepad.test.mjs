@@ -160,9 +160,11 @@ try {
   await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden));
   const onLeave = await padTo(page, 'btn-pause-leave', B.DOWN);
   await tap(page, B.A);
-  const menu = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden && window.nitro.session === null));
-  r.check('and Leave race goes back to the menu', Boolean(onLeave) && Boolean(menu),
-    `focus ${onLeave ? 'reached' : 'missed'} Leave, ${menu ? 'back at menu' : `still on ${await page.evaluate(() => [...document.querySelectorAll('.screen:not([hidden])')].map((x) => x.id).join())}`}`);
+  const menu = await until(() => page.evaluate(() => !document.getElementById('screen-track').hidden && window.nitro.session === null));
+  r.check('and Leave race goes back to the track screen it was started from', Boolean(onLeave) && Boolean(menu),
+    `focus ${onLeave ? 'reached' : 'missed'} Leave, ${menu ? 'back on the track screen' : `still on ${await page.evaluate(() => [...document.querySelectorAll('.screen:not([hidden])')].map((x) => x.id).join())}`}`);
+  await tap(page, B.B);
+  await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden));
   /* ---------------------------------------------------------- garage */
   // In from the track screen, and B goes back out to it.
   await padTo(page, 'btn-race', B.DOWN);
@@ -193,11 +195,11 @@ try {
   await tap(page, B.A);
   await until(() => page.evaluate(() => !document.getElementById('screen-settings').hidden));
   const visited = new Set();
-  for (let k = 0; k < 16; k++) {
+  for (let k = 0; k < 18; k++) {
     visited.add(await focused(page));
     await tap(page, B.DOWN);
   }
-  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-fov', 'set-names', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
+  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-bots', 'set-fov', 'set-names', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
   const missed = rows.filter((id) => !visited.has(id));
   await until(async () => (await focused(page)) === 'set-motion' || (await tap(page, B.DOWN), false), { timeout: 10000, interval: 0 });
   const before = await page.evaluate(() => document.getElementById('set-motion').checked);

@@ -4,7 +4,7 @@ import { GameView } from './render/GameView.js';
 import { crossingWarning, trainAt } from './sim/train.js';
 import { ghostAt, LapTrace } from './sim/ghost.js';
 import { SIM } from './config.js';
-import { autopilot, createAutopilot, SKILLS } from './sim/autopilot.js';
+import { autopilot, createAutopilot, skillFor, SKILLS } from './sim/autopilot.js';
 import { BOT_NAMES } from './sim/bots.js';
 import { createCar } from './sim/car.js';
 import { interpolateCar } from './sim/interpolate.js';
@@ -113,7 +113,7 @@ export class RaceSession {
                 if (slot === playerSlot)
                     slot++;
                 const id = `b${b}`;
-                this.world.addBot(id, slot, SKILLS[b % SKILLS.length], 1000 + b);
+                this.world.addBot(id, slot, skillFor(b, settings.current.botLevel), 1000 + b);
                 this.addInfo(id, BOT_NAMES[b % BOT_NAMES.length], colours[b % colours.length], false, botLook(1000 + b));
                 slot++;
             }

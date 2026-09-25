@@ -234,6 +234,15 @@
             <input type="range" id="set-music" min="0" max="1" step="0.1" />
           </label>
           <label class="field">
+            <span>Rival skill</span>
+            <select id="set-bots">
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+              <option value="expert">Expert</option>
+            </select>
+          </label>
+          <label class="field">
             <span>Field of view</span>
             <input type="range" id="set-fov" min="35" max="70" step="1" title="Also the mouse wheel in a race" />
           </label>
@@ -336,7 +345,7 @@
           <p class="menu-note" id="results-note" hidden>Back to the lobby in a moment.</p>
           <nav class="menu-actions">
             <button class="btn primary" id="btn-again" data-nav-default>Race again</button>
-            <button class="btn" id="btn-results-menu" data-nav-back>Menu</button>
+            <button class="btn" id="btn-results-menu" data-nav-back>Back</button>
           </nav>
         </div>
       </section>

@@ -293,8 +293,9 @@ try {
 
   const onLeave = await goTo(page, 'btn-pause-leave');
   await page.keyboard.press('Enter');
-  const left = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden && window.nitro.session === null));
-  r.check('arrows and Enter on Leave race go back to the menu', onLeave && Boolean(left));
+  const left = await until(() => page.evaluate(() => !document.getElementById('screen-track').hidden && window.nitro.session === null
+    && document.getElementById('track-mode').textContent === 'Quick race'));
+  r.check('arrows and Enter on Leave race go back to the track screen it was started from', onLeave && Boolean(left));
 
   /* ------------------------------------------------------------- results */
   await page.goto(`${url}?quality=potato&race&autopilot&laps=1`);
@@ -305,8 +306,8 @@ try {
     r.check('results: every control is reachable with the arrow keys', x.ok, x.note);
   }
   await page.keyboard.press('Escape');
-  const done = await until(() => visible(page, 'screen-menu'));
-  r.check('the results screen has focus on arrival, and Esc returns to the menu', Boolean(resultsFocus) && Boolean(done), resultsFocus);
+  const done = await until(() => visible(page, 'screen-track'));
+  r.check('the results screen has focus on arrival, and Esc returns to the track screen', Boolean(resultsFocus) && Boolean(done), resultsFocus);
 
   r.check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (err) {

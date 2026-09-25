@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS = {
     musicVolume: 0.8,
     ghostLead: 0,
     nameTags: 'rivals',
+    botLevel: 'hard',
     fov: 50,
     broker: BROKERS[0].id,
 };
@@ -83,6 +84,8 @@ function coerce(state) {
         out.quality = DEFAULT_SETTINGS.quality;
     if (!['auto', 'on', 'off'].includes(out.touchControls))
         out.touchControls = 'auto';
+    if (!['easy', 'medium', 'hard', 'expert'].includes(out.botLevel))
+        out.botLevel = 'hard';
     if (!['rivals', 'all', 'off'].includes(out.nameTags))
         out.nameTags = 'rivals';
     if (!BROKERS.some((b) => b.id === out.broker))

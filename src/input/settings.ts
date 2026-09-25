@@ -2,6 +2,7 @@ import { SLUG } from '../brand.js';
 import { BROKERS } from '../config.js';
 import type { QualityId } from '../config.js';
 import { Emitter } from '../util.js';
+import type { BotLevel } from '../sim/autopilot.js';
 
 export type NameTags = 'rivals' | 'all' | 'off';
 
@@ -32,6 +33,8 @@ export interface InputSettings {
    * zoomed in, bigger shows more of the track. Also on the mouse wheel.
    */
   fov: number;
+  /** How good the bots are, in offline races and in rooms you host. */
+  botLevel: BotLevel;
   /** Driver names over the cars in a race: rivals only, every car, or none. */
   nameTags: NameTags;
   /** Which public MQTT broker rooms meet on; see `BROKERS`. */
@@ -61,6 +64,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   musicVolume: 0.8,
   ghostLead: 0,
   nameTags: 'rivals',
+  botLevel: 'hard',
   fov: 50,
   broker: BROKERS[0]!.id,
 };
@@ -129,6 +133,7 @@ function coerce(state: InputSettings): InputSettings {
   }
   if (!QUALITIES.includes(out.quality)) out.quality = DEFAULT_SETTINGS.quality;
   if (!['auto', 'on', 'off'].includes(out.touchControls)) out.touchControls = 'auto';
+  if (!['easy', 'medium', 'hard', 'expert'].includes(out.botLevel)) out.botLevel = 'hard';
   if (!['rivals', 'all', 'off'].includes(out.nameTags)) out.nameTags = 'rivals';
   if (!BROKERS.some((b) => b.id === out.broker)) out.broker = BROKERS[0]!.id;
   for (const key of ['vibration', 'reduceMotion', 'autopilot'] as const) out[key] = Boolean(out[key]);

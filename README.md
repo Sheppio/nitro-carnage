@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.31**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.32**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 738 checks: simulation and networking (Node), and real browsers
+npm test           # 740 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -232,21 +232,23 @@ running when the race ends gets no finish time.
 The bots, the self-driving test clients and the player's optional autopilot all use
 one pure policy (`sim/autopilot.ts`):
 
-- **The line** (`sim/racingLine.ts`) is a minimum-curvature line. Each point relaxes
-  towards the midpoint of its neighbours while clamped inside the road, which cuts
-  apexes and runs wide on entry and exit. It runs on a 3 m grid, because relaxation
-  spreads a correction one point per iteration and a 1 m grid would need nine times
-  as long to settle the long bends. On Neon Downtown the line sits over 5 m to the
-  inside of the tight corners.
-- **The speed profile** is what the car can corner at each point, followed by a
-  backwards pass from every slow corner that brakes into it in time. It plans 16 m/s²
-  of cornering and 16 of braking. The first version planned 10.5 and 11, well inside
-  the car's limits "to leave a margin", and play-testing called it at once: the bots
-  were timid in every corner. At 16 the best bot laps in 59 s instead of 66.5, still
-  without touching a wall. At 18 they start clipping walls.
-- **Steering** is pure pursuit: aim at a point on the line a speed-scaled distance
-  ahead, and steer the arc that reaches it. The output is eased, because pure pursuit
-  re-decides every step and a 60 Hz twitch reads on screen as a car vibrating.
+- **The line** (`sim/racingLine.ts`) is K1999's, from Rémi Coulom's TORCS robot. Each
+  point moves across the road until the line's curvature there is the average of its
+  neighbours', clamped inside the road. That evens the turning out: out-in-out through
+  a corner, and one long arc through a run of small ones. It works on points 64 m
+  apart first, then 32, and so on down to 1 m, so a change spreads across a whole
+  corner in a few sweeps.
+- **The speed profile** is what the car can corner at each point of that line,
+  measured over ±5 m, followed by a backwards pass from every slow corner that brakes
+  into it in time. It plans 16 m/s² of cornering and 16 of braking. Measured on flat
+  tarmac, the car holds about 15 at 20 m/s and 17.5 at 40. The profile's ceiling is
+  64 m/s, above even turbo speed, so a braking zone is planned from any speed a car
+  can arrive at.
+- **Steering** is pure pursuit: aim at a point on the line 3 m plus 0.2 s ahead (at
+  least 8 m), and steer the arc that reaches it. On top of that is yaw damping: the
+  arc asks for a turn rate, and turning faster than that (the tail stepping out)
+  steers against it. The output is eased, because pure pursuit re-decides every step
+  and a 60 Hz twitch reads on screen as a car vibrating.
 - **Overtaking and room.** A slower car close ahead in our lane gets passed on the
   side with more road. A car *alongside* gets a lane's width. Without that, the two
   cars in every grid row turned into each other the moment the lights went green:
@@ -257,14 +259,40 @@ one pure policy (`sim/autopilot.ts`):
   across the grid, once 86–97%), wander (how far it strays off the line), and whether
   it uses the turbo on straights.
 
-The fastest bot laps Neon Downtown in 59 s and the slowest in about 62. Six bots race
-three laps in under half a second of CPU in Node. Faster bots running side by side
-through the kink do rub, so the race test's "no hard shunts" means nothing over
-15 m/s. It was 8, which the timid bots met and the quicker ones do not.
+**The bots were far too slow on the real circuits.** Play-testing: a lap of
+Indianapolis in 41 s with no turbo, against the best bot's 58. Four things were wrong,
+found one under another:
+- **The line was a taut string.** Pulling each point to the midpoint of its neighbours
+  gives the shortest way round, which hugs the inside edge. A real circuit's outline
+  (M9) is short straights joined by 10 m fillets, so that edge kinks at every joint,
+  and so did the line. The profile read Indianapolis's turns as a string of 6 m
+  hairpins and planned them at 13–18 m/s.
+- **The obvious fix didn't settle.** Descent on the squared second difference weighs
+  a line by the spacing of its points as well as its bending, and the points are
+  further apart on the outside of a turn. After 10,000 rounds the line still wandered.
+  K1999 measures curvature itself, so the spacing doesn't matter.
+- **Pure pursuit cut chicanes.** Aiming 5 m + 0.42 s ahead, a bot straight-lined a
+  left-right and then slid into the wall correcting. A shorter aim point follows the
+  chicane but fishtailed through Spa's fast bends. Yaw damping fixes that, and the
+  wall hits went from dozens a lap on some tracks to none.
+- **The turbo overran the braking points.** The profile stopped at 46 m/s, so a bot on
+  turbo at 55 met a braking zone planned from 46.
 
-**Laps are long.** About 60 s on a 1.6 km lap of right-angle corners is longer than the
-plan's 35–45 s, and a three-lap race runs about 3 minutes. Worth deciding once the race
-has been played: fewer laps, a shorter circuit, or more grip.
+Now the best bot laps Indianapolis in 38.7 s, and the one that never uses turbo in
+39.9. Neon Downtown is 49.7 s, from 59.8. A test holds both Indianapolis times under
+41 s.
+
+**Rival skill** in Settings dials the bots down: Easy, Medium, Hard (the default) or
+Expert. Each level scales every bot on the grid, so the spread between them stays.
+Pace alone only slows the corners, and the straights are most of a lap, so below
+Expert a bot also backs off to a fraction of top speed on the straights. Below Hard it
+leaves the turbo alone, and at each lower level it fires less often. At Indianapolis
+the best bot's lap is 49.1 s on Easy, 43.0 on Medium, 39.9 on Hard and 38.7 on Expert,
+and a test holds that order. In a room, the bots follow the host's setting.
+
+**Leaving a race goes back to where it was started.** Leave race, or Back on the
+results, returns to the track screen, set up as it was, rather than the top menu. So
+another go, or a new seed, is one step away. Leaving a room still goes to the menu.
 
 ### The camera
 
@@ -978,11 +1006,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-738 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+740 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (543, Node; the per-track checks run on all 25 tracks):
+- **`sim.test.mjs`** (545, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly

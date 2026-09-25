@@ -144,9 +144,9 @@ try {
   r.check('Esc pauses a solo drive: the world stops', paused);
   // Leaving tears the race down completely.
   await page.click('#btn-pause-leave');
-  await page.waitForSelector('#screen-menu:not([hidden])');
+  await page.waitForSelector('#screen-track:not([hidden])');
   const torn = await page.evaluate(() => ({ canvases: document.querySelectorAll('canvas.game-canvas').length, session: window.nitro.session }));
-  r.check('leaving returns to the menu and disposes the renderer', torn.canvases === 0 && torn.session === null);
+  r.check('leaving returns to the track screen and disposes the renderer', torn.canvases === 0 && torn.session === null);
   await page.close();
 
   /* ----------------------------------------------------------- occlusion */
