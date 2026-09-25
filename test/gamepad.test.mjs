@@ -127,11 +127,13 @@ try {
   r.check('the keyboard types by pad, and B closes it', typed?.endsWith('NOVA'), `name "${typed}"`);
 
   /* ---------------------------------------------------- race and pause */
-  // Down from the name, past Create, Join and the track, to Quick race.
+  // Down from the name, past Create and Join, to Quick race; A opens the track screen with Start already focused, and A again starts.
   const onRace = await padTo(page, 'btn-race', B.DOWN);
   await tap(page, B.A);
+  const onStart = await until(() => page.evaluate(() => (!document.getElementById('screen-track').hidden && document.activeElement?.id === 'btn-track-go') || null));
+  await tap(page, B.A);
   const racing = await until(() => page.evaluate(() => !document.getElementById('screen-hud').hidden), { timeout: 20000 });
-  r.check('D-pad and A start a quick race from the menu', Boolean(onRace) && Boolean(racing));
+  r.check('D-pad and A start a quick race from the menu, by way of the track screen', Boolean(onRace) && Boolean(onStart) && Boolean(racing));
 
   // RT drives once the lights go green.
   await until(() => page.evaluate(() => window.nitro.session.world.started), { timeout: 20000 });
@@ -218,6 +220,12 @@ try {
   const deckGlyph = await until(() => deck.evaluate(() => document.body.dataset.pad));
   const menuBad = await clipped('#screen-menu');
   r.check('Steam Deck (1280x800): the menu fits, nothing clipped or covered, Deck prompts shown', menuBad.length === 0 && deckGlyph === 'deck', menuBad.join(', ') || `pad ${deckGlyph}`);
+
+  await deck.evaluate(() => document.getElementById('btn-race').click());
+  await deck.waitForSelector('#screen-track:not([hidden])');
+  const trackBad = await clipped('#screen-track');
+  r.check('the track screen fits the Deck screen', trackBad.length === 0, trackBad.join(', '));
+  await deck.evaluate(() => document.getElementById('btn-track-back').click());
 
   await deck.evaluate(() => document.getElementById('btn-garage').click());
   await deck.waitForSelector('#screen-garage:not([hidden])');

@@ -36,25 +36,6 @@
           <nav class="menu-actions">
             <button class="btn primary" id="btn-create" data-nav-default>Create room</button>
             <button class="btn" id="btn-join">Join room</button>
-            <label class="field">
-              <span>Offline track</span>
-              <select id="menu-track"></select>
-            </label>
-            <div class="seed-row" id="menu-seed-row">
-              <label class="field">
-                <span>Seed</span>
-                <input type="text" id="menu-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
-              </label>
-              <button class="btn dice" id="menu-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
-            </div>
-            <div class="track-preview" id="menu-track-preview" aria-live="polite">
-              <canvas class="track-map" id="menu-track-map" aria-hidden="true"></canvas>
-              <p class="track-info" id="menu-track-info"></p>
-            </div>
-            <label class="field">
-              <span>Weapons</span>
-              <select id="menu-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
-            </label>
             <div class="btn-row">
               <button class="btn" id="btn-race">Quick race</button>
               <button class="btn" id="btn-free-drive">Hotlap</button>
@@ -69,8 +50,41 @@
             Press <span class="glyph" data-glyph="menu">☰ Menu</span> to lock it to this window.
             <span class="console-sub"><span data-glyph="move">D-pad</span> to move · <span data-glyph="confirm">A</span> to select · <span data-glyph="back">B</span> to go back</span>
           </aside>
-          <p class="menu-note keys" id="menu-keys"></p>
           <p class="version" id="version"></p>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------ CHOOSE A TRACK -->
+      <!-- Between the menu and an offline race: which track, and how. -->
+      <section class="screen menu" id="screen-track" hidden>
+        <div class="menu-card">
+          <h2 id="track-mode">Quick race</h2>
+          <nav class="menu-actions">
+            <label class="field">
+              <span>Track</span>
+              <select id="menu-track"></select>
+            </label>
+            <div class="seed-row" id="menu-seed-row">
+              <label class="field">
+                <span>Seed</span>
+                <input type="text" id="menu-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
+              </label>
+              <button class="btn dice" id="menu-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
+            </div>
+            <div class="track-preview" id="menu-track-preview" aria-live="polite">
+              <canvas class="track-map" id="menu-track-map" aria-hidden="true"></canvas>
+              <p class="track-info" id="menu-track-info"></p>
+            </div>
+            <label class="field" id="menu-weapons-row">
+              <span>Weapons</span>
+              <select id="menu-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
+            </label>
+            <div class="btn-row">
+              <button class="btn" id="btn-track-back" data-nav-back>Back</button>
+              <button class="btn primary" id="btn-track-go" data-nav-default>Start</button>
+            </div>
+          </nav>
+          <p class="menu-note keys" id="menu-keys"></p>
         </div>
       </section>
 

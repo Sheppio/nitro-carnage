@@ -57,7 +57,7 @@ const keyboard = new Keyboard();
 
 const screens = [
   'screen-menu', 'screen-join', 'screen-connecting', 'screen-lobby', 'screen-full', 'screen-settings', 'screen-hud', 'screen-results',
-  'screen-garage',
+  'screen-garage', 'screen-track',
 ] as const;
 type ScreenId = (typeof screens)[number];
 let current = 'screen-menu' as ScreenId;
@@ -73,7 +73,7 @@ function show(id: ScreenId): void {
     nav.start();
     nav.focusFirst();
   }
-  if (id === 'screen-menu') previewTrack();
+  if (id === 'screen-track') previewTrack();
 }
 
 /* --------------------------------------------------------- name and colour */
@@ -174,7 +174,7 @@ let previewTimer = 0;
 function previewTrack(): void {
   clearTimeout(previewTimer);
   previewTimer = window.setTimeout(() => {
-    if ($('screen-menu').hidden) return;
+    if ($('screen-track').hidden) return;
     const c = chosenTrack();
     drawTrackPreview($<HTMLCanvasElement>('menu-track-map'), $('menu-track-info'), c.def, c.label);
   }, 60);
@@ -289,6 +289,23 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
 
 /** `?bots=0` races alone, for tests. */
 const botsOverride = params.has('bots') ? Math.max(0, Math.min(5, Number(params.get('bots')) || 0)) : 5;
+
+/** The mode the track screen will start. */
+let trackMode: 'race' | 'hotlap' = 'race';
+
+/**
+ * Quick race and Hotlap open the track screen first: which track (built-in,
+ * of the day, or a seed), a map of it, weapons for a race, and the controls.
+ * The menu itself keeps to the modes and settings.
+ */
+function chooseTrack(mode: 'race' | 'hotlap'): void {
+  trackMode = mode;
+  $('track-mode').textContent = mode === 'race' ? 'Quick race' : 'Hotlap';
+  $('btn-track-go').textContent = mode === 'race' ? 'Start race' : 'Start hotlap';
+  // A hotlap never has weapons: the switch only belongs to a race.
+  $('menu-weapons-row').hidden = mode === 'hotlap';
+  show('screen-track');
+}
 
 function startOffline(mode: 'race' | 'hotlap'): void {
   leaveRoom();
@@ -456,8 +473,10 @@ $('input-room').addEventListener('keydown', (e) => {
 });
 $('btn-connect-cancel').addEventListener('click', toMenu);
 $('btn-full-back').addEventListener('click', () => show('screen-menu'));
-$('btn-race').addEventListener('click', () => startOffline('race'));
-$('btn-free-drive').addEventListener('click', () => startOffline('hotlap'));
+$('btn-race').addEventListener('click', () => chooseTrack('race'));
+$('btn-free-drive').addEventListener('click', () => chooseTrack('hotlap'));
+$('btn-track-go').addEventListener('click', () => startOffline(trackMode));
+$('btn-track-back').addEventListener('click', () => show('screen-menu'));
 $('btn-again').addEventListener('click', () => startOffline(lastMode === 'hotlap' ? 'hotlap' : 'race'));
 $('btn-results-menu').addEventListener('click', toMenu);
 $('btn-pause').addEventListener('click', openPause);

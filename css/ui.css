@@ -138,6 +138,8 @@ h2 {
 }
 
 .field.check { justify-content: flex-start; }
+/* A row's display: flex would otherwise beat the hidden attribute. */
+.field[hidden], .seed-row[hidden] { display: none; }
 
 /* The seed and its dice on one line: the dice is only a glyph, so it sits at the end of the box. */
 .seed-row { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }

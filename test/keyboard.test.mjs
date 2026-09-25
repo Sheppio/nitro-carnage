@@ -134,7 +134,16 @@ try {
   const backToMenu = await until(() => visible(page, 'screen-menu'));
   r.check('Esc goes back to the menu', Boolean(backToMenu));
 
-  /* ------------------------------------------------------ track preview */
+  /* ------------------------------------------------------ track screen */
+  // Quick race opens the track screen: everything on it reachable, Start focused.
+  await goTo(page, 'btn-race');
+  await page.keyboard.press('Enter');
+  const onTrack = await until(() => visible(page, 'screen-track'));
+  const startFocused = (await focused(page)) === 'btn-track-go';
+  {
+    const x = await reach(page);
+    r.check('Quick race opens the track screen with Start focused, and every control on it is reachable with the arrow keys', Boolean(onTrack) && startFocused && x.ok, x.note);
+  }
   // From a built-in track, type in the seed box: the track becomes Custom
   // seed at the first letter, and the preview maps it and says what it is.
   const trackBefore = await page.evaluate(() => document.getElementById('menu-track').value);
@@ -177,6 +186,9 @@ try {
   for (let k = 0; k < 8 && (await page.evaluate(() => document.getElementById('menu-track').value)) !== '0'; k++) await page.keyboard.press('ArrowRight');
   const kept = await page.evaluate(() => [document.getElementById('menu-track').value, document.getElementById('menu-seed').value]);
   r.check('left from the dice is the seed again; a built-in track can be picked back, and the seed stays in the box', backInSeed && kept[0] === '0' && kept[1] === dealt, JSON.stringify(kept));
+  await page.keyboard.press('Escape');
+  const trackBack = await until(() => visible(page, 'screen-menu'));
+  r.check('Esc goes back from the track screen to the menu', Boolean(trackBack));
 
   /* -------------------------------------------------------------- garage */
   await goTo(page, 'btn-garage');
@@ -230,6 +242,8 @@ try {
 
   /* ------------------------------------------------------ race and pause */
   await goTo(page, 'btn-race');
+  await page.keyboard.press('Enter');
+  await until(() => visible(page, 'screen-track'));
   await page.keyboard.press('Enter');
   await until(() => visible(page, 'screen-hud'), { timeout: 20000 });
   await until(() => page.evaluate(() => window.nitro.session?.world.started), { timeout: 20000 });

@@ -47,7 +47,7 @@ const keyboard = new Keyboard();
 /* ---------------------------------------------------------------- screens */
 const screens = [
     'screen-menu', 'screen-join', 'screen-connecting', 'screen-lobby', 'screen-full', 'screen-settings', 'screen-hud', 'screen-results',
-    'screen-garage',
+    'screen-garage', 'screen-track',
 ];
 let current = 'screen-menu';
 function show(id) {
@@ -64,7 +64,7 @@ function show(id) {
         nav.start();
         nav.focusFirst();
     }
-    if (id === 'screen-menu')
+    if (id === 'screen-track')
         previewTrack();
 }
 /* --------------------------------------------------------- name and colour */
@@ -148,7 +148,7 @@ let previewTimer = 0;
 function previewTrack() {
     clearTimeout(previewTimer);
     previewTimer = window.setTimeout(() => {
-        if ($('screen-menu').hidden)
+        if ($('screen-track').hidden)
             return;
         const c = chosenTrack();
         drawTrackPreview($('menu-track-map'), $('menu-track-info'), c.def, c.label);
@@ -262,6 +262,21 @@ function begin(mode, s, track, label = track.name) {
 }
 /** `?bots=0` races alone, for tests. */
 const botsOverride = params.has('bots') ? Math.max(0, Math.min(5, Number(params.get('bots')) || 0)) : 5;
+/** The mode the track screen will start. */
+let trackMode = 'race';
+/**
+ * Quick race and Hotlap open the track screen first: which track (built-in,
+ * of the day, or a seed), a map of it, weapons for a race, and the controls.
+ * The menu itself keeps to the modes and settings.
+ */
+function chooseTrack(mode) {
+    trackMode = mode;
+    $('track-mode').textContent = mode === 'race' ? 'Quick race' : 'Hotlap';
+    $('btn-track-go').textContent = mode === 'race' ? 'Start race' : 'Start hotlap';
+    // A hotlap never has weapons: the switch only belongs to a race.
+    $('menu-weapons-row').hidden = mode === 'hotlap';
+    show('screen-track');
+}
 function startOffline(mode) {
     leaveRoom();
     stopSession();
@@ -424,8 +439,10 @@ $('input-room').addEventListener('keydown', (e) => {
 });
 $('btn-connect-cancel').addEventListener('click', toMenu);
 $('btn-full-back').addEventListener('click', () => show('screen-menu'));
-$('btn-race').addEventListener('click', () => startOffline('race'));
-$('btn-free-drive').addEventListener('click', () => startOffline('hotlap'));
+$('btn-race').addEventListener('click', () => chooseTrack('race'));
+$('btn-free-drive').addEventListener('click', () => chooseTrack('hotlap'));
+$('btn-track-go').addEventListener('click', () => startOffline(trackMode));
+$('btn-track-back').addEventListener('click', () => show('screen-menu'));
 $('btn-again').addEventListener('click', () => startOffline(lastMode === 'hotlap' ? 'hotlap' : 'race'));
 $('btn-results-menu').addEventListener('click', toMenu);
 $('btn-pause').addEventListener('click', openPause);

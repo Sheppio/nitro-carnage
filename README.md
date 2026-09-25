@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.23**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.24**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 348 checks: simulation and networking (Node), and real browsers
+npm test           # 353 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -505,7 +505,7 @@ change to the tuning shows up there.
 | **Tidewater Docks** | 1.62 km | a working port under an overcast sky; container canyons, the open quay, ships and a marina, oil patches, the railway |
 | **Downtown by Day** | 1.59 km | the same streets as Neon Downtown under a high sun (M10), with its own hotlap record |
 
-The track is picked in the menu for offline races and by the host in the lobby. It
+The track is picked on the track screen for offline races and by the host in the lobby. It
 rides in the heartbeat as an index, so a room always races the same one.
 
 **The train sends no messages.** It runs on a timetable measured from GO: the first
@@ -732,7 +732,19 @@ though they still work if typed:
   (paw/pour/poor, saw/sore, war/wore), the ones that sound like a letter (bee, pea,
   jay, why, are), and the ones with two spellings (axe/ax, eon/aeon).
 
-**The menu previews the track.** Pick a track, the track of the day, or type a seed,
+**The menu is modes and settings; the track is a screen of its own.** The menu holds
+your name, Create and Join room, Quick race, Hotlap, the Garage and Settings.
+Quick race or Hotlap opens the track screen, which holds:
+- the track (built-in, of the day, or a seed) and the dice;
+- a map of the track;
+- the weapons switch, for a race only, since a hotlap never has weapons;
+- the controls.
+
+Start is already focused, so a pad player who is happy with the track presses A
+twice; Back or Esc returns to the menu. The menu used to hold all of this at once,
+and on a phone it ran to two screens of scrolling.
+
+**The track screen previews the track.** Pick a track, the track of the day, or type a seed,
 and a small map of the circuit appears on its theme's ground. Beside it are the track's
 name and style: theme, lap length, corners, and any jump, level crossing, water or oil.
 It redraws as you type. A shared leaderboard would need a server, or the public broker's retained
@@ -839,7 +851,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-348 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+353 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -924,7 +936,8 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (47, browser): the browser generates a seed's track to the same
+- **`smoke.test.mjs`** (48, browser): the menu keeps to modes and settings, and the
+  track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
   road, off or a second ahead as set; full health at every line;
@@ -960,13 +973,14 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   same results on both screens and back to the lobby; the host's tab closed mid-race;
   a late joiner spectating; a hidden host with no frames still heartbeating; a tab
   frozen for 20 s waking without splitting the room.
-- **`gamepad.test.mjs`** (17, browser, a virtual pad and nothing else): the Garage by
+- **`gamepad.test.mjs`** (18, browser, a virtual pad and nothing else): the Garage by
   pad (RB changes the body, the D-pad the livery) and at 1280×800; the lock prompt;
-  Xbox and PlayStation prompts; the on-screen keyboard; menu to race; RT drives;
-  Menu/Options pauses, A resumes; leaving; every row of Settings by D-pad; the menu,
-  lobby and HUD at 1280×800.
-- **`keyboard.test.mjs`** (29, browser, keys and nothing else): on the menu, settings,
-  Garage, join, lobby, pause and results screens, a breadth-first search over the arrow
+  Xbox and PlayStation prompts; the on-screen keyboard; menu to race by way of the
+  track screen, Start already focused; RT drives; Menu/Options pauses, A resumes;
+  leaving; every row of Settings by D-pad; the menu, track screen, lobby and HUD at
+  1280×800.
+- **`keyboard.test.mjs`** (31, browser, keys and nothing else): on the menu, track,
+  settings, Garage, join, lobby, pause and results screens, a breadth-first search over the arrow
   keys reaches every control. It presses each arrow from every control reached so
   far, so it's exact, not a walk that might be lucky. The race number changes with the
   arrows. Typing a seed switches the track to Custom seed and previews it; right from
@@ -975,8 +989,8 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   change with left and right; Space toggles a switch; Esc goes back everywhere and
   resumes from pause without reopening it; Settings from the pause menu, a volume
   slider by arrows, and Esc back to the paused race; in a race the arrows drive.
-- **`mobile.test.mjs`** (13, browser, an emulated phone in landscape, real touch
-  events): the menu is all tappable; the touch layer is only up in a race; nothing
+- **`mobile.test.mjs`** (14, browser, an emulated phone in landscape, real touch
+  events): the menu and the track screen are all tappable; the touch layer is only up in a race; nothing
   covers a touch button or the pause button; no two HUD panels overlap; the pedal
   drives; a second thumb steers while the first holds the throttle; an upward thumb
   doesn't brake; a small thumb movement is a small correction; the missile button fires; pause and resume by tap.

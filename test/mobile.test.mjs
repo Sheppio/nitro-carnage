@@ -62,9 +62,14 @@ try {
 
   await page.locator('#btn-race').scrollIntoViewIfNeeded();
   await page.tap('#btn-race');
+  await page.waitForSelector('#screen-track:not([hidden])');
+  const trackBad = await covered(page, '#screen-track button, #screen-track select, #screen-track input');
+  r.check('Quick race opens the track screen, every control of it tappable', trackBad.length === 0, trackBad.join(', '));
+  await page.locator('#btn-track-go').scrollIntoViewIfNeeded();
+  await page.tap('#btn-track-go');
   await page.waitForSelector('#screen-hud:not([hidden])', { timeout: 30000 });
   const layer = await until(() => page.evaluate(() => !document.querySelector('.touch-layer').hidden || null));
-  r.check('tapping Quick race starts a race, with the touch controls up', Boolean(layer));
+  r.check('tapping Start begins the race, with the touch controls up', Boolean(layer));
 
   /* ------------------------------------------------------------ the HUD */
   const hudBad = await covered(page, '.touch-btn, #btn-pause');

@@ -44,8 +44,26 @@ try {
   });
   r.check('nothing invisible covers the menu buttons', clickable);
 
-  /* ------------------------------------------------------------- driving */
+  // The menu is the modes and settings; the track, the seed and the controls are a screen of their own.
+  const onMenu = await page.evaluate(() => ['menu-track', 'menu-seed', 'menu-keys', 'menu-weapons'].filter((id) => document.getElementById('screen-menu').contains(document.getElementById(id))));
   await page.click('#btn-free-drive');
+  await page.waitForSelector('#screen-track:not([hidden])');
+  const trackScreen = await page.evaluate(() => {
+    const scr = document.getElementById('screen-track');
+    const shown = (id) => scr.contains(document.getElementById(id)) && document.getElementById(id).getClientRects().length > 0;
+    return {
+      has: ['menu-track', 'menu-seed', 'menu-seed-random', 'menu-track-map', 'menu-keys', 'btn-track-go'].every(shown),
+      weapons: shown('menu-weapons'),
+      title: document.getElementById('track-mode').textContent,
+      keys: document.getElementById('menu-keys').textContent,
+    };
+  });
+  r.check('the menu keeps to the modes and settings; Hotlap opens a track screen with the seed, a map and the controls, and no weapons switch',
+    onMenu.length === 0 && trackScreen.has && !trackScreen.weapons && trackScreen.title === 'Hotlap' && /Steer/.test(trackScreen.keys),
+    `${onMenu.length ? `still on the menu: ${onMenu.join(' ')}; ` : ''}${trackScreen.title}, weapons ${trackScreen.weapons ? 'shown' : 'hidden'}`);
+
+  /* ------------------------------------------------------------- driving */
+  await page.click('#btn-track-go');
   await page.waitForSelector('#screen-hud:not([hidden])');
   const booted = await until(() => page.evaluate(() => (window.nitro.session?.world.steps ?? 0) > 30));
   r.check('free drive boots a world and a canvas', Boolean(booted) && (await page.locator('canvas.game-canvas').count()) === 1);
