@@ -158,9 +158,20 @@ try {
   // Each screen calls itself YOU; compare with that normalised away.
   const norm = (s, me) => s.replace('YOU', me);
   r.check('the race reaches the results on both screens, in the same order', norm(orderA, 'ALICE') === norm(orderB, 'BOB'), norm(orderA, 'ALICE'));
+  const botName = orderA.split(',').find((n) => n !== 'YOU' && n !== 'BOB');
+  r.check('the bot races under a driver\'s name, the same on both screens', Boolean(botName) && !/^BOT/.test(botName) && orderB.includes(botName), botName ?? '');
+  // Back to lobby goes straight there, before the room itself goes back.
+  await b.click('#btn-again');
+  const early = await b.evaluate(() => [!document.getElementById('screen-lobby').hidden, window.nitro.room.net.phase]);
+  r.check('Back to lobby on the results goes straight back to the lobby', early[0] === true, `lobby shown in phase ${early[1]}`);
 
   const back = await until(async () => (await phase(a)) === 'L' && (await phase(b)) === 'L' && (await b.evaluate(() => !document.getElementById('screen-lobby').hidden)), { timeout: 40000 });
   r.check('then everyone is back in the lobby', Boolean(back));
+
+  // A new name from the lobby reaches the other screen's roster.
+  await b.fill('#lobby-name', 'BOBBY');
+  const renamed = await until(() => a.evaluate(() => [...document.querySelectorAll('#lobby-roster li')].some((li) => li.textContent.includes('BOBBY')) || null));
+  r.check('a name changed in the lobby shows in everyone\'s roster', Boolean(renamed));
 
   /* ---------------------------------------------------- failover mid-race */
   const c = await open('CAROL', `&room=${code}`);

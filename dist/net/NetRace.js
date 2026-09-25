@@ -1,6 +1,6 @@
 import { NET, STEP } from '../config.js';
 import { createAutopilot, autopilot, skillFor } from '../sim/autopilot.js';
-import { BOT_NAMES } from '../sim/bots.js';
+import { botNames } from '../sim/bots.js';
 import { COLOUR_ORDER, DEFAULT_COLOUR } from '../sim/palette.js';
 import { standings } from '../sim/race.js';
 import { generateTrack } from '../sim/track/generate.js';
@@ -160,7 +160,7 @@ export class NetRace {
             const k = Math.max(0, bots.indexOf(id));
             // Dressed from the room and the slot, which every client knows.
             const look = botLook(hashString(`${this.room.roomId}:${id}`));
-            return { id, name: BOT_NAMES[slot % BOT_NAMES.length], colour: free[k % free.length] ?? DEFAULT_COLOUR, bot: true, you: false, look };
+            return { id, name: botNames(hashString(`${this.room.roomId}:names`), slot + 1)[slot], colour: free[k % free.length] ?? DEFAULT_COLOUR, bot: true, you: false, look };
         }
         const peer = this.room.peers.get(id);
         const look = decodeLook(you ? this.room.look : peer?.look);

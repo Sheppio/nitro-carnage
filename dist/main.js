@@ -1,5 +1,5 @@
 import { GAME_NAME, SLUG } from './brand.js';
-import { BROKERS } from './config.js';
+import { BROKERS, NET } from './config.js';
 import { InputManager } from './input/InputManager.js';
 import { SettingsStore } from './input/settings.js';
 import { sanitizeName } from './net/codec.js';
@@ -66,6 +66,8 @@ function show(id) {
     }
     if (id === 'screen-track')
         previewTrack();
+    if (id === 'screen-lobby')
+        $('lobby-name').value = $('input-name').value;
 }
 /* --------------------------------------------------------- name and colour */
 const NAME_KEY = `${SLUG}.name`;
@@ -250,8 +252,12 @@ function begin(mode, s, track, label = track.name) {
     s.onOver = (rows) => {
         Hud.results(rows);
         const online = mode === 'net';
-        $('btn-again').hidden = online;
+        // In a room the first button goes straight back to the lobby; the room
+        // itself returns everyone there when the results time is up.
+        $('btn-again').textContent = online ? 'Back to lobby' : 'Race again';
         $('results-note').hidden = !online;
+        if (online)
+            countDownToLobby();
         $('btn-results-menu').textContent = online ? 'Leave room' : 'Back';
         if (!online)
             stopSession();
@@ -463,7 +469,32 @@ $('btn-race').addEventListener('click', () => chooseTrack('race'));
 $('btn-free-drive').addEventListener('click', () => chooseTrack('hotlap'));
 $('btn-track-go').addEventListener('click', () => startOffline(trackMode));
 $('btn-track-back').addEventListener('click', () => show('screen-menu'));
-$('btn-again').addEventListener('click', () => startOffline(lastMode === 'hotlap' ? 'hotlap' : 'race'));
+$('btn-again').addEventListener('click', () => {
+    if (room) {
+        stopSession();
+        show('screen-lobby');
+        lobby?.render();
+    }
+    else {
+        startOffline(lastMode === 'hotlap' ? 'hotlap' : 'race');
+    }
+});
+/** "Back to the lobby in 9 s" on a room's results, counting down. */
+let lobbyTimer = 0;
+function countDownToLobby() {
+    clearInterval(lobbyTimer);
+    const until = performance.now() + NET.resultsMs;
+    const tick = () => {
+        const left = Math.ceil((until - performance.now()) / 1000);
+        if (left <= 0 || $('screen-results').hidden) {
+            clearInterval(lobbyTimer);
+            return;
+        }
+        $('results-note').textContent = `Back to the lobby in ${left} s.`;
+    };
+    tick();
+    lobbyTimer = window.setInterval(tick, 250);
+}
 $('btn-results-menu').addEventListener('click', toMenu);
 $('btn-pause').addEventListener('click', openPause);
 $('btn-resume').addEventListener('click', closePause);
@@ -471,6 +502,15 @@ $('btn-pause-leave').addEventListener('click', toMenu);
 $('btn-lobby-leave').addEventListener('click', toMenu);
 $('btn-start-race').addEventListener('click', () => room?.net.startRace());
 $('btn-copy-link').addEventListener('click', () => void navigator.clipboard?.writeText($('lobby-link').textContent ?? ''));
+// Your name, from the lobby as well as the menu: the two boxes are one setting.
+const lobbyName = $('lobby-name');
+lobbyName.addEventListener('input', () => {
+    lobbyName.value = lobbyName.value.toUpperCase().replace(/[^A-Z0-9_\- ]/g, '');
+    nameInput.value = lobbyName.value;
+    store.set(NAME_KEY, nameInput.value);
+    room?.net.room.setIdentity(playerName(), colourId, encodeLook(look));
+    lobby?.render();
+});
 $('lobby-colour').addEventListener('change', (e) => {
     colourId = e.target.value;
     store.set(COLOUR_KEY, colourId);

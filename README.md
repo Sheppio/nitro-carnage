@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.33**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.34**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 741 checks: simulation and networking (Node), and real browsers
+npm test           # 745 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -476,6 +476,22 @@ to 5 s in one go. A browser test holds each tab within 100 ms of the room clock,
 remote cars jumping on at most one frame in ten. The old code failed it at 1.8 s
 behind, with 88 frames in 138 jumping. The in-memory broker gained a `jitter` setting
 (random extra delay per message) for tests like this.
+
+**The lobby, after play-testing.**
+- **Your name** can be changed in the lobby as well as the menu. It's the same saved
+  setting, and it reaches everyone's roster through presence.
+- **Back to lobby on the results.** In a room, the results screen goes straight back
+  to the lobby, and counts down the 12 s until the room takes everybody back itself.
+- **Bots have drivers' names,** 20 made-up ones such as ACE RIVERA and NINA DRIFT,
+  dealt without repeats. In a room the names are dealt from the room code, so every
+  screen agrees. Offline they change from race to race. They were one word each
+  offline and "BOT 1" in a room.
+- **Every control stays inside the card.** In two plain `1fr` columns, each column
+  grew to fit its widest control, so "6 (fill with bots)" and the seed box pushed
+  past the card's edge on a 1000 px window. The columns are `minmax(0, 1fr)` now,
+  and the card is 860 px wide on large screens. A smoke check holds every control
+  inside the card at 1022, 760 and 400 px. With the old styles it failed at the
+  first two.
 
 ### The race carries on
 
@@ -1019,7 +1035,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-741 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+745 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1104,7 +1120,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (53, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (54, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
@@ -1134,7 +1150,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
-- **`multiplayer.test.mjs`** (20, browser, up to four tabs): a room forms from a code
+- **`multiplayer.test.mjs`** (23, browser, up to four tabs): a room forms from a code
   and a share link; one host; colour clashes; a look chosen in one tab's Garage shows
   in the other's lobby; only the host can start; a missile fired
   in one tab flies in the other; a race to the

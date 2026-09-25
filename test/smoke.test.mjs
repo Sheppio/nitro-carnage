@@ -632,6 +632,30 @@ try {
   r.check('with both volumes at zero, nothing is built: no notes, no engines', muted.built === 0 && muted.voices === 0, JSON.stringify(muted));
   await snd.close();
 
+  /* ---------------------------------------------------------------- lobby */
+  // Every control inside the lobby's card, as host with six cars and a seed:
+  // in two 1fr columns "6 (fill with bots)" and the seed box ran off its edge.
+  {
+    const outside = [];
+    for (const [w, h] of [[1022, 760], [760, 900], [400, 800]]) {
+      const lp = await openPage('quality=potato', { width: w, height: h });
+      await lp.click('#btn-create');
+      await lp.waitForSelector('#screen-lobby:not([hidden])', { timeout: 20000 });
+      await lp.waitForFunction(() => window.nitro.room?.net.isHost);
+      await lp.selectOption('#lobby-cars', '6');
+      await lp.fill('#lobby-seed', 'EAR-DIN-EAT');
+      outside.push(...(await lp.evaluate((w) => {
+        const card = document.querySelector('#screen-lobby .menu-card').getBoundingClientRect();
+        return [...document.querySelectorAll('#screen-lobby select, #screen-lobby input, #screen-lobby button')]
+          .filter((el) => el.offsetParent && (el.getBoundingClientRect().right > card.right || el.getBoundingClientRect().left < card.left))
+          .map((el) => `${el.id} at ${w}px`);
+      }, w)));
+      await lp.evaluate(() => window.nitro.room?.leave());
+      await lp.close();
+    }
+    r.check('the lobby keeps every control inside its card, from phone to desktop', outside.length === 0, outside.join(', '));
+  }
+
   r.check('no page errors or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (err) {
   r.crashed(err);

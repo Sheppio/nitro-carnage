@@ -43,7 +43,7 @@ export class Lobby {
         const taken = new Set(Object.values(colours));
         const free = PALETTE.map((c) => c.id).filter((c) => !taken.has(c));
         for (let b = 0; b < bots; b++) {
-            const li = this.row(`BOT ${b + 1}`, free[b % free.length] ?? 'black', ['BOT'], net.carInfo(`b${ids.length + b}`).look);
+            const li = this.row(net.carInfo(`b${ids.length + b}`).name, free[b % free.length] ?? 'black', ['BOT'], net.carInfo(`b${ids.length + b}`).look);
             li.classList.add('bot');
             list.appendChild(li);
         }

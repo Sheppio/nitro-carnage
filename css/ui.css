@@ -575,8 +575,16 @@ input[type='text'] {
    lobby's six rows and its buttons fit on the screen without scrolling. */
 @media (min-width: 720px) {
   .menu-card.wide { width: min(720px, 100%); }
-  .lobby-grid:not(.one-column) { grid-template-columns: 1fr 1fr; column-gap: 22px; }
+  /* minmax(0, 1fr): a plain 1fr column grows to its widest control, and
+     "6 (fill with bots)" and the seed box pushed past the card's edge. */
+  .lobby-grid:not(.one-column) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 22px; }
 }
+@media (min-width: 960px) {
+  .menu-card.wide { width: min(860px, 100%); }
+}
+.lobby-grid > * { min-width: 0; }
+.lobby-grid .field select, .lobby-grid .field input { min-width: 0; max-width: 62%; }
+.lobby-grid .seed-row .field input { max-width: none; flex: 1 1 auto; }
 body:not(.is-host) .host-only { display: none !important; }
 
 .console-banner {

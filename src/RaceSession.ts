@@ -10,7 +10,7 @@ import { crossingWarning, trainAt } from './sim/train.js';
 import { ghostAt, LapTrace } from './sim/ghost.js';
 import { SIM } from './config.js';
 import { autopilot, createAutopilot, skillFor, SKILLS } from './sim/autopilot.js';
-import { BOT_NAMES } from './sim/bots.js';
+import { botNames } from './sim/bots.js';
 import { createCar } from './sim/car.js';
 import type { CarState } from './sim/car.js';
 import { interpolateCar } from './sim/interpolate.js';
@@ -198,11 +198,13 @@ export class RaceSession {
       this.player = this.world.addCar('you', playerSlot, () => this.playerIntent());
       this.addInfo('you', 'YOU', opts.colourId, true, opts.look ?? DEFAULT_LOOK);
       let slot = 0;
+      // New names every race: a quick race has no room to agree with.
+      const names = botNames(Math.floor(Math.random() * 2 ** 31), bots);
       for (let b = 0; b < bots; b++) {
         if (slot === playerSlot) slot++;
         const id = `b${b}`;
         this.world.addBot(id, slot, skillFor(b, settings.current.botLevel), 1000 + b);
-        this.addInfo(id, BOT_NAMES[b % BOT_NAMES.length]!, colours[b % colours.length]!, false, botLook(1000 + b));
+        this.addInfo(id, names[b]!, colours[b % colours.length]!, false, botLook(1000 + b));
         slot++;
       }
     }
