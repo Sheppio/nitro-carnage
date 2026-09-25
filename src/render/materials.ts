@@ -160,7 +160,13 @@ varying vec3 vBuild;
 varying vec3 vBuildN;
 varying float vBuildH;
 varying float vSeed;
-float bHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }`,
+// A hash of whole numbers that stays whole-pane steady: no sin() of big
+// arguments, whose last bits differ from pixel to pixel on some GPUs.
+float bHash(vec3 p) {
+  p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+  p += dot(p, p.yzx + 33.33);
+  return fract((p.x + p.y) * p.z);
+}`,
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -181,7 +187,9 @@ float bHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 
     // Darker at street level: a cheap stand-in for ambient occlusion.
     diffuseColor.rgb *= mix(0.55, 1.0, clamp(vBuild.y / 14.0, 0.0, 1.0));
     if (isWin) {
-      float h = bHash(vec3(floorY, bay + face * 17.0, vSeed * 97.0));
+      // The seed is per building but arrives interpolated: round it to a whole
+    // number so every pixel of a pane hashes the same.
+    float h = bHash(vec3(floorY, bay + face * 17.0, floor(vSeed * 97.0 + 0.5)));
       // Dark at dusk; by day, sky-tinted glass, a little different per pane.
       diffuseColor.rgb = mix(diffuseColor.rgb * 0.45, uGlass * (0.85 + 0.3 * fract(h * 3.7)), uGlassMix);
       if (h < uLit) {

@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.28**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.29**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -349,6 +349,18 @@ matters more on the later tracks, where trees overhang the road and cranes cross
 Every car also keeps a soft blob shadow. On *low* it is the whole shadow, and on every
 setting it is what grows and fades while you are in the air, so the height of a jump
 reads from straight above.
+
+### Speckled windows
+
+Which windows are lit comes from a hash of the floor, the bay and the building's
+seed, worked out in the shader for every pixel. The first hash was the usual
+`fract(sin(x) * 43758.5)`, where `x` runs into the thousands. The seed reaches
+the fragment shader interpolated, so it differs from pixel to pixel in its last
+bits, and at that size `sin` amplifies the difference until the result is random.
+Lit panes came out speckled and striped, worst on faces seen edge-on. Now the seed is
+rounded to a whole number before hashing, and the hash is one without `sin` that
+stays steady for whole-number inputs. Every pixel of a pane now gets the same
+answer. Found by eye, in a screenshot.
 
 ### The city had a moat
 
