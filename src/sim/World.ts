@@ -77,6 +77,8 @@ export type RaceEvent =
   | { kind: 'go'; time: number }
   | { kind: 'lap'; id: string; lap: number; time: number; lapTime: number }
   | { kind: 'finish'; id: string; time: number }
+  /** A finished car has driven its cool-down lap: the race can end on it. */
+  | { kind: 'cooldown'; id: string; time: number }
   | { kind: 'respawn'; id: string; time: number }
   /**
    * Two cars touched. With a remote car only the local one was moved, and
@@ -340,6 +342,8 @@ export class World {
       } else if (ev?.kind === 'finish') {
         this.events.push({ kind: 'lap', id: e.id, lap: ev.lap, time: ev.time, lapTime: e.lap.lapTimes[e.lap.lapTimes.length - 1]! });
         this.events.push({ kind: 'finish', id: e.id, time: ev.time });
+      } else if (ev?.kind === 'cooldown') {
+        this.events.push({ kind: 'cooldown', id: e.id, time: ev.time });
       }
 
       if (!racing || e.wrecked > 0) continue;

@@ -104,9 +104,9 @@ console.log('\nnet.test\n\ncodecs');
 
   check('a truncated car packet is dropped, not thrown', decodeCar(enc.split(',').slice(0, 9).join(','), 0) === null);
 
-  const events = [{ k: 'lap', lap: 2, t: 68382 }, { k: 'finish', t: 204011 }, { k: 'respawn', x: 12.3, z: -4.5, yaw: 1.2 }, { k: 'bump', slot: 4, dvx: -1.23, dvz: 0.5 }];
+  const events = [{ k: 'lap', lap: 2, t: 68382 }, { k: 'finish', t: 204011 }, { k: 'respawn', x: 12.3, z: -4.5, yaw: 1.2 }, { k: 'bump', slot: 4, dvx: -1.23, dvz: 0.5 }, { k: 'cooldown' }];
   const back = decodeEvents(encodeEvents(events));
-  check('car events round-trip', back.length === 4 && back[0].lap === 2 && back[1].t === 204011 && back[2].x === 12.3 && back[3].slot === 4 && back[3].dvx === -1.23,
+  check('car events round-trip, the cool-down lap among them', back.length === 5 && back[0].lap === 2 && back[1].t === 204011 && back[2].x === 12.3 && back[3].slot === 4 && back[3].dvx === -1.23 && back[4].k === 'cooldown',
     `"${encodeEvents(events)}"`);
 
   const weapons = [

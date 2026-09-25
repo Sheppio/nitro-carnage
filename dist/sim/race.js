@@ -11,6 +11,8 @@ export function createLapState(track, s, goTime) {
         best: null,
         finished: false,
         finishTime: null,
+        finishProgress: null,
+        cooledDown: false,
         backwards: 0,
         wrongWay: false,
         splits: [],
@@ -49,6 +51,11 @@ export function stepLaps(st, track, s, time, dt, along, laps, teleport = false, 
     else if (along > 1)
         st.backwards = 0;
     st.wrongWay = st.backwards >= WRONG_WAY_AFTER;
+    // Home already: count the cool-down lap, a whole lap's distance from the line.
+    if (st.finished && !teleport && !st.cooledDown && st.finishProgress !== null && st.progress - st.finishProgress >= track.length) {
+        st.cooledDown = true;
+        return { kind: 'cooldown', lap: st.completed, time };
+    }
     if (teleport || st.finished || moved === 0)
         return null;
     const cps = track.checkpoints;
@@ -93,6 +100,7 @@ export function stepLaps(st, track, s, time, dt, along, laps, teleport = false, 
         if (laps > 0 && st.completed >= laps) {
             st.finished = true;
             st.finishTime = at;
+            st.finishProgress = st.progress;
             return { kind: 'finish', lap: st.completed, time: at };
         }
         return { kind: 'lap', lap: st.completed, time: at };

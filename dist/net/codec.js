@@ -103,6 +103,9 @@ export function encodeEvents(events) {
             case 'finish':
                 parts.push(`X:${b36(e.t)}`);
                 break;
+            case 'cooldown':
+                parts.push('C:0');
+                break;
             case 'respawn':
                 parts.push(`R:${b36(e.x * 10)},${b36(e.z * 10)},${b36((e.yaw / TURN) * 1296)}`);
                 break;
@@ -140,6 +143,8 @@ export function decodeEvents(payload) {
             out.push({ k: 'lap', lap: un36(f[0]), t: un36(f[1]) });
         else if (tag === 'X' && f.length >= 1)
             out.push({ k: 'finish', t: un36(f[0]) });
+        else if (tag === 'C')
+            out.push({ k: 'cooldown' });
         else if (tag === 'R' && f.length >= 3)
             out.push({ k: 'respawn', x: un36(f[0]) / 10, z: un36(f[1]) / 10, yaw: (un36(f[2]) / 1296) * TURN });
         else if (tag === 'B' && f.length >= 3)

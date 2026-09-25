@@ -129,6 +129,8 @@ export type CarEvent =
   | { k: 'lap'; lap: number; t: number }
   /** Finished at race time `t` (ms since GO). */
   | { k: 'finish'; t: number }
+  /** Finished the cool-down lap: the host ends the race on the first of these. */
+  | { k: 'cooldown' }
   /** Respawned: a teleport, so peers snap instead of sliding. */
   | { k: 'respawn'; x: number; z: number; yaw: number }
   /** Bumped the car in grid slot `slot`, which should receive this velocity change (m/s). */
@@ -155,6 +157,9 @@ export function encodeEvents(events: readonly CarEvent[]): string {
         break;
       case 'finish':
         parts.push(`X:${b36(e.t)}`);
+        break;
+      case 'cooldown':
+        parts.push('C:0');
         break;
       case 'respawn':
         parts.push(`R:${b36(e.x * 10)},${b36(e.z * 10)},${b36((e.yaw / TURN) * 1296)}`);
@@ -191,6 +196,7 @@ export function decodeEvents(payload: string): CarEvent[] {
     const f = raw.slice(colon + 1).split(FLD);
     if (tag === 'K' && f.length >= 2) out.push({ k: 'lap', lap: un36(f[0]), t: un36(f[1]) });
     else if (tag === 'X' && f.length >= 1) out.push({ k: 'finish', t: un36(f[0]) });
+    else if (tag === 'C') out.push({ k: 'cooldown' });
     else if (tag === 'R' && f.length >= 3) out.push({ k: 'respawn', x: un36(f[0]) / 10, z: un36(f[1]) / 10, yaw: (un36(f[2]) / 1296) * TURN });
     else if (tag === 'B' && f.length >= 3) out.push({ k: 'bump', slot: un36(f[0]), dvx: un36(f[1]) / 100, dvz: un36(f[2]) / 100 });
     else if (tag === 'F' && f.length >= 6) {

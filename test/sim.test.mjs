@@ -1158,6 +1158,24 @@ const SHAPES = ['e5cc4479', '516a54d0', '345cb3ee', '64336d30', 'ad477f3a', '88f
 }
 
 {
+  // The race ends on the first cool-down lap: a finished car drives on, and one whole lap after its finish the world says so.
+  const w = new World(TRACKS[0], { laps: 1, countdown: 0, weapons: false });
+  const b = w.addBot('b', 0, SKILLS[0], 1);
+  let finishAt = null, coolAt = null;
+  while (coolAt === null && w.time < 300) {
+    w.step();
+    for (const ev of w.drain()) {
+      if (ev.kind === 'finish') finishAt = ev.time;
+      if (ev.kind === 'cooldown') coolAt = ev.time;
+    }
+  }
+  const lapTime = b.lap.lapTimes[0];
+  check('a finished car drives a cool-down lap, and the world says when it is done: one lap after the finish',
+    finishAt !== null && coolAt !== null && b.lap.cooledDown && Math.abs((coolAt - finishAt) - lapTime) < lapTime * 0.25,
+    `finish ${finishAt?.toFixed(1)} s, cool-down done ${coolAt?.toFixed(1)} s, a lap is ${lapTime?.toFixed(1)} s`);
+}
+
+{
   // A hotlap's flying start: a quarter of a lap back from the line, and lap 1 timed from the line, not from GO.
   const w = new World(TRACKS[0], { laps: 0, countdown: 0, weapons: false, flyingStart: 0.25 });
   const b = w.addBot('b', 0, SKILLS[0], 1);

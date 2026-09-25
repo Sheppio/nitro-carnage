@@ -185,7 +185,7 @@ export const NET = {
     /** Seconds between GO being announced and GO happening. */
     countdownMs: 4000,
     /** After the first car finishes, how long the rest get. */
-    finishGraceMs: 30000,
+    finishGraceMs: 60000,
     /** How long the results stay up before the room returns to the lobby. */
     resultsMs: 12000,
     /** A car silent this long mid-race is treated as gone (did not finish). */

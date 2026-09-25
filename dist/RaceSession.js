@@ -17,7 +17,8 @@ import { IDLE_INTENT } from './types.js';
 /** Seconds of lights before GO, offline. */
 const COUNTDOWN = 3;
 /** After the player finishes an offline race, how long the others get. */
-const FINISH_GRACE = 25;
+/** Seconds after the first car home before the race ends regardless. */
+const FINISH_GRACE = 60;
 /**
  * One race on screen: an offline race or free drive this client simulates
  * alone, or a race in a networked room (M3), where a `NetRace` owns the world
@@ -45,7 +46,6 @@ export class RaceSession {
     fpsAt = 0;
     fps = 0;
     running = false;
-    playerFinishedAt = null;
     over = false;
     pilot = createAutopilot(7, SKILLS[0]);
     net;
@@ -331,8 +331,6 @@ export class RaceSession {
         else if (ev.kind === 'fire' && ev.id === this.playerId) {
             this.input.rumble(HAPTIC.fire.weak, HAPTIC.fire.strong, HAPTIC.fire.ms);
         }
-        if (ev.kind === 'finish' && ev.id === this.playerId)
-            this.playerFinishedAt = ev.time;
         this.onEvent?.(ev);
         if (!this.net)
             this.checkOver();
@@ -381,12 +379,20 @@ export class RaceSession {
                 break;
         }
     }
+    /**
+     * The race ends at whichever comes first: every car home; any car home
+     * finishing its cool-down lap (not necessarily the winner's); or a minute
+     * after the first car home.
+     */
     checkOver() {
         if (this.over || this.mode !== 'race')
             return;
-        const all = this.world.entrants.every((e) => e.lap.finished);
-        const graceUp = this.playerFinishedAt !== null && this.world.time - this.playerFinishedAt > FINISH_GRACE;
-        if (all || graceUp) {
+        const es = this.world.entrants;
+        const all = es.every((e) => e.lap.finished);
+        const cooled = es.some((e) => e.lap.cooledDown);
+        const first = Math.min(...es.map((e) => e.lap.finishTime ?? Infinity));
+        const graceUp = this.world.time - first > FINISH_GRACE;
+        if (all || cooled || graceUp) {
             this.over = true;
             this.onOver?.(this.results());
         }

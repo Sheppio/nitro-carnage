@@ -231,6 +231,9 @@ export class World {
                 this.events.push({ kind: 'lap', id: e.id, lap: ev.lap, time: ev.time, lapTime: e.lap.lapTimes[e.lap.lapTimes.length - 1] });
                 this.events.push({ kind: 'finish', id: e.id, time: ev.time });
             }
+            else if (ev?.kind === 'cooldown') {
+                this.events.push({ kind: 'cooldown', id: e.id, time: ev.time });
+            }
             if (!racing || e.wrecked > 0)
                 continue;
             const speed = Math.hypot(c.vx, c.vz);

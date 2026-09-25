@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.26**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.27**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 734 checks: simulation and networking (Node), and real browsers
+npm test           # 735 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -215,6 +215,17 @@ somebody. WRONG WAY shows after 1.5 s of going backwards.
 
 **Cars touch.** Car-against-car is capsule against capsule, with the impulse applied
 to each side separately, because in M3 each client will resolve only its own car.
+
+**When the race ends.** Cars home keep driving: the lap after the finish is a
+cool-down lap. The race ends at whichever comes first:
+- every car is home;
+- any car that is home finishes its cool-down lap (not necessarily the winner's);
+- 60 s have passed since the first car home.
+
+The cool-down lap is measured on the same continuous distance as race order, one whole
+lap from the finish. In a room each car's own client reports its cool-down lap, as
+it reports its finish, and the host ends the race on the first report. A car still
+running when the race ends gets no finish time.
 
 ### The racing line and the autopilot
 
@@ -932,11 +943,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-734 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+735 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (542, Node; the per-track checks run on all 25 tracks):
+- **`sim.test.mjs`** (543, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly

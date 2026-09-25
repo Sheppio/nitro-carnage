@@ -125,6 +125,8 @@ export class NetRace {
   private resultsSent = false;
   /** Host only: finish stamps in race ms, by car id. */
   private finishes = new Map<string, number>();
+  /** Host only: cars that have driven their cool-down lap. The first ends the race. */
+  private cooled = new Set<string>();
   private phaseSince = 0;
   private started = false;
   /** Hits this client has already taken, keyed `shooter:seq`, so a repeated `H` never hurts twice. */
@@ -210,6 +212,7 @@ export class NetRace {
     const grid = [...humans];
     for (let slot = grid.length; slot < Math.max(this.state.cars, humans.length); slot++) grid.push(`b${slot}`);
     this.finishes.clear();
+    this.cooled.clear();
     this.setState({ ...this.state, phase: 'C', goAt: Math.round(this.roomNow + NET.countdownMs), grid, finish: [] });
   }
 
@@ -291,7 +294,8 @@ export class NetRace {
       const running = s.grid.filter((id, slot) => (id.startsWith('b') || alive.has(id)) && !finish.some((f) => f.slot === slot));
       const first = finish[0];
       const graceUp = first !== undefined && now >= s.goAt + first.t + NET.finishGraceMs;
-      if (running.length === 0 || graceUp) {
+      // Whichever comes first: all home, someone's cool-down lap done, or the grace after the first finish.
+      if (running.length === 0 || graceUp || this.cooled.size > 0) {
         this.setState({ ...s, finish, phase: 'X' });
       } else if (changed) {
         this.setState({ ...s, finish, phase: 'F' });
@@ -300,6 +304,7 @@ export class NetRace {
     }
     if (s.phase === 'X' && now - this.phaseSince >= NET.resultsMs) {
       this.finishes.clear();
+    this.cooled.clear();
       this.setState({ ...s, phase: 'L', goAt: 0, grid: [], finish: [] });
     }
   }
@@ -314,6 +319,7 @@ export class NetRace {
         const { hostId: _h, seq: _s, roomT: _t, ...state } = hb;
         this.state = state;
         this.finishes.clear();
+    this.cooled.clear();
         for (const f of state.finish) {
           const id = state.grid[f.slot];
           if (id) this.finishes.set(id, f.t);
@@ -530,6 +536,8 @@ export class NetRace {
     for (const ev of decodeEvents(payload)) {
       if (ev.k === 'finish') {
         if (this.isHost) this.finishes.set(id, ev.t);
+      } else if (ev.k === 'cooldown') {
+        if (this.isHost) this.cooled.add(id);
       } else if (ev.k === 'respawn' && w) {
         const rc = this.remotes.get(id);
         const e = w.entrants.find((x) => x.id === id);
@@ -599,7 +607,7 @@ export class NetRace {
   private onWorldEvent(ev: RaceEvent): void {
     const w = this.world!;
     const toMs = (t: number): number => Math.round((t - w.goTime) * 1000);
-    if (ev.kind === 'lap' || ev.kind === 'finish' || ev.kind === 'respawn') {
+    if (ev.kind === 'lap' || ev.kind === 'finish' || ev.kind === 'respawn' || ev.kind === 'cooldown') {
       const o = this.owned.get(ev.id);
       if (o) {
         if (ev.kind === 'lap') o.pending.push({ k: 'lap', lap: ev.lap, t: toMs(ev.time) });
@@ -608,6 +616,10 @@ export class NetRace {
           if (this.isHost) this.finishes.set(ev.id, toMs(ev.time));
         }
         if (ev.kind === 'respawn') o.pending.push({ k: 'respawn', x: o.entrant.car.x, z: o.entrant.car.z, yaw: o.entrant.car.yaw });
+        if (ev.kind === 'cooldown') {
+          o.pending.push({ k: 'cooldown' });
+          if (this.isHost) this.cooled.add(ev.id);
+        }
       }
     } else if (ev.kind === 'fire' || ev.kind === 'mine') {
       const o = this.owned.get(ev.id);
