@@ -391,7 +391,7 @@ try {
     const u = await import(new URL('util.js', main).href);
     return u.hashString(JSON.stringify(g.generateTrack(g.daySeed(Date.UTC(2026, 8, 25, 12))))).toString(16);
   });
-  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === '51c3047e', sameTrack);
+  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === 'c235dcbc', sameTrack);
   const label = await hl.evaluate(() => document.getElementById('hud-track').textContent);
   const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: getComputedStyle(document.getElementById('hud-arms')).display === 'none' }));
   r.check('a hotlap on the track of the day: named on the HUD, a record to beat, no position, no weapons',
@@ -458,26 +458,74 @@ try {
   await hl.close();
 
   /* ------------------------------------------------------ every track */
-  // Each track boots from a link, names itself on the HUD, and draws inside
-  // the budget. Docks and Greenbelt carry the new scenery: containers, cranes, trees.
+  // Each built-in track boots from a link, names itself on the HUD, and draws
+  // inside the budget — not just at the start line but at eight points round
+  // the lap, since the worst view is wherever the most scenery crowds in.
   const trackNotes = [];
   let tracksOk = true;
-  for (const id of ['greenbelt', 'docks']) {
-    const tp = await openPage(`quality=high&drive&track=${id}`, { width: 320, height: 180 });
+  const wantScenery = {
+    downtown: ['towers', 'lamp-heads'],
+    greenbelt: ['tree-crowns', 'water', 'props', 'ground-patches', 'ponds', 'windmill-sails'],
+    docks: ['containers', 'cranes', 'railway', 'train', 'water', 'props'],
+    'downtown-day': ['towers', 'lamp-heads'],
+  };
+  const layers = {};
+  for (const id of Object.keys(wantScenery)) {
+    const tp = await openPage(`quality=high&hotlap&track=${id}`, { width: 320, height: 180 });
     const info = await until(() => tp.evaluate(() => {
       const s = window.nitro.session;
       if (!s || s.world.steps < 10) return null;
       const names = new Set();
       s.view.scene.traverse((o) => names.add(o.name.split(':')[0]));
-      return { name: document.getElementById('hud-track').textContent, calls: s.view.drawCalls, def: s.world.track.def.name, scenery: [...names] };
+      return { name: document.getElementById('hud-track').textContent, def: s.world.track.def.name, scenery: [...names] };
     }), { timeout: 60000 });
-    const wants = id === 'docks' ? ['containers', 'cranes', 'railway', 'train', 'water'] : ['tree-crowns', 'water'];
-    const missing = wants.filter((w) => !info?.scenery.includes(w));
-    if (!info || info.name !== info.def || info.calls >= 150 || missing.length) tracksOk = false;
-    trackNotes.push(`${info?.name}: ${info?.calls} draws${missing.length ? `, missing ${missing.join(' ')}` : ''}`);
+    let worst = 0;
+    for (let k = 0; k < 8; k++) {
+      await tp.evaluate((f) => {
+        const s = window.nitro.session, t = s.world.track, c = s.player.car;
+        const pose = t.poseAt(f * t.length);
+        Object.assign(c, { x: pose.x, z: pose.z, yaw: pose.yaw, vx: 0, vz: 0, w: 0, hint: pose.i });
+      }, k / 8);
+      await tp.waitForTimeout(250);
+      worst = Math.max(worst, await tp.evaluate(() => window.nitro.session.view.drawCalls));
+    }
+    // What the scenery is drawn with, for the checks below.
+    layers[id] = await tp.evaluate(() => {
+      const out = {};
+      window.nitro.session.view.scene.traverse((o) => {
+        const k = o.name.split(':')[0];
+        if (o.material && !out[k]) out[k] = { type: o.material.type, patches: o.material.userData.patches ?? [], height: (o.geometry.computeBoundingBox(), o.geometry.boundingBox.max.y) };
+      });
+      return out;
+    });
+    if (id === 'greenbelt') {
+      // The sails turn: the same instance, a moment apart, is somewhere else.
+      layers.sails = await tp.evaluate(async () => {
+        const sails = window.nitro.session.view.scene.getObjectByName('windmill-sails');
+        const a = [...sails.instanceMatrix.array.slice(0, 16)];
+        await new Promise((res) => setTimeout(res, 400));
+        const b = [...sails.instanceMatrix.array.slice(0, 16)];
+        return a.some((v, i) => Math.abs(v - b[i]) > 1e-3);
+      });
+    }
+    const missing = wantScenery[id].filter((w) => !info?.scenery.includes(w));
+    if (!info || info.name !== info.def || worst >= 150 || missing.length) tracksOk = false;
+    trackNotes.push(`${info?.name}: ${worst} draws at worst${missing.length ? `, missing ${missing.join(' ')}` : ''}`);
     await tp.close();
   }
-  r.check('Greenbelt and Tidewater Docks boot from a link, with their scenery, inside 150 draw calls', tracksOk, trackNotes.join('; '));
+  r.check('all four built-in tracks boot from a link, with their scenery, inside 150 draw calls all the way round', tracksOk, trackNotes.join('; '));
+  // Tall things must never hide a car: every scenery layer that stands above a car roof takes the cut-away.
+  const uncut = [];
+  for (const [id, byName] of Object.entries(layers)) {
+    if (typeof byName !== 'object') continue;
+    for (const [name, l] of Object.entries(byName)) {
+      if (['props', 'windmill-sails', 'towers', 'tree-crowns', 'containers', 'cranes'].includes(name) && !l.patches.includes('cutaway')) uncut.push(`${id}/${name}`);
+    }
+  }
+  r.check('the farm and port scenery takes the cut-away, like the towers, and the windmills turn', uncut.length === 0 && layers.sails === true,
+    `${uncut.length ? `no cut-away: ${uncut.join(' ')}` : 'all cut away'}; sails ${layers.sails ? 'turning' : 'still'}`);
+  r.check('by day the street lamps are off and the ponds are water', layers['downtown-day']['lamp-heads'].type === 'MeshLambertMaterial' && layers.downtown['lamp-heads'].type === 'MeshBasicMaterial'
+    && layers.greenbelt.ponds.type === 'MeshPhongMaterial', `day lamps ${layers['downtown-day']['lamp-heads'].type}, dusk lamps ${layers.downtown['lamp-heads'].type}`);
 
   /* --------------------------------------------------------------- sound */
   const snd = await openPage('quality=potato&race&autopilot&laps=1');

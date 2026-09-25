@@ -114,13 +114,15 @@ if (uCutEnabled > 0.5) {
  * lights a hashed subset of them per building, so the city glows at dusk with
  * no textures at all.
  */
-export function towerMaterial(opts: { roof: number; warm: number; cool: number; lit: number }): THREE.MeshLambertMaterial {
+export function towerMaterial(opts: { roof: number; warm: number; cool: number; lit: number; glass?: number; glassMix?: number }): THREE.MeshLambertMaterial {
   const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
   patch(mat, 'tower', (shader) => {
     shader.uniforms.uRoof = { value: new THREE.Color(opts.roof) };
     shader.uniforms.uWarm = { value: new THREE.Color(opts.warm) };
     shader.uniforms.uCool = { value: new THREE.Color(opts.cool) };
     shader.uniforms.uLit = { value: opts.lit };
+    shader.uniforms.uGlass = { value: new THREE.Color(opts.glass ?? 0x000000) };
+    shader.uniforms.uGlassMix = { value: opts.glassMix ?? 0 };
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -152,6 +154,8 @@ uniform vec3 uRoof;
 uniform vec3 uWarm;
 uniform vec3 uCool;
 uniform float uLit;
+uniform vec3 uGlass;
+uniform float uGlassMix;
 varying vec3 vBuild;
 varying vec3 vBuildN;
 varying float vBuildH;
@@ -178,7 +182,8 @@ float bHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 
     diffuseColor.rgb *= mix(0.55, 1.0, clamp(vBuild.y / 14.0, 0.0, 1.0));
     if (isWin) {
       float h = bHash(vec3(floorY, bay + face * 17.0, vSeed * 97.0));
-      diffuseColor.rgb *= 0.45;
+      // Dark at dusk; by day, sky-tinted glass, a little different per pane.
+      diffuseColor.rgb = mix(diffuseColor.rgb * 0.45, uGlass * (0.85 + 0.3 * fract(h * 3.7)), uGlassMix);
       if (h < uLit) {
         vec3 glow = vSeed > 0.5 ? uWarm : uCool;
         totalEmissiveRadiance += glow * (0.55 + 0.45 * fract(h * 7.31));

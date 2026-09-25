@@ -160,11 +160,15 @@ for (const def of TRACKS) {
     const c = Math.cos(p.rot), sn = Math.sin(p.rot);
     return [p.x + lx * c + lz * sn, p.z - lx * sn + lz * c];
   });
-  const solid = t.props.filter((p) => p.kind === 'tower' || p.kind === 'container');
+  // Everything with a footprint, including M10's farm and port: none of it on the road.
+  const footprinted = new Set(['tower', 'container', 'farmhouse', 'barn', 'silo', 'windmill', 'field', 'fence', 'warehouse', 'flatbed', 'ship', 'flowers']);
+  const solid = t.props.filter((p) => footprinted.has(p.kind));
   const intrusions = solid.filter((p) => corners(p).some(([x, z]) => Math.abs(t.project(x, z).d) < t.wallOffset));
   tcheck(`${name}: no building or container stands on the road`, intrusions.length === 0, `${intrusions.length} of ${solid.length} intruding`);
+  // Cranes stand in the harbour, and ships, yachts, pontoons, ponds and reeds belong in water.
+  const afloat = new Set(['crane', 'ship', 'yacht', 'pontoon', 'pond', 'reeds']);
   const onRail = t.props.filter((p) => p.kind !== 'crane' && t.railDistance(p.x, p.z) < 4);
-  const wet = t.props.filter((p) => p.kind !== 'crane' && t.inWater(p.x, p.z));
+  const wet = t.props.filter((p) => !afloat.has(p.kind) && t.inWater(p.x, p.z));
   tcheck(`${name}: nothing stands on the railway or in the water`, onRail.length === 0 && wet.length === 0, `${onRail.length} on the rails, ${wet.length} in the water`);
 
   // The railway, if any, crosses the road exactly once: count the entries into the road along it.
@@ -1065,11 +1069,22 @@ console.log('\ngenerated tracks');
  * different track: the test is there to make that a decision, not an accident.
  */
 const PINNED = [
-  [1, 'Neon Sprint', '2440a1d1'],
-  [42, 'Static Reach', '7d8a42e8'],
-  [seedOf('NITRO'), 'Neon Yard', '1595f901'],
-  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Signal Mile', '51c3047e'],
+  [1, 'Neon Sprint', '6f6dfbab'],
+  [42, 'Static Reach', '737856c2'],
+  [seedOf('NITRO'), 'Neon Yard', '110657db'],
+  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Signal Mile', 'c235dcbc'],
+  // A port, a city at dusk and a city by day (M10), so every theme's rules are pinned.
+  [seedOf('pin-run-dig'), 'Hollow Ring', 'a62a04be'],
+  [seedOf('big-red-bus'), 'Granite Park', 'cee3f50b'],
+  [seedOf('oak-elm-fig'), 'Amber Loop', '2fa58512'],
 ];
+/**
+ * The shape alone — corners, start and ramps — pinned apart from the rest.
+ * M10 changed every seed's scenery rules and hence its bytes, but not one
+ * shape; this is what lets that be said, and it keeps a hotlap record's
+ * ghost on the road it was driven on.
+ */
+const SHAPES = ['e5cc4479', '516a54d0', '345cb3ee', '64336d30', 'ad477f3a', '88fe84ec', 'b6937d4d'];
 
 {
   const got = PINNED.map(([seed]) => {
@@ -1078,6 +1093,11 @@ const PINNED = [
   });
   check('the pinned seeds still generate exactly the same tracks', JSON.stringify(got) === JSON.stringify(PINNED),
     got.map(([, n, h]) => `${n} ${h}`).join(', '));
+  const shapes = PINNED.map(([seed]) => {
+    const d = generateTrack(seed);
+    return hashString(JSON.stringify([d.corners, d.start, d.ramps])).toString(16);
+  });
+  check('and the same shapes, pinned on their own', JSON.stringify(shapes) === JSON.stringify(SHAPES), shapes.join(' '));
 
   // Integers only in the definition: nothing a different engine's Math.sin could nudge.
   const ints = [1, 2, 3, 7, 99].every((sd) => generateTrack(sd).corners.every((c) => c.every(Number.isInteger)));
@@ -1164,6 +1184,72 @@ const PINNED = [
   check('a damaged ghost from storage is refused, not played', !validTrace([1, 2]) && !validTrace('x') && !validTrace([1, 2, 3.5, 4, 5, 6]) && validTrace(trace.data));
 }
 
+/* ------------------------------------------------------------- scenery (M10) */
+
+console.log('\nscenery (M10)');
+
+{
+  const kinds = (t) => new Set(t.props.map((p) => p.kind));
+  const green = new Track(TRACKS.find((d) => d.id === 'greenbelt'));
+  const docks = new Track(TRACKS.find((d) => d.id === 'docks'));
+  const g = kinds(green), d = kinds(docks);
+  const farm = ['farmhouse', 'barn', 'silo', 'bale', 'tractor', 'windmill', 'field', 'fence', 'flowers', 'pond', 'reeds'];
+  const port = ['warehouse', 'forklift', 'flatbed', 'pallets', 'crates', 'drums', 'ship', 'yacht', 'pontoon'];
+  const missing = [...farm.filter((k) => !g.has(k)), ...port.filter((k) => !d.has(k))];
+  check('Greenbelt is farmland and Tidewater a working port', missing.length === 0 && (g.has('cow') || g.has('sheep')),
+    missing.length ? `missing ${missing.join(' ')}` : `${green.props.length - green.props.filter((p) => p.kind === 'tree').length} farm pieces, ${docks.props.filter((p) => port.includes(p.kind)).length} port pieces`);
+
+  // Ground claimed by one placement is not claimed by another, and the trees keep off it.
+  const areas = (t) => t.props.filter((p) => ['field', 'fence', 'warehouse', 'pond'].includes(p.kind))
+    .map((p) => [p.x, p.z, p.kind === 'pond' ? p.w + 2 : Math.hypot(p.w, p.d) / 2]);
+  let overlaps = 0, treesIn = 0;
+  for (const t of [green, docks, new Track(generateTrack(seedOf('egg-cup-top')))]) {
+    const a = areas(t);
+    for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) if (Math.hypot(a[i][0] - a[j][0], a[i][1] - a[j][1]) < a[i][2] + a[j][2] - 0.01) overlaps++;
+    for (const p of t.props) if (p.kind === 'tree' && a.some(([x, z, r]) => Math.hypot(p.x - x, p.z - z) < r)) treesIn++;
+  }
+  check('fields, paddocks, ponds and warehouses never overlap, and no tree grows in one', overlaps === 0 && treesIn === 0, `${overlaps} overlaps, ${treesIn} trees`);
+
+  // The duck pond is water: leave the road there and you are in it.
+  const [px, pz, pr] = green.def.ponds[0];
+  const lawn = green.surfaceAt(px + pr * 0.5, pz);
+  check('Greenbelt\'s duck pond is water to the simulation, by the open lawn', green.inWater(px, pz) && lawn === Surface.Water && Math.abs(green.project(px, pz).d) - pr < green.wallOffset + 8,
+    `${(Math.abs(green.project(px, pz).d) - pr - green.wallOffset).toFixed(1)} m past the wall line`);
+
+  // Generated ports: a harbour on every one, always beyond the walls; generated cities half by day.
+  let ports = 0, dry = 0, closest = Infinity, day = 0, dusk = 0, farms = 0, parks = 0;
+  for (let sd = 3000; sd < 3300; sd++) {
+    const def = generateTrack(sd);
+    if (def.theme === 'day') day++;
+    if (def.theme === 'dusk') dusk++;
+    if (def.theme === 'park') {
+      parks++;
+      if (def.props.some((r) => r.kind === 'farms') && def.props.some((r) => r.kind === 'herds')) farms++;
+    }
+    if (def.theme !== 'overcast') continue;
+    ports++;
+    if (!def.water?.length || !def.props.some((r) => r.kind === 'ships')) continue;
+    const t = new Track({ ...def, props: [] });
+    const [x0, z0, x1, z1] = def.water[0];
+    let near = Infinity;
+    for (let i = 0; i < t.n; i += 2) {
+      const x = t.line.px[i], z = t.line.pz[i];
+      near = Math.min(near, Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(z0 - z, 0, z - z1)));
+    }
+    closest = Math.min(closest, near - t.wallOffset);
+    dry++;
+  }
+  check('every generated port has a harbour with ships, never within 7 m of a wall', ports > 50 && dry === ports && closest >= 7,
+    `${ports} ports, closest water ${closest.toFixed(1)} m past a wall`);
+  check('every generated park is farmland, and generated cities are by day or at dusk about half and half', parks > 50 && farms === parks && day > 30 && dusk > 30 && Math.abs(day - dusk) < (day + dusk) * 0.3,
+    `${parks} parks; ${day} by day, ${dusk} at dusk`);
+
+  // Downtown by Day is the same streets under another sky.
+  const dt = TRACKS.find((x) => x.id === 'downtown'), dd = TRACKS.find((x) => x.id === 'downtown-day');
+  check('Downtown by Day is Downtown\'s streets and buildings under the day sky, with its own record', dd && JSON.stringify(dd.corners) === JSON.stringify(dt.corners) && dd.seed === dt.seed && dd.theme === 'day' && dd.id !== dt.id
+    && TRACKS.indexOf(dd) === TRACKS.length - 1);
+}
+
 {
   // Random seeds: three words from the list, hyphenated, and every one a track.
   const rand = mulberry32(5);
@@ -1171,9 +1257,13 @@ const PINNED = [
   const shaped = seeds.every((t) => /^[a-z]{3}-[a-z]{3}-[a-z]{3}$/.test(t) && t.split('-').every((w) => SEED_WORDS.includes(w)));
   const unique = new Set(seeds).size;
   const clean = !['ass', 'sex', 'god', 'jew', 'gay'].some((w) => SEED_WORDS.includes(w));
+  // Nothing that sounds like another word: read out, it would be typed as the other one.
+  const alike = [['too', 'two'], ['sea', 'see'], ['won', 'one'], ['bye', 'buy'], ['son', 'sun'], ['paw', 'saw', 'war', 'awe'], ['bee', 'pea', 'why']];
+  const unambiguous = alike.every((group) => group.every((w) => !SEED_WORDS.includes(w)));
   let tracks = 0;
   for (const t of seeds.slice(0, 20)) if (generateTrack(seedOf(t))) tracks++;
-  check('a random seed is three listed words, hyphenated, and makes a track', shaped && unique > 195 && clean && tracks === 20 && SEED_WORDS.length === 367,
+  check('a random seed is three listed words, hyphenated, none that sounds like another, and makes a track',
+    shaped && unique > 195 && clean && unambiguous && tracks === 20 && SEED_WORDS.length === 290,
     `e.g. ${seeds.slice(0, 3).join(', ')}; ${SEED_WORDS.length} words`);
 }
 

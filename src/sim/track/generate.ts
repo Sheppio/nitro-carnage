@@ -67,7 +67,7 @@ export function generateTrack(seed: number): TrackDef {
   if (hit) return hit;
   const rand = mulberry32(s);
   const int = (lo: number, hi: number): number => lo + Math.floor(rand() * (hi - lo + 1));
-  const style = pickStyle(int);
+  const style = pickStyle(int, s);
   for (let attempt = 0; attempt < 400; attempt++) {
     const def = candidate(s, int, attempt, style);
     try {
@@ -88,7 +88,7 @@ export function attemptsFor(seed: number): number {
   const s = seed >>> 0 || 1;
   const rand = mulberry32(s);
   const int = (lo: number, hi: number): number => lo + Math.floor(rand() * (hi - lo + 1));
-  const style = pickStyle(int);
+  const style = pickStyle(int, s);
   for (let attempt = 0; attempt < 400; attempt++) {
     const def = candidate(s, int, attempt, style);
     try {
@@ -106,15 +106,20 @@ const LAYOUT_NAMES = { loop: 'Flowing loop', grid: 'City grid', straights: 'Long
 
 type Int = (lo: number, hi: number) => number;
 type Corner = [number, number, number];
-type Style = { theme: (typeof THEMES)[number]; layout: (typeof LAYOUTS)[number] };
+type Style = { theme: (typeof THEMES)[number] | 'day'; layout: (typeof LAYOUTS)[number] };
 
 /**
  * A seed's look and shape, drawn once before any candidate: a layout that
  * fails validation more often is retried until it passes, not swapped for
  * an easier one, so each layout gets its fair third of the seeds.
  */
-function pickStyle(int: Int): Style {
-  return { theme: THEMES[int(0, THEMES.length - 1)]!, layout: LAYOUTS[int(0, LAYOUTS.length - 1)]! };
+function pickStyle(int: Int, seed: number): Style {
+  const theme = THEMES[int(0, THEMES.length - 1)]!;
+  const layout = LAYOUTS[int(0, LAYOUTS.length - 1)]!;
+  // A city is by day or at dusk, half and half (M10). Drawn from a stream of
+  // its own, so the choice leaves every other draw — the shape — as it was.
+  const day = theme === 'dusk' && mulberry32(seed ^ 0x64617921)() < 0.5;
+  return { theme: day ? 'day' : theme, layout };
 }
 
 function candidate(seed: number, int: Int, attempt: number, { theme, layout }: Style): TrackDef {
@@ -160,13 +165,25 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout }: S
 
   const props: PropRule[] = [];
   const area = [-420, -420, 420, 420] as const;
-  if (theme === 'dusk') {
+  let water: [number, number, number, number][] | undefined;
+  if (theme === 'dusk' || theme === 'day') {
     props.push({ kind: 'city', area, lot: 20, clearance: 0.5, footprint: [12, 18], height: [10, 34], gaps: 0.06, tallness: 0.9 });
     props.push({ kind: 'lamps', spacing: 28 });
   } else if (theme === 'park') {
-    props.push({ kind: 'trees', area, count: 3600, clearance: 2.5, height: [7, 17] });
+    // Farmland (M10), before the trees so they keep off it.
+    props.push({ kind: 'farms', count: 2, clearance: 3 });
+    props.push({ kind: 'windmills', count: 2, clearance: 3 });
+    props.push({ kind: 'fields', count: 6, clearance: 2 });
+    props.push({ kind: 'herds', count: 4, clearance: 2 });
+    props.push({ kind: 'ponds', count: 3, clearance: 3 });
+    props.push({ kind: 'flowers', spacing: 36 });
+    props.push({ kind: 'trees', area, count: 3200, clearance: 2.5, height: [7, 17] });
   } else {
-    props.push({ kind: 'containers', area, clearance: 1.5, stack: 4, gaps: 0.14 });
+    const port = harbour(corners, sx0, sz0, sx1, sz1, seed);
+    water = [port.water];
+    props.push({ kind: 'warehouses', count: 4, clearance: 3 });
+    props.push({ kind: 'containers', area, clearance: 1.5, stack: 4, gaps: 0.1, yards: 0.2 });
+    props.push(...port.props);
   }
 
   return {
@@ -178,10 +195,11 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout }: S
     layout: LAYOUT_NAMES[layout],
     corners,
     width: theme === 'park' ? 13 : 14,
-    verge: theme === 'park' ? { width: 6, surface: Surface.Grass } : { width: theme === 'dusk' ? 3 : 2, surface: Surface.Kerb },
+    verge: theme === 'park' ? { width: 6, surface: Surface.Grass } : { width: theme === 'overcast' ? 2 : 3, surface: Surface.Kerb },
     walls: true,
     start,
     checkpoints: [0.25, 0.5, 0.75],
+    ...(water ? { water } : {}),
     surfaces: [],
     ramps: jump ? [{ at: [Math.round((jx0 + jx1) / 2), Math.round((jz0 + jz1) / 2)], len: 14, lift: 1.4 }] : [],
     props,
@@ -328,4 +346,51 @@ function tanHalf(p: Corner, c: Corner, q: Corner): number {
   const den = dist(p, c) * dist(c, q) + ax * bx + az * bz;
   const cross = Math.abs(ax * bz - az * bx);
   return cross === 0 || den <= 0 ? 0 : cross / den;
+}
+
+/**
+ * A harbour for a generated port (M10): water beyond the side of the track's
+ * bounding box nearest the main straight, so it is seen every lap; quay
+ * cranes along its edge, two ships under their booms, and on some seeds a
+ * marina. All whole metres, and no draws from the stream, so the track's
+ * shape is the same as it would be without it. The walls keep every car out
+ * of the water: the wall is at least 7 m short of it.
+ */
+function harbour(corners: Corner[], sx0: number, sz0: number, sx1: number, sz1: number, seed: number): { water: [number, number, number, number]; props: PropRule[] } {
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const [x, z] of corners) {
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+  }
+  // The straight's middle, doubled to stay in integers.
+  const mx = sx0 + sx1, mz = sz0 + sz1;
+  const gaps = [mz - 2 * minZ, 2 * maxX - mx, 2 * maxZ - mz, mx - 2 * minX];
+  const side = gaps.indexOf(Math.min(...gaps)); // 0 north, 1 east, 2 south, 3 west
+  const Q = 16; // apron between the outermost corner and the water: the wall is at most 9 m out
+  const far = 420;
+  // The quay line runs so that the water is on its right (negative `out` puts ships on its left).
+  let water: [number, number, number, number];
+  let from: [number, number], to: [number, number];
+  if (side === 0) { water = [minX - 200, minZ - Q - far, maxX + 200, minZ - Q]; from = [minX, minZ - Q]; to = [maxX, minZ - Q]; }
+  else if (side === 1) { water = [maxX + Q, minZ - 200, maxX + Q + far, maxZ + 200]; from = [maxX + Q, minZ]; to = [maxX + Q, maxZ]; }
+  else if (side === 2) { water = [minX - 200, maxZ + Q, maxX + 200, maxZ + Q + far]; from = [maxX, maxZ + Q]; to = [minX, maxZ + Q]; }
+  else { water = [minX - Q - far, minZ - 200, minX - Q, maxZ + 200]; from = [minX - Q, maxZ]; to = [minX - Q, minZ]; }
+  // Along the quay, the water is on the left of from→to: out is negative.
+  const len = Math.abs(to[0] - from[0]) + Math.abs(to[1] - from[1]);
+  const dx = Math.sign(to[0] - from[0]), dz = Math.sign(to[1] - from[1]);
+  // Cranes 11 m out, booms over the water: yaw so the crane's -Z points away from the land.
+  const yaw = [0, -Math.PI / 2, Math.PI, Math.PI / 2][side]!;
+  // The left of from→to on screen (+Z is down): towards the water.
+  const lx = dz, lz = -dx;
+  const cranes: [number, number, number][] = [];
+  for (let s = 40; s < len - 20 && cranes.length < 4; s += 75) cranes.push([from[0] + dx * s + lx * 11, from[1] + dz * s + lz * 11, yaw]);
+  const props: PropRule[] = [
+    { kind: 'cranes', at: cranes },
+    { kind: 'ships', from, to, out: -42, count: len > 300 ? 2 : 1 },
+  ];
+  if ((seed >>> 3) & 1) {
+    // A marina past the end of the quay.
+    const s0 = Math.max(0, len - 20);
+    props.push({ kind: 'marina', from: [from[0] + dx * s0, from[1] + dz * s0], to: [from[0] + dx * (s0 + 150), from[1] + dz * (s0 + 150)], out: -14 });
+  }
+  return { water, props };
 }

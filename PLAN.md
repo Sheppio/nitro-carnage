@@ -1149,7 +1149,7 @@ works unchanged: walls, racing line, bots, minimap and preview.
 within its par, the whole set loads within the draw-call budget, and a contact sheet
 of the minimaps next to the reference outlines shows each is recognisable.
 
-**M10 — Richer environments** *(added after M7; future)*.
+**M10 — Richer environments** *(added after M7)* *(built; see the README's *Places, not backdrops*)*.
 Make the three settings feel like places. Start with a daytime city, then add props to
 the parkland and the docks.
 

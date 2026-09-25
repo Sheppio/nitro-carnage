@@ -16,6 +16,11 @@ export interface Theme {
   windowCool: number;
   /** Fraction of windows lit. */
   windowsLit: number;
+  /** Unlit windows: the glass colour, and how far towards it (0 leaves them dark, as at dusk). */
+  windowGlass?: number;
+  glassMix?: number;
+  /** Street lamps glowing (dusk) or off (day). */
+  lampsLit?: boolean;
   hemiSky: number;
   hemiGround: number;
   hemiIntensity: number;
@@ -68,6 +73,45 @@ export const THEMES: Record<string, Theme> = {
     crane: 0xe0a92a,
     grass: 0x4a6b3a,
     dirt: 0x7d6446,
+  },
+  /**
+   * The city by day (M10): the same streets as dusk under a high sun. Blocks
+   * in stone, brick and glass; windows are sky-tinted glass, not lit; the
+   * lamps are off.
+   */
+  day: {
+    sky: 0x8cc6ee,
+    fog: 0xb9d8ee,
+    ground: 0x74767e,
+    road: 0x4a4c55,
+    pavement: 0xa4a2a8,
+    kerbA: 0xf2efe8,
+    kerbB: 0xd6394a,
+    line: 0xfaf8f2,
+    barrierA: 0xc8c4be,
+    barrierB: 0xf0b429,
+    towerPalette: [0xc9b99a, 0xa8b4c4, 0xd8d4cc, 0xb07a5e, 0x8fa3b8, 0xe0d6c2, 0x9c8e80],
+    roof: 0x6e707a,
+    windowWarm: 0xffe6a8,
+    windowCool: 0xbfe8ff,
+    windowsLit: 0,
+    windowGlass: 0x5f8fb8,
+    glassMix: 0.75,
+    lampsLit: false,
+    hemiSky: 0xe4f1ff,
+    hemiGround: 0x5a5c64,
+    hemiIntensity: 1.55,
+    sun: 0xfff4e0,
+    sunIntensity: 2.7,
+    sunAzimuth: 200,
+    sunElevation: 56,
+    water: 0x3f78a8,
+    foliage: [0x4f8a3e, 0x3f7a3a, 0x5f9a44],
+    trunk: 0x5a4330,
+    containers: [0xb8412f, 0x2f6fa8, 0xd9a13b, 0x3f8a5a, 0x8a8f96],
+    crane: 0xe0a92a,
+    grass: 0x6a9a4a,
+    dirt: 0x9a7a52,
   },
   /** Greenbelt: a bright summer afternoon over parkland. */
   park: {

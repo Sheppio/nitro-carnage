@@ -51,7 +51,14 @@ export const DOCKS: TrackDef = {
   ramps: [],
 
   props: [
-    { kind: 'containers', area: [-160, 20, 480, 520], clearance: 1.5, stack: 4, gaps: 0.12 },
+    // A working port (M10): warehouses first, so the container stacks keep off them; yards between the stacks.
+    { kind: 'warehouses', count: 4, clearance: 3 },
+    { kind: 'containers', area: [-160, 20, 480, 520], clearance: 1.5, stack: 4, gaps: 0.1, yards: 0.2 },
     { kind: 'cranes', at: [[70, -20, 0], [170, -20, 0], [240, -20, 0]] },
+    // One ship moored under the crane booms, one off the corner where the quay turns, and a marina off the other
+    // corner: where the camera looks. The harbour is north, to the left of these lines, so `out` is negative.
+    { kind: 'ships', from: [60, -8.5], to: [260, -8.5], out: -40, count: 1 },
+    { kind: 'ships', from: [300, -8.5], to: [460, -8.5], out: -16, count: 1 },
+    { kind: 'marina', from: [-110, -8.5], to: [-12, -8.5], out: -6 },
   ],
 };

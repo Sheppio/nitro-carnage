@@ -107,19 +107,19 @@ export const QUALITY = {
     // For the test rig: SwiftShader has to render several tabs at once.
     potato: {
         label: 'Potato', pixelRatioCap: 0.5, shadowMapSize: 0, softShadows: false,
-        particles: 120, tyreMarks: 256, drawDistance: 160, antialias: false,
+        particles: 120, tyreMarks: 256, drawDistance: 160, antialias: false, sceneryDetail: 0,
     },
     low: {
         label: 'Low', pixelRatioCap: 1, shadowMapSize: 0, softShadows: false,
-        particles: 300, tyreMarks: 1024, drawDistance: 180, antialias: false,
+        particles: 300, tyreMarks: 1024, drawDistance: 180, antialias: false, sceneryDetail: 1,
     },
     medium: {
         label: 'Medium', pixelRatioCap: 1.25, shadowMapSize: 1024, softShadows: false,
-        particles: 900, tyreMarks: 2048, drawDistance: 260, antialias: false,
+        particles: 900, tyreMarks: 2048, drawDistance: 260, antialias: false, sceneryDetail: 2,
     },
     high: {
         label: 'High', pixelRatioCap: 1.5, shadowMapSize: 2048, softShadows: true,
-        particles: 2000, tyreMarks: 4096, drawDistance: 360, antialias: true,
+        particles: 2000, tyreMarks: 4096, drawDistance: 360, antialias: true, sceneryDetail: 2,
     },
 };
 export const CAMERA = {

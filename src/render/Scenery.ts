@@ -3,6 +3,7 @@ import type { Prop, Track } from '../sim/track/buildTrack.js';
 import { mulberry32 } from '../util.js';
 import { MeshBuilder, mergeGeometries } from './geometry.js';
 import { applyCutaway, flatMaterial, towerMaterial } from './materials.js';
+import { fenceModel, fieldModel, flowerBedModel, model, pondModel, sailsModel, warehouseModel } from './props.js';
 import type { Theme } from './themes.js';
 
 /** Side of a scenery chunk, metres. */
@@ -33,13 +34,23 @@ export class Scenery {
   /** Tall things the cut-away applies to, for the occlusion probe. */
   readonly towers: Instance[] = [];
 
-  constructor(track: Track, theme: Theme) {
+  /** The windmills' sails (M10), turned every frame. */
+  private sails: THREE.InstancedMesh | null = null;
+  private readonly hubs: { x: number; z: number; yaw: number; phase: number; speed: number }[] = [];
+
+  /**
+   * @param detail how much small clutter to draw (M10): 2 all of it, 1 every
+   *   other piece, 0 none (the animals, bales, flowers, crates and drums).
+   */
+  constructor(track: Track, theme: Theme, detail = 2) {
     this.group.name = 'scenery';
     const rand = mulberry32(track.def.seed ^ 0x5eed);
 
     // --- Towers, with setback tiers and rooftop clutter. ---
     const towerGeo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-    const towerMat = towerMaterial({ roof: theme.roof, warm: theme.windowWarm, cool: theme.windowCool, lit: theme.windowsLit });
+    const towerMat = towerMaterial({
+      roof: theme.roof, warm: theme.windowWarm, cool: theme.windowCool, lit: theme.windowsLit, glass: theme.windowGlass, glassMix: theme.glassMix,
+    });
     applyCutaway(towerMat);
     const roofBits: Instance[] = [];
     for (const p of track.props) {
@@ -94,13 +105,128 @@ export class Scenery {
     applyCutaway(poleMat);
     this.add('lamp-poles', poleGeo, poleMat, lamps.map((p) => ({ x: p.x, z: p.z, rot: p.rot, sx: 1, sy: 1, sz: 1, colour: 0xffffff })), { cast: true });
     const headGeo = new MeshBuilder().box(0, 6.82, 2.15, 0.45, 0.14, 0.7, 0xffffff).build();
-    const headMat = new THREE.MeshBasicMaterial({ color: 0xffe2a8, fog: true });
+    // Glowing at dusk; by day just a grey lamp housing.
+    const headMat = theme.lampsLit === false
+      ? new THREE.MeshLambertMaterial({ color: 0x9a9ca4 })
+      : new THREE.MeshBasicMaterial({ color: 0xffe2a8, fog: true });
     applyCutaway(headMat);
     this.add('lamp-heads', headGeo, headMat, lamps.map((p) => ({ x: p.x, z: p.z, rot: p.rot, sx: 1, sy: 1, sz: 1, colour: 0xffffff })), {});
 
     this.trees(track, theme);
     this.containers(track, theme);
     this.cranes(track, theme);
+    this.countryside(track, theme, detail);
+  }
+
+  /** Turn the windmills' sails: `time` in seconds, any clock. */
+  update(time: number): void {
+    if (!this.sails) return;
+    const m = new THREE.Matrix4();
+    // Tilted well back — a real windshaft tilts a little, these a lot — so
+    // from a camera looking down the turning cross shows, not an edge.
+    const tilt = new THREE.Matrix4().makeRotationX(-0.95);
+    const spin = new THREE.Matrix4();
+    this.hubs.forEach((h, i) => {
+      m.makeRotationY(h.yaw).setPosition(h.x + Math.sin(h.yaw) * 3.4, 15, h.z + Math.cos(h.yaw) * 3.4);
+      m.multiply(tilt).multiply(spin.makeRotationZ(time * h.speed + h.phase));
+      this.sails!.setMatrixAt(i, m);
+    });
+    this.sails.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * The M10 scenery: farm and port. Static, so it is baked — every piece in
+   * a 160 m square merged into one mesh per material — rather than
+   * instanced: a dozen new kinds of thing cost two or three draw calls per
+   * square, not a dozen. Only the sails move, and they are instanced.
+   */
+  private countryside(track: Track, theme: Theme, detail: number): void {
+    const solid = new Baker();
+    const ground = new Baker();
+    const water = new Baker();
+    const small = new Set(['cow', 'sheep', 'bale', 'bales', 'pallets', 'crates', 'drums', 'reeds', 'flowers']);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const place = (x: number, z: number, rot: number, sx = 1, sy = 1, sz = 1, y = 0): THREE.Matrix4 =>
+      m.compose(new THREE.Vector3(x, y, z), q.setFromAxisAngle(up, rot), new THREE.Vector3(sx, sy, sz));
+    const pick = (seed: number, n: number): number => Math.min(n - 1, Math.floor(seed * n));
+    const tall = (p: Prop, colour: number): void => {
+      this.towers.push({ x: p.x, z: p.z, rot: p.rot, sx: p.w, sy: p.h, sz: p.d, colour });
+    };
+    let smallIndex = 0;
+    for (const p of track.props) {
+      if (small.has(p.kind)) {
+        smallIndex++;
+        if (detail <= 0 || (detail === 1 && smallIndex % 2 === 0)) continue;
+      }
+      const at = place(p.x, p.z, p.rot);
+      switch (p.kind) {
+        case 'farmhouse': solid.add(model('farmhouse', pick(p.seed, 3)), at); tall(p, 0xefe6d2); break;
+        case 'barn': solid.add(model('barn', pick(p.seed, 3)), at); tall(p, 0xa8322a); break;
+        case 'silo': solid.add(model('silo', pick(p.seed, 3)), at); tall(p, 0xc8ccd0); break;
+        case 'bale': solid.add(model('bale', pick(p.seed, 3)), at); break;
+        case 'bales': solid.add(model('bales', pick(p.seed, 2)), at); break;
+        case 'tractor': solid.add(model('tractor', pick(p.seed, 3)), at); break;
+        case 'combine': solid.add(model('combine', pick(p.seed, 2)), at); tall(p, 0x3f8a3a); break;
+        case 'cow': solid.add(model('cow', pick((p.seed % 0.5) * 2, 3) + (p.seed >= 0.5 ? 3 : 0)), at); break;
+        case 'sheep': solid.add(model('sheep', p.seed >= 0.5 ? 1 : 0), at); break;
+        case 'windmill':
+          solid.add(model('windmill'), at);
+          tall(p, 0xeee8da);
+          this.hubs.push({ x: p.x, z: p.z, yaw: p.rot, phase: p.seed * 6.28, speed: 0.5 + p.seed * 0.4 });
+          break;
+        case 'field': {
+          const f = fieldModel(p.w, p.d, pick(p.seed, 4));
+          ground.add(f.ground, at);
+          if (f.standing) solid.add(f.standing, at);
+          break;
+        }
+        case 'fence': solid.add(fenceModel(p.w, p.d), at); break;
+        case 'flowers': {
+          const f = flowerBedModel(p.d, p.seed);
+          ground.add(f.ground, at);
+          solid.add(f.standing, at);
+          break;
+        }
+        case 'pond': {
+          const f = pondModel(p.w);
+          ground.add(f.bank, at);
+          water.add(f.water, at);
+          break;
+        }
+        case 'reeds': solid.add(model('reeds', pick(p.seed, 4)), at); break;
+        case 'warehouse': solid.add(warehouseModel(p.w, p.d, p.h, pick(p.seed, 5)), at); tall(p, 0x8a9aa8); break;
+        case 'forklift': solid.add(model('forklift', pick(p.seed, 3)), at); break;
+        case 'flatbed': solid.add(model('flatbed', pick(p.seed, 12)), at); break;
+        case 'pallets': solid.add(model('pallets', pick(p.seed, 4)), at); break;
+        case 'crates': solid.add(model('crates', pick(p.seed, 6)), at); break;
+        case 'drums': solid.add(model('drums', pick(p.seed, 30)), at); break;
+        case 'ship': solid.add(model('ship', pick(p.seed, 12)), at); tall(p, 0x2a3a5a); break;
+        case 'yacht': solid.add(model('yacht', pick(p.seed, 8)), at); break;
+        case 'pontoon': solid.add(model('pontoon'), place(p.x, p.z, p.rot, p.w / 2, 1, p.d)); break;
+        default: break;
+      }
+    }
+    const solidMat = flatMaterial();
+    applyCutaway(solidMat);
+    solid.build('props', solidMat, this.group, { cast: true, receive: true });
+    // Laid flat on the ground: pulled towards the camera in depth so the grass never shows through.
+    const groundMat = new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    ground.build('ground-patches', groundMat, this.group, { receive: true });
+    const waterMat = new THREE.MeshPhongMaterial({ color: theme.water, shininess: 25, specular: 0x2a3a4a, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    water.build('ponds', waterMat, this.group, { receive: true });
+
+    if (this.hubs.length) {
+      const mat = flatMaterial();
+      applyCutaway(mat);
+      this.sails = new THREE.InstancedMesh(sailsModel(), mat, this.hubs.length);
+      this.sails.name = 'windmill-sails';
+      this.sails.castShadow = true;
+      this.sails.frustumCulled = false;
+      this.update(0);
+      this.group.add(this.sails);
+    }
   }
 
   /**
@@ -168,8 +294,6 @@ export class Scenery {
   }
 
   /** Split instances into chunks and build one InstancedMesh per chunk. */
-
-  /** Split instances into chunks and build one InstancedMesh per chunk. */
   private add(
     name: string,
     geometry: THREE.BufferGeometry,
@@ -209,6 +333,61 @@ export class Scenery {
       mesh.receiveShadow = opts.receive ?? false;
       mesh.computeBoundingSphere();
       this.group.add(mesh);
+    }
+  }
+}
+
+/**
+ * Static scenery merged per chunk: add a model with its placement, and
+ * `build` makes one mesh per 160 m square holding everything added in it.
+ */
+class Baker {
+  private readonly chunks = new Map<string, { geo: THREE.BufferGeometry; m: THREE.Matrix4 }[]>();
+
+  add(geo: THREE.BufferGeometry, m: THREE.Matrix4): void {
+    const key = `${Math.floor(m.elements[12]! / CHUNK)},${Math.floor(m.elements[14]! / CHUNK)}`;
+    let list = this.chunks.get(key);
+    if (!list) this.chunks.set(key, (list = []));
+    list.push({ geo, m: m.clone() });
+  }
+
+  build(name: string, material: THREE.Material, into: THREE.Group, opts: { cast?: boolean; receive?: boolean }): void {
+    const v = new THREE.Vector3();
+    const nm = new THREE.Matrix3();
+    for (const [key, list] of this.chunks) {
+      let count = 0;
+      for (const { geo } of list) count += geo.getAttribute('position').count;
+      const pos = new Float32Array(count * 3);
+      const nrm = new Float32Array(count * 3);
+      const col = new Float32Array(count * 3);
+      let o = 0;
+      for (const { geo, m } of list) {
+        const p = geo.getAttribute('position');
+        const n = geo.getAttribute('normal');
+        const c = geo.getAttribute('color');
+        nm.getNormalMatrix(m);
+        for (let i = 0; i < p.count; i++, o += 3) {
+          v.fromBufferAttribute(p, i).applyMatrix4(m);
+          pos[o] = v.x; pos[o + 1] = v.y; pos[o + 2] = v.z;
+          v.fromBufferAttribute(n, i).applyMatrix3(nm).normalize();
+          nrm[o] = v.x; nrm[o + 1] = v.y; nrm[o + 2] = v.z;
+          if (c) {
+            col[o] = c.getX(i); col[o + 1] = c.getY(i); col[o + 2] = c.getZ(i);
+          } else {
+            col[o] = col[o + 1] = col[o + 2] = 1;
+          }
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      g.computeBoundingSphere();
+      const mesh = new THREE.Mesh(g, material);
+      mesh.name = `${name}:${key}`;
+      mesh.castShadow = opts.cast ?? false;
+      mesh.receiveShadow = opts.receive ?? false;
+      into.add(mesh);
     }
   }
 }

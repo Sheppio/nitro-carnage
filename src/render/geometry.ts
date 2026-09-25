@@ -14,9 +14,37 @@ export class MeshBuilder {
   private nrm: number[] = [];
   private col: number[] = [];
   private colour = new THREE.Color();
+  /** The current placement, for building a part in its own frame (`at`). */
+  private frame: THREE.Matrix4 | null = null;
+  private readonly va = new THREE.Vector3();
+  private readonly vb = new THREE.Vector3();
+  private readonly vc = new THREE.Vector3();
+
+  /**
+   * Build a part in a frame of its own: moved to (x, y, z), turned `yaw`
+   * about the vertical, then `roll` about its own Z (a wheel lies on its
+   * side with roll = π/2). Frames nest.
+   */
+  at(x: number, y: number, z: number, yaw: number, roll: number, fn: (b: this) => void): this {
+    const m = new THREE.Matrix4().compose(
+      new THREE.Vector3(x, y, z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, roll, 'YXZ')),
+      new THREE.Vector3(1, 1, 1),
+    );
+    const outer = this.frame;
+    this.frame = outer ? outer.clone().multiply(m) : m;
+    fn(this);
+    this.frame = outer;
+    return this;
+  }
 
   /** Add one triangle with a flat normal. Winding is counter-clockwise seen from the front. */
   tri(a: THREE.Vector3Like, b: THREE.Vector3Like, c: THREE.Vector3Like, hex: number): this {
+    if (this.frame) {
+      a = this.va.copy(a).applyMatrix4(this.frame);
+      b = this.vb.copy(b).applyMatrix4(this.frame);
+      c = this.vc.copy(c).applyMatrix4(this.frame);
+    }
     const ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
     const vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
     let nx = uy * vz - uz * vy;
@@ -67,6 +95,58 @@ export class MeshBuilder {
     this.quad(b0, b3, t3, t0, sides); // -X face
     if (!opts.skipBottom) this.quad(b0, b1, b2, b3, hex);
     return this;
+  }
+
+  /**
+   * A vertical frustum: radius r0 at the bottom, r1 at the top, centred at
+   * (cx, cy, cz), with `sides` flat faces. r1 = 0 makes a cone. Laid on its
+   * side inside `at(…, roll = π/2)` it is a wheel, a bale or a drum.
+   */
+  cylinder(
+    cx: number, cy: number, cz: number, r0: number, r1: number, h: number, sides: number, hex: number,
+    opts: { top?: number; skipBottom?: boolean } = {},
+  ): this {
+    const y0 = cy - h / 2, y1 = cy + h / 2;
+    const top = opts.top ?? hex;
+    for (let i = 0; i < sides; i++) {
+      const a0 = (i / sides) * Math.PI * 2, a1 = ((i + 1) / sides) * Math.PI * 2;
+      const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
+      const b0 = { x: cx + c0 * r0, y: y0, z: cz + s0 * r0 }, b1 = { x: cx + c1 * r0, y: y0, z: cz + s1 * r0 };
+      const t0 = { x: cx + c0 * r1, y: y1, z: cz + s0 * r1 }, t1 = { x: cx + c1 * r1, y: y1, z: cz + s1 * r1 };
+      if (r1 > 0) this.quad(b1, b0, t0, t1, hex);
+      else this.tri(b1, b0, t0, hex);
+      if (r1 > 0) this.tri({ x: cx, y: y1, z: cz }, t1, t0, top);
+      if (!opts.skipBottom) this.tri({ x: cx, y: y0, z: cz }, b0, b1, hex);
+    }
+    return this;
+  }
+
+  /**
+   * A convex outline (x, z pairs, counter-clockwise as seen on screen from
+   * above, with +Z down the screen: the order `box` uses for its top)
+   * extruded from y0 to y1: hulls with a pointed bow, gables, anything boxy
+   * that is not a box.
+   */
+  prism(outline: readonly (readonly [number, number])[], y0: number, y1: number, hex: number, opts: { top?: number } = {}): this {
+    const n = outline.length;
+    const top = opts.top ?? hex;
+    for (let i = 0; i < n; i++) {
+      const [ax, az] = outline[i]!;
+      const [bx, bz] = outline[(i + 1) % n]!;
+      this.quad({ x: ax, y: y0, z: az }, { x: bx, y: y0, z: bz }, { x: bx, y: y1, z: bz }, { x: ax, y: y1, z: az }, hex);
+    }
+    const [ox, oz] = outline[0]!;
+    for (let i = 1; i < n - 1; i++) {
+      const [ax, az] = outline[i]!;
+      const [bx, bz] = outline[i + 1]!;
+      this.tri({ x: ox, y: y1, z: oz }, { x: ax, y: y1, z: az }, { x: bx, y: y1, z: bz }, top);
+    }
+    return this;
+  }
+
+  /** Triangles so far. */
+  get triangles(): number {
+    return this.pos.length / 9;
   }
 
   build(): THREE.BufferGeometry {

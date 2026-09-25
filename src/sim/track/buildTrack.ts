@@ -1,3 +1,5 @@
+import { free, placeCountryside, pond } from './countryside.js';
+import type { ScatterContext } from './countryside.js';
 import { mulberry32 } from '../../util.js';
 import { Surface } from '../surfaces.js';
 import { filletPolygon, resample, TrackGeometryError } from './centreline.js';
@@ -14,7 +16,13 @@ export interface Projection {
   i: number;
 }
 
-export type PropKind = 'tower' | 'tree' | 'lamp' | 'container' | 'crane';
+export type PropKind =
+  | 'tower' | 'tree' | 'lamp' | 'container' | 'crane'
+  // M10: the farm.
+  | 'farmhouse' | 'barn' | 'silo' | 'bale' | 'bales' | 'tractor' | 'combine' | 'cow' | 'sheep' | 'windmill'
+  | 'field' | 'fence' | 'flowers' | 'pond' | 'reeds'
+  // M10: the port.
+  | 'warehouse' | 'forklift' | 'flatbed' | 'pallets' | 'crates' | 'drums' | 'ship' | 'yacht' | 'pontoon';
 
 /** One piece of scenery. Purely visual in M1: everything solid is behind a wall. */
 export interface Prop {
@@ -288,6 +296,7 @@ export class Track {
   /** Inside one of the track's water rectangles (whatever is built over it). */
   inWater(x: number, z: number): boolean {
     for (const [x0, z0, x1, z1] of this.waters) if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return true;
+    for (const [px, pz, r] of this.def.ponds ?? []) if ((x - px) * (x - px) + (z - pz) * (z - pz) <= r * r) return true;
     return false;
   }
 
@@ -391,8 +400,12 @@ function scatter(track: Track): Prop[] {
   const roadDist = (x: number, z: number): number => Math.abs(track.project(x, z).d);
   /** Somewhere nothing may stand: the railway's corridor, or the water. */
   const blocked = (x: number, z: number, r: number): boolean => track.railDistance(x, z) < r + 5 || track.inWater(x, z);
+  const ctx: ScatterContext = { track, rand, props, taken: [], roadDist, blocked };
+  // Explicit ponds first: they are water, and everything keeps off them.
+  for (const [x, z, r] of def.ponds ?? []) pond(ctx, x, z, r);
 
   for (const rule of def.props) {
+    if (placeCountryside(ctx, rule)) continue;
     if (rule.kind === 'city') {
       const [x0, z0, x1, z1] = rule.area;
       for (let lx = x0; lx < x1; lx += rule.lot) {
@@ -450,7 +463,7 @@ function scatter(track: Track): Prop[] {
         const z = z0 + rand() * (z1 - z0);
         const h = rule.height[0] + rand() * (rule.height[1] - rule.height[0]);
         const seed = rand();
-        if (roadDist(x, z) < track.wallOffset + rule.clearance || blocked(x, z, h * 0.25)) continue;
+        if (roadDist(x, z) < track.wallOffset + rule.clearance || blocked(x, z, h * 0.25) || !free(ctx, x, z, h * 0.2)) continue;
         props.push({ kind: 'tree', x, z, rot: seed * Math.PI * 2, w: h * 0.45, d: h * 0.45, h, seed });
       }
     } else if (rule.kind === 'containers') {
@@ -463,14 +476,19 @@ function scatter(track: Track): Prop[] {
           const gap = rand();
           const along = rand() < 0.5;
           const seed = rand();
-          if (gap < rule.gaps) continue;
           const x = lx + LW / 2, z = lz + LD / 2;
           const w = along ? 12.2 : 7.4, d = along ? 7.4 : 12.2;
           let clear = true;
           for (const [fx, fz] of FOOTPRINT_PROBES) {
             if (roadDist(x + (fx * w) / 2, z + (fz * d) / 2) < track.wallOffset + rule.clearance) clear = false;
           }
-          if (!clear || blocked(x, z, 7)) continue;
+          if (!clear || blocked(x, z, 7) || !free(ctx, x, z, 7)) continue;
+          if (gap < rule.gaps) continue;
+          // A yard instead (M10), where the camera will see it: within 50 m of the wall.
+          if (gap < rule.gaps + (rule.yards ?? 0) && roadDist(x, z) < track.wallOffset + 50) {
+            yard(ctx, x, z, along ? Math.PI / 2 : 0, seed);
+            continue;
+          }
           for (let k = 0; k < 3; k++) {
             const off = (k - 1) * 2.5;
             const levels = 1 + Math.floor(rand() * rule.stack);
@@ -488,6 +506,31 @@ function scatter(track: Track): Prop[] {
     }
   }
   return props;
+}
+
+/**
+ * A container lot used as a yard (M10): one of three arrangements of
+ * forklift, flatbed, pallets, crates and drums, turned with the lot.
+ */
+function yard(ctx: ScatterContext, x: number, z: number, rot: number, seed: number): void {
+  const c = Math.cos(rot), s = Math.sin(rot);
+  const put = (kind: Prop['kind'], lx: number, lz: number, turn: number, size: [number, number, number]): void => {
+    ctx.props.push({ kind, x: x + lx * c + lz * s, z: z - lx * s + lz * c, rot: rot + turn, w: size[0], d: size[1], h: size[2], seed: ctx.rand() });
+  };
+  const layout = Math.floor(seed * 3);
+  if (layout === 0) {
+    put('forklift', -1, -3, ctx.rand() * 6, [1.2, 3, 2.3]);
+    for (const [px, pz] of [[2.5, -3], [4, -3], [2.5, -1.4], [4.4, 1.6]] as const) put('pallets', px, pz, 0, [1.2, 1, 0.6]);
+    for (const [px, pz] of [[-3.5, 2], [-2, 2.2], [-3.2, 3.6]] as const) put('crates', px, pz, ctx.rand(), [1.4, 1.4, 1.4]);
+  } else if (layout === 1) {
+    put('flatbed', 0, -1, Math.PI / 2, [2.5, 10.4, 3.9]);
+    put('drums', -3, 3, 0, [2, 1.9, 1]);
+    put('drums', 0, 3, 0, [2, 1.9, 1]);
+  } else {
+    for (const [px, pz] of [[-4, -2.5], [-1.6, -2.5], [0.8, -2.5]] as const) put('drums', px, pz, 0, [2, 1.9, 1]);
+    for (const [px, pz] of [[3.5, 2], [4.2, -1], [-3, 2.5], [-1, 2.8]] as const) put('crates', px, pz, ctx.rand(), [1.4, 1.4, 1.4]);
+    put('forklift', 2, 0, ctx.rand() * 6, [1.2, 3, 2.3]);
+  }
 }
 
 export { TrackGeometryError };

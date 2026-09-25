@@ -1,14 +1,21 @@
 /**
  * Words for random track seeds: three of them joined by hyphens, like
  * "egg-cup-top". Short, easy to read out and to type on a pad's on-screen
- * keyboard, and 367³ ≈ 49 million of them — plenty of tracks.
+ * keyboard, and plenty of tracks.
  *
- * From the list the player supplied, with five words left out of the random
- * draw (ass, sex, god, jew, gay): a random generator would sooner or later put one
- * next to "gas" or "pig" on everybody's screen. Any word still works typed
- * in by hand — the seed is the text, whatever it is.
+ * From the list the player supplied, less the words below. Any word still
+ * works typed in by hand — the seed is the text, whatever it is — but the
+ * dice only deals words that can be read out without a mix-up:
+ * - five that a random generator would sooner or later put next to "gas" or
+ *   "pig" on everybody's screen (ass, sex, god, jew, gay);
+ * - words that sound like another word, so a seed read out to a friend could
+ *   be typed as the other one and make a different track: too/two/to,
+ *   sea/see, won/one, bye/buy/by, and so on — including the ones that only
+ *   sound alike in a British accent (paw/pour/poor, saw/sore, war/wore), the
+ *   ones that sound like a letter (bee, pea, jay, why, are), and the ones with
+ *   two spellings (axe/ax, eon/aeon, mom/mum).
  */
-export const SEED_WORDS = [
+const SUPPLIED = [
     'abs', 'ace', 'act', 'add', 'ado', 'age', 'ago', 'aid', 'ail', 'aim', 'air', 'ale', 'all', 'amp',
     'and', 'ant', 'any', 'ape', 'apt', 'arc', 'are', 'arm', 'art', 'ash', 'ask', 'ate', 'awe', 'axe',
     'bad', 'bag', 'ban', 'bar', 'bat', 'bay', 'bed', 'bee', 'beg', 'bet', 'bib', 'bid', 'big', 'bin',
@@ -37,6 +44,23 @@ export const SEED_WORDS = [
     'win', 'wit', 'woe', 'wok', 'won', 'wry', 'yak', 'yam', 'yen', 'yes', 'yet', 'you', 'zap', 'zen',
     'zip', 'zit', 'zoo',
 ];
+/** Supplied, but never dealt: see above. */
+export const NOT_DEALT = new Set([
+    // Both of the pair were supplied.
+    'too', 'two', 'bye', 'buy', 'die', 'dye', 'due', 'dew', 'sea', 'see', 'son', 'sun', 'tea', 'tee',
+    'won', 'one', 'fir', 'fur', 'ale', 'ail', 'new', 'gnu', 'koi', 'coy', 'lie', 'lye', 'sew', 'sow',
+    // A common word sounds the same.
+    'eye', 'ewe', 'you', 'for', 'doe', 'toe', 'woe', 'rap', 'ate', 'bow', 'row', 'nit', 'nun', 'not',
+    'our', 'its', 'add', 'led', 'wry', 'sum', 'per', 'boy', 'way', 'tie', 'pie', 'ode', 'roc', 'gel',
+    // Alike in a British accent: no r after a vowel.
+    'awe', 'oar', 'ore', 'paw', 'saw', 'raw', 'law', 'maw', 'war', 'nor', 'boa', 'don',
+    // Sound like a letter.
+    'bee', 'pea', 'jay', 'cue', 'why', 'are',
+    // Two spellings.
+    'axe', 'eon', 'mom',
+]);
+/** The words the dice deals from. */
+export const SEED_WORDS = SUPPLIED.filter((w) => !NOT_DEALT.has(w));
 /** Three random words, hyphenated. `rand` returns [0, 1): the menu passes `Math.random`. */
 export function randomSeedText(rand = Math.random) {
     const pick = () => SEED_WORDS[Math.floor(rand() * SEED_WORDS.length)];

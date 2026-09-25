@@ -54,4 +54,9 @@ export const DOWNTOWN = {
         { kind: 'lamps', spacing: 28 },
     ],
 };
+/**
+ * The same streets by day (M10): a high sun, glass instead of lit windows,
+ * the lamps off. Its own track, so it has its own hotlap record.
+ */
+export const DOWNTOWN_DAY = { ...DOWNTOWN, id: 'downtown-day', name: 'Downtown by Day', theme: 'day' };
 //# sourceMappingURL=downtown.js.map

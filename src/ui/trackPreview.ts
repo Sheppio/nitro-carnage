@@ -5,6 +5,7 @@ import { Minimap } from './Minimap.js';
 /** How each theme reads on the menu: a name and the map's ground colour. */
 const STYLES: Record<string, { name: string; ground: string }> = {
   dusk: { name: 'City at dusk', ground: '#2b2d3a' },
+  day: { name: 'City by day', ground: '#74767e' },
   park: { name: 'Parkland', ground: '#3f6a34' },
   overcast: { name: 'Docks, overcast', ground: '#5a5e66' },
 };

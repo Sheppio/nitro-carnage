@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.22**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.23**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 321 checks: simulation and networking (Node), and real browsers
+npm test           # 348 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -496,13 +496,14 @@ the browser the player lost 90 health in the first 14 seconds. The numbers are n
 **5–7 wrecks, about one per car per race**. The measurement is a sim test, so a
 change to the tuning shows up there.
 
-## Three tracks, and what is on them
+## Four tracks, and what is on them
 
 | Track | Lap | Character |
 | --- | --- | --- |
 | **Neon Downtown** | 1.59 km | a walled city grid at dusk; right angles, a chicane, the plaza jump |
-| **Greenbelt** | 1.49 km | fast parkland sweepers; grass verges, stretches with no wall at all, a gravel section, a jump over the creek |
-| **Tidewater Docks** | 1.62 km | container canyons under an overcast sky; the open quay, oil patches, the railway |
+| **Greenbelt** | 1.49 km | fast sweepers through farmland; grass verges, stretches with no wall at all, a duck pond past the open lawn, a gravel section, a jump over the creek |
+| **Tidewater Docks** | 1.62 km | a working port under an overcast sky; container canyons, the open quay, ships and a marina, oil patches, the railway |
+| **Downtown by Day** | 1.59 km | the same streets as Neon Downtown under a high sun (M10), with its own hotlap record |
 
 The track is picked in the menu for offline races and by the host in the lobby. It
 rides in the heartbeat as an index, so a room always races the same one.
@@ -517,8 +518,8 @@ Bots read the same timetable and wait at the line. A car that doesn't wait is sh
 clear and badly hurt, and that is the owner's own client applying it to its own car,
 like every other collision.
 
-**Water** is a rectangle on the track: off the road inside it, you're put straight
-back on the road. **Wall gaps** remove the barrier along a stretch on one side, which
+**Water** is a rectangle or, for ponds, a circle on the track: off the road inside
+it, you're put straight back on the road. **Wall gaps** remove the barrier along a stretch on one side, which
 gives Greenbelt its open lawns and the Docks its quay. **Oil** is a patch of the
 existing low-grip surface: steer across it and the car hardly turns.
 
@@ -536,6 +537,77 @@ it:
 
 Greenbelt now laps with no contact at all, and Downtown's lap time moved by 0.7 s.
 Seeded tracks (M7) will throw every kind of corner at it, so this was worth doing now.
+
+## Places, not backdrops: the day city, the farm and the port
+
+M10 made the three settings feel like places.
+
+**The city by day.** A `day` theme beside `dusk`: a high sun and crisp shadows, blocks
+in stone, brick and glass, and windows as sky-tinted glass instead of lit panes. The
+tower shader already drew the windows; by day it mixes them towards a glass colour,
+a little different per pane, and lights none. The street lamps are off. It's the same
+city, so it's a theme, not a track: **Downtown by Day** is Downtown's corners and
+Downtown's seed (so the same buildings) under the day sky. Generated city seeds are by
+day or at dusk, half and half. That choice comes from a stream of its own, so it
+leaves every other draw, and so every shape, as it was.
+
+**Parkland becomes farmland**, and it appears on Greenbelt and on every generated park:
+- farmsteads (a farmhouse, a barn with a lean-to, one or two silos, round bales, a
+  tractor);
+- fields of maize, wheat, ploughed earth or cut stubble, with a combine in the crop, a
+  tractor on the ploughing, or bales on the stubble;
+- fenced paddocks of cows (Holstein, brown or black) or sheep, about half of them
+  grazing with heads down;
+- windmills, their sails turning;
+- ponds with reeds;
+- flower beds along the outside of the walls.
+
+**The docks become a working port:**
+- warehouses beside the road;
+- yards in some of the container lots: forklifts, flatbed trucks (empty, with a
+  container, or with crates), pallets, crates and drums;
+- cargo ships moored under the crane booms, with container stacks or hatch covers and
+  deck cranes, the bridge aft;
+- a marina of sloops and motor cruisers along pontoons.
+
+Every generated port gets a harbour. The water is placed beyond the side of the track's
+bounding box nearest the main straight, so it's seen every lap, with quay cranes,
+ships and sometimes a marina. It's all whole metres and needs no random draws, so the
+shape is untouched.
+
+**Placed beside the road, not in an area.** The camera shows a band only about 110 ×
+70 m round the car. The first farms, placed anywhere in the park, were never seen:
+only a roof at the edge of the screen. So every new thing picks a random point on
+the lap and a side, stands just past the wall, and turns to run along the road. Each
+claims a circle of ground, and later placements, trees and container stacks keep off
+it. Yards only go in lots within 50 m of the wall. The first version made a fifth of
+*every* lot a yard, which put 184 forklifts and 440 pallets of drums on the Docks,
+most of them out of sight.
+
+**Baked, not instanced.** The scenery was one `InstancedMesh` per kind of thing per
+160 m square. Adding a dozen new kinds that way would have added a dozen draw calls per
+square. Farm and port are static, so each square's pieces are merged into one mesh per
+material instead: one for everything standing, one for things laid flat on the ground
+(fields, soil, pond banks), and one for pond water. Only the sails move, and they're
+one instanced mesh whose matrices are set each frame from the local clock.
+
+The results:
+- The worst view anywhere on any built-in track is 67 draw calls, against a budget of
+  150.
+- The smoke test now measures eight points round every lap, not just the start line.
+- Low quality draws every other animal, bale, crate and flower bed; potato draws none.
+
+**Visual only, as before.** Nothing new collides. Tall things (barns, silos,
+windmills, warehouses, ships) take the cut-away and join the occluder list, like
+towers. The one exception is Greenbelt's duck pond. It sits just past the open lawn
+after the first corner, and it's real water, because that's where a car running wide
+goes.
+
+**It changed every seed's bytes, and no seed's shape.** The scenery rules are part of a
+generated track's definition, so every seed's pinned hash changed. The test now pins
+the shape (corners, start line, ramps) separately. It also compares 1,000 seeds with
+the previous build: none changed shape, and 157 cities changed from dusk to day. A
+hotlap record's ghost therefore still drives the road it was recorded on.
 
 ## Sound
 
@@ -648,11 +720,17 @@ seed.
   then runs alongside you.
 
 **Random seed.** The 🎲 at the end of the seed box, in the menu and (for the host) in
-the lobby, deals three words from a list of 367 three-letter words, joined by
-hyphens: `egg-cup-top`, `pin-run-dig`. That's about 49 million tracks, and each is easy
-to read out to a friend. Five words from the list the player supplied aren't dealt at
-random, because a generator will sooner or later put them beside "gas" or "pig" on
-everybody's screen. They still work if typed.
+the lobby, deals three words from a list of 290 three-letter words, joined by
+hyphens: `egg-cup-top`, `pin-run-dig`. That's about 24 million tracks, and each is easy
+to read out to a friend. Some words from the list the player supplied are never dealt,
+though they still work if typed:
+- **Five** that a generator would sooner or later put beside "gas" or "pig" on
+  everybody's screen.
+- **77 that could be mistaken for another word.** A seed read out to a friend must be typed back
+  the same, or it's a different track. So too/two/to, sea/see, won/one and bye/buy/by
+  are out, and so are the ones that only sound alike in a British accent
+  (paw/pour/poor, saw/sore, war/wore), the ones that sound like a letter (bee, pea,
+  jay, why, are), and the ones with two spellings (axe/ax, eon/aeon).
 
 **The menu previews the track.** Pick a track, the track of the day, or type a seed,
 and a small map of the circuit appears on its theme's ground. Beside it are the track's
@@ -761,17 +839,25 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-321 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+348 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (138, Node):
+- **`sim.test.mjs`** (163, Node):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
     by the autopilot; a split at every checkpoint; a race-only world ignores every
     trigger; a recorded lap plays back where the car was; a damaged ghost from storage is
     refused.
+  - **Scenery (M10):** pinned shapes, apart from the pinned bytes; Greenbelt is
+    farmland and the Docks a working port; fields, paddocks, ponds and warehouses never
+    overlap and no tree grows in one; the duck pond is water, by the open lawn; every
+    generated port has a harbour with ships, at least 7 m beyond the walls; every
+    generated park is farmland, and generated cities split between day and dusk;
+    Downtown by Day is Downtown's streets under another sky. Every track also checks
+    that no farm or port building stands on the road and that nothing but boats,
+    pontoons, reeds and cranes stands in the water.
   - **Tracks, each of the three:** lap length; corner radius against the wall offset;
     no wall crossing another; the centreline clear of every wall; projection
     round-trips; ordered checkpoints; s = 0 at the start line; deterministic scenery;
@@ -838,7 +924,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (45, browser): the browser generates a seed's track to the same
+- **`smoke.test.mjs`** (47, browser): the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
   road, off or a second ahead as set; full health at every line;
@@ -860,8 +946,9 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     square changes the car; all thirty body and livery combinations inside the
     footprint and the triangle budget, each striped livery drawing its stripe, and the
     race number on top of it; the look kept across a reload.
-  - **Tracks and sound:** Greenbelt and the Docks boot from a link with their scenery
-    inside 150 draw calls; sound starts on the first key with the race music; only three
+  - **Tracks and sound:** all four built-in tracks boot from a link with their
+    scenery, inside 150 draw calls at eight points round the lap; the farm and port
+    take the cut-away and the windmills turn; by day the lamps are off; sound starts on the first key with the race music; only three
     engines are voiced with six cars; with both volumes at zero nothing is built.
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
@@ -895,6 +982,15 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   doesn't brake; a small thumb movement is a small correction; the missile button fires; pause and resume by tap.
 
 These caught real bugs:
+
+- **The duck pond was out of reach** (M10). Placed by eye, it sat 10 m past the line
+  of the missing wall, so a car running wide over the open lawn stopped short of it.
+  The new check that it is water *by the lawn* failed, and the pond moved 5 m closer
+  in.
+- **Farm scenery nobody would see** (M10). Not a test failure but a measurement:
+  screenshots from the game camera at every farm found only a roof at the screen's
+  edge, and counting the yards found 184 forklifts. The placement rules changed
+  because of both (see *Places, not backdrops*).
 
 - **Grid corners cut on the wrong side** (seed layouts). The diagonal cut's first
   point was placed outside the block instead of on the side before it, so most city

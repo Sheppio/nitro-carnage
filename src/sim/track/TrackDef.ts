@@ -56,6 +56,12 @@ export interface TrackDef {
    */
   water?: readonly (readonly [x0: number, z0: number, x1: number, z1: number])[];
   /**
+   * Round water (M10): ponds, as centre and radius. Water like `water`, so a
+   * car that leaves the road into one — through a gap in the wall — is put
+   * back. Drawn as ponds with reeds.
+   */
+  ponds?: readonly (readonly [x: number, z: number, r: number])[];
+  /**
    * A railway with a level crossing (M5): a straight line of track from
    * `from` to `to` that crosses the road once. A train runs it on a timetable
    * measured from GO — first after `first` seconds, then every `period`,
@@ -117,6 +123,36 @@ export type PropRule =
       /** Tallest stack, in containers. */
       stack: number;
       gaps: number;
+      /** Fraction of lots that are yards instead (M10): forklifts, flatbeds, pallets, crates, drums. */
+      yards?: number;
     }
   /** Dockside cranes at fixed spots (M5): tall, open gantries the cut-away looks through. */
-  | { kind: 'cranes'; at: readonly (readonly [x: number, z: number, rot: number])[] };
+  | { kind: 'cranes'; at: readonly (readonly [x: number, z: number, rot: number])[] }
+  /*
+   * M10 scenery. Placed beside the road — a random point on the lap, either
+   * side, just past the wall plus `clearance` — because the camera sees a
+   * band about 70 m wide, and a farm half a kilometre off would never be seen.
+   * Each claims its ground, and trees, containers and each other keep off it.
+   * Visual only: nothing here collides.
+   */
+  /** Farmsteads: a house, a barn, silos, bales and a tractor. */
+  | { kind: 'farms'; count: number; clearance: number }
+  /** Crop fields: maize, wheat, ploughed or cut, sometimes with a combine or a tractor at work. */
+  | { kind: 'fields'; count: number; clearance: number }
+  /** Fenced paddocks of cows or sheep. */
+  | { kind: 'herds'; count: number; clearance: number }
+  /** Ponds with reeds (walled tracks only: these are not water to the simulation — see `ponds`). */
+  | { kind: 'ponds'; count: number; clearance: number }
+  /** Windmills, sails turning. */
+  | { kind: 'windmills'; count: number; clearance: number }
+  /** Flower beds along the outside of the walls, every `spacing` metres or so. */
+  | { kind: 'flowers'; spacing: number }
+  /** Warehouses beside the road. */
+  | { kind: 'warehouses'; count: number; clearance: number }
+  /**
+   * Cargo ships moored along a quay line: `out` metres from the line to the
+   * ship's centreline, positive to the right of from→to as seen on screen.
+   */
+  | { kind: 'ships'; from: XZ; to: XZ; out: number; count: number }
+  /** A marina off a quay line: a pontoon `out` metres off (sign as for ships), fingers, yachts. */
+  | { kind: 'marina'; from: XZ; to: XZ; out: number };

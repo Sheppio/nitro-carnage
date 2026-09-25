@@ -82,7 +82,7 @@ export class GameView {
     this.scene.add(this.shadows.hemi, this.shadows.sun, this.shadows.sun.target);
 
     this.scene.add(buildTrackMesh(track, theme));
-    this.scenery = new Scenery(track, theme);
+    this.scenery = new Scenery(track, theme, preset.sceneryDetail);
     this.scene.add(this.scenery.group);
 
     this.fx = new Fx(preset.tyreMarks, preset.particles);
@@ -214,6 +214,7 @@ export class GameView {
     }
     this.fx.update(dt);
     this.clock += dt;
+    this.scenery.update(this.clock);
 
     const focus = this.focusId ? states.get(this.focusId) : undefined;
     if (focus) {
