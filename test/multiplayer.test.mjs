@@ -83,6 +83,49 @@ try {
   const grid = await b.evaluate(() => window.nitro.session.world.entrants.map((e) => (e.remote ? 'R' : 'L')).join(''));
   r.check('both tabs race: own car local, the rest remote', grid.split('').filter((x) => x === 'L').length === 1 && grid.length === 3, grid);
 
+  // Every tab's world keeps to the room clock. Stepping by frame time, a tab
+  // lost every long frame for good (the scene build at the start, a hitch):
+  // a host fell seconds behind, its packets arrived "old", and every remote
+  // car stood still between packets and jumped at each, 20 times a second.
+  await until(() => b.evaluate(() => window.nitro.session.world.started), { timeout: 20000 });
+  // Read right after each update: between frames the room clock runs on, and
+  // these headless tabs draw a frame only every few hundred milliseconds.
+  await Promise.all([a, b].map((p) => p.evaluate(() => {
+    const n = window.nitro.room.net;
+    const update = n.update.bind(n);
+    n.update = () => { const r = update(); if (n.world) window.__lag = Math.max(window.__lag ?? 0, n.roomNow - n.roomAt(n.world.time)); return r; };
+  })));
+  await b.waitForTimeout(1500);
+  await Promise.all([a, b].map((p) => p.evaluate(() => { window.__lag = 0; })));
+  await b.waitForTimeout(1500);
+  const lags = await Promise.all([a, b].map((p) => p.evaluate(() => window.__lag)));
+  const smooth = await b.evaluate(() => new Promise((res) => {
+    const s = window.nitro.session;
+    const pts = {};
+    const t0 = performance.now();
+    const f = () => {
+      const now = performance.now();
+      for (const e of s.world.entrants) if (e.remote) { const c = s.drawnStates.get(e.id); (pts[e.id] ??= []).push([now / 1000, c.x, c.z]); }
+      if (now - t0 < 4000) requestAnimationFrame(f);
+      else {
+        let n = 0, jumps = 0;
+        for (const p of Object.values(pts)) for (let i = 2; i < p.length; i++) {
+          const d1 = p[i][0] - p[i - 1][0], d0 = p[i - 1][0] - p[i - 2][0];
+          if (d1 <= 0 || d0 <= 0) continue;
+          const ax = ((p[i][1] - p[i - 1][1]) / d1 - (p[i - 1][1] - p[i - 2][1]) / d0) / ((d0 + d1) / 2);
+          const az = ((p[i][2] - p[i - 1][2]) / d1 - (p[i - 1][2] - p[i - 2][2]) / d0) / ((d0 + d1) / 2);
+          n++;
+          if (Math.hypot(ax, az) > 150) jumps++;
+        }
+        res({ n, jumps });
+      }
+    };
+    requestAnimationFrame(f);
+  }));
+  r.check('every tab keeps its world on the room clock, and remote cars glide rather than jump',
+    lags.every((l) => l < 100) && smooth.jumps <= smooth.n * 0.1,
+    `worlds at most ${lags.map((l) => l.toFixed(0)).join(' / ')} ms behind the room; ${smooth.jumps} of ${smooth.n} frames jump`);
+
   const moving = await until(() => b.evaluate(() => {
     const s = window.nitro.session;
     return s.world.time > s.world.goTime + 3 && s.world.entrants.every((e) => Math.hypot(e.car.vx, e.car.vz) > 5);

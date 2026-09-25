@@ -14,6 +14,8 @@ export class MemoryBroker {
     clients = new Set();
     /** One-way delivery delay, ms. */
     latency = 20;
+    /** Extra one-way delay drawn up to this, ms, per message: a public broker's variable delay. */
+    jitter = 0;
     /** Fraction of messages dropped, 0..1, drawn from `rand`. */
     loss = 0;
     rand = Math.random;
@@ -36,8 +38,9 @@ export class MemoryBroker {
             if (this.loss > 0 && this.rand() < this.loss)
                 continue;
             const deliver = () => c.deliver(topic, payload);
-            if (this.latency > 0)
-                this.clock.setTimeout(deliver, this.latency);
+            const delay = this.latency + (this.jitter > 0 ? this.rand() * this.jitter : 0);
+            if (delay > 0)
+                this.clock.setTimeout(deliver, delay);
             else
                 deliver();
         }

@@ -168,6 +168,21 @@ export class World {
         }
         return this.accumulator / STEP;
     }
+    /**
+     * Advance until world time reaches `target` (seconds), for a world that must
+     * keep to an outside clock: a room's. Up to `maxDt` in one call, so a long
+     * stall is made up over a few frames rather than in one frozen one.
+     */
+    advanceTo(target, maxDt = 1) {
+        const dt = Math.max(0, Math.min(maxDt, target - (this.time + this.accumulator)));
+        this.clockTime += dt;
+        this.accumulator += dt;
+        while (this.accumulator >= STEP) {
+            this.step();
+            this.accumulator -= STEP;
+        }
+        return this.accumulator / STEP;
+    }
     /** Exactly one fixed step. */
     step() {
         const racing = this.started;

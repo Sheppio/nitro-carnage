@@ -257,7 +257,15 @@ export class NetRace {
 
     const w = this.world;
     if (!w) return 0;
-    const alpha = w.advance(dt);
+    // The world keeps to the room clock, not to this tab's frames. Stepping by
+    // frame time with the stall clamp, a tab lost a quarter of a second or more
+    // on every long frame (building the scene at the start, a hitch) and never
+    // made it up. Its car packets are stamped in world time, so everyone else
+    // saw them arrive already old, past the 0.3 s the dead reckoning will
+    // extrapolate: every remote car stood still between packets and jumped at
+    // each one, twenty times a second. Found in play; a host measured 4.5 s behind.
+    void dt;
+    const alpha = w.advanceTo((this.roomNow - this.worldZero) / 1000, 5);
     for (const ev of w.drain()) this.onWorldEvent(ev);
     this.publishOwned();
     return alpha;

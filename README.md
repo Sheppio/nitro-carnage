@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.32**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.33**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 740 checks: simulation and networking (Node), and real browsers
+npm test           # 741 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -463,6 +463,19 @@ screen. The difference is kept as an error that decays over about 100 ms, so the
 glides onto its corrected path. Beyond 10 m, or on a respawn, it snaps. Through a
 60–150 ms link with 5% loss, a peer draws a car within **0.29 m** (95th percentile)
 over a whole lap, and its heading within 3.4°.
+
+**The world keeps to the room clock.** Play-testing found fast jitter on every other
+car in a room. Each tab stepped its world by its own frame time, with the stall clamp
+that stops a sleeping tab simulating ten seconds at once. So every frame over a
+quarter of a second (building the scene at the start, a hitch) lost the rest, for
+good. A host measured 4.5 s behind the room. Car packets are stamped in world time,
+so everyone else saw them arrive already old, past the 0.3 s the dead reckoning will
+extrapolate. Every remote car stood still between packets and jumped at each one,
+twenty times a second. Now a room's world advances to the room clock each frame, up
+to 5 s in one go. A browser test holds each tab within 100 ms of the room clock, and
+remote cars jumping on at most one frame in ten. The old code failed it at 1.8 s
+behind, with 88 frames in 138 jumping. The in-memory broker gained a `jitter` setting
+(random extra delay per message) for tests like this.
 
 ### The race carries on
 
@@ -1006,7 +1019,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-740 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+741 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1121,7 +1134,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
-- **`multiplayer.test.mjs`** (19, browser, up to four tabs): a room forms from a code
+- **`multiplayer.test.mjs`** (20, browser, up to four tabs): a room forms from a code
   and a share link; one host; colour clashes; a look chosen in one tab's Garage shows
   in the other's lobby; only the host can start; a missile fired
   in one tab flies in the other; a race to the
