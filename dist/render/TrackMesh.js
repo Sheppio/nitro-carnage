@@ -57,11 +57,14 @@ export function buildTrackMesh(track, theme) {
     // Markings: a dashed centre line, solid edge lines, and a chequered start.
     const marks = new MeshBuilder();
     const strip = (i0, i1, d0, d1, hex) => marks.quad(at(i0, d0, Y_MARK), at(i1, d0, Y_MARK), at(i1, d1, Y_MARK), at(i0, d1, Y_MARK), hex);
+    // The lines stop at the chequers (segments n-1 and 0): drawn at the same
+    // height, they would fight the checks for the same pixels and show through.
+    const onChecks = (i) => i === 0 || i === n - 1;
     for (let i = 0; i < n; i += 8)
         if (!dirtAt(i))
-            strip(i, i + 4, -0.15, 0.15, theme.line);
+            strip(i === 0 ? 1 : i, i + 4, -0.15, 0.15, theme.line);
     for (let i = 0; i < n; i++) {
-        if (dirtAt(i))
+        if (dirtAt(i) || onChecks(i))
             continue;
         strip(i, i + 1, hw - 0.5, hw - 0.3, theme.line);
         strip(i, i + 1, -hw + 0.3, -hw + 0.5, theme.line);

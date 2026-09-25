@@ -64,9 +64,12 @@ export function buildTrackMesh(track: Track, theme: Theme): THREE.Group {
   const marks = new MeshBuilder();
   const strip = (i0: number, i1: number, d0: number, d1: number, hex: number) =>
     marks.quad(at(i0, d0, Y_MARK), at(i1, d0, Y_MARK), at(i1, d1, Y_MARK), at(i0, d1, Y_MARK), hex);
-  for (let i = 0; i < n; i += 8) if (!dirtAt(i)) strip(i, i + 4, -0.15, 0.15, theme.line);
+  // The lines stop at the chequers (segments n-1 and 0): drawn at the same
+  // height, they would fight the checks for the same pixels and show through.
+  const onChecks = (i: number): boolean => i === 0 || i === n - 1;
+  for (let i = 0; i < n; i += 8) if (!dirtAt(i)) strip(i === 0 ? 1 : i, i + 4, -0.15, 0.15, theme.line);
   for (let i = 0; i < n; i++) {
-    if (dirtAt(i)) continue;
+    if (dirtAt(i) || onChecks(i)) continue;
     strip(i, i + 1, hw - 0.5, hw - 0.3, theme.line);
     strip(i, i + 1, -hw + 0.3, -hw + 0.5, theme.line);
   }
