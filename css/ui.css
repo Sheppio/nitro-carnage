@@ -451,6 +451,22 @@ select {
 }
 
 .hud-arrows { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.hud-names { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+/* A driver's name over their car: their colour on a dark chip, readable over road and grass. */
+.name-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font: 700 12px var(--display);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: #fff;
+  background: rgba(10, 10, 16, 0.62);
+  border-bottom: 2px solid var(--c, #fff);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
 
 .rival-arrow {
   position: absolute;

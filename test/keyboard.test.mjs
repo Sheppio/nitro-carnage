@@ -191,6 +191,10 @@ try {
   r.check('Esc goes back from the track screen to the menu', Boolean(trackBack));
 
   /* -------------------------------------------------------------- garage */
+  // The Garage is on the track screen, one step in from the menu.
+  await goTo(page, 'btn-race');
+  await page.keyboard.press('Enter');
+  await until(() => visible(page, 'screen-track'));
   await goTo(page, 'btn-garage');
   await page.keyboard.press('Enter');
   await until(() => visible(page, 'screen-garage'));
@@ -203,8 +207,10 @@ try {
   await page.keyboard.press('ArrowRight');
   const n1 = await page.evaluate(() => window.nitro.look.number);
   await page.keyboard.press('Escape');
-  const gBack = await until(() => visible(page, 'screen-menu'));
-  r.check('the race number changes with the arrows, and Esc leaves the Garage', n1 !== n0 && Boolean(gBack), `${n0} -> ${n1}`);
+  const gBack = await until(() => visible(page, 'screen-track'));
+  r.check('the race number changes with the arrows, and Esc leaves the Garage for the track screen', n1 !== n0 && Boolean(gBack), `${n0} -> ${n1}`);
+  await page.keyboard.press('Escape');
+  await until(() => visible(page, 'screen-menu'));
 
   /* ---------------------------------------------------------------- join */
   await goTo(page, 'btn-join');

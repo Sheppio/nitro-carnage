@@ -164,6 +164,10 @@ try {
   r.check('and Leave race goes back to the menu', Boolean(onLeave) && Boolean(menu),
     `focus ${onLeave ? 'reached' : 'missed'} Leave, ${menu ? 'back at menu' : `still on ${await page.evaluate(() => [...document.querySelectorAll('.screen:not([hidden])')].map((x) => x.id).join())}`}`);
   /* ---------------------------------------------------------- garage */
+  // In from the track screen, and B goes back out to it.
+  await padTo(page, 'btn-race', B.DOWN);
+  await tap(page, B.A);
+  await until(() => page.evaluate(() => !document.getElementById('screen-track').hidden));
   await padTo(page, 'btn-garage', B.DOWN);
   await tap(page, B.A);
   await until(() => page.evaluate(() => !document.getElementById('screen-garage').hidden));
@@ -175,7 +179,9 @@ try {
   await tap(page, B.RIGHT);
   const pat1 = await page.evaluate(() => document.getElementById('garage-pattern').dataset.value);
   await tap(page, B.B);
-  const gOut = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden));
+  const gOut = await until(() => page.evaluate(() => !document.getElementById('screen-track').hidden));
+  await tap(page, B.B);
+  await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden));
   const saved = await page.evaluate(() => window.nitro.look);
   r.check('the Garage by pad: RB changes the body, the D-pad the livery, B leaves, and the look is kept',
     body1 !== body0 && pat1 !== pat0 && Boolean(gOut) && saved.body === body1 && saved.pattern === pat1, `${body0}->${body1}, ${pat0}->${pat1}`);
@@ -191,7 +197,7 @@ try {
     visited.add(await focused(page));
     await tap(page, B.DOWN);
   }
-  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
+  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-names', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
   const missed = rows.filter((id) => !visited.has(id));
   await until(async () => (await focused(page)) === 'set-motion' || (await tap(page, B.DOWN), false), { timeout: 10000, interval: 0 });
   const before = await page.evaluate(() => document.getElementById('set-motion').checked);
@@ -225,13 +231,13 @@ try {
   await deck.waitForSelector('#screen-track:not([hidden])');
   const trackBad = await clipped('#screen-track');
   r.check('the track screen fits the Deck screen', trackBad.length === 0, trackBad.join(', '));
-  await deck.evaluate(() => document.getElementById('btn-track-back').click());
 
   await deck.evaluate(() => document.getElementById('btn-garage').click());
   await deck.waitForSelector('#screen-garage:not([hidden])');
   const garageBad = await clipped('#screen-garage');
   r.check('the Garage fits the Deck screen', garageBad.length === 0, garageBad.join(', '));
   await deck.evaluate(() => document.getElementById('btn-garage-back').click());
+  await deck.evaluate(() => document.getElementById('btn-track-back').click());
 
   await deck.evaluate(() => window.nitro.openRoom('DECK'));
   await deck.waitForSelector('#screen-lobby:not([hidden])', { timeout: 20000 });

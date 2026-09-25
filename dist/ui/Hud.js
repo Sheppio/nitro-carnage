@@ -1,5 +1,6 @@
 import { SIM } from '../config.js';
 import { Minimap } from './Minimap.js';
+import { NameTags } from './NameTags.js';
 import { RivalArrows } from './RivalArrows.js';
 const $ = (id) => document.getElementById(id);
 /** m:ss.cc */
@@ -25,6 +26,7 @@ export class Hud {
     session;
     minimap;
     arrows;
+    names;
     textAt = 0;
     bannerUntil = 0;
     bannerText = '';
@@ -33,6 +35,7 @@ export class Hud {
         this.session = session;
         this.minimap = new Minimap($('hud-minimap'), session.world.track);
         this.arrows = new RivalArrows($('hud-arrows'));
+        this.names = new NameTags($('hud-names'));
         const hotlap = session.mode === 'hotlap';
         $('hud-race').hidden = false;
         $('hud-minimap').hidden = false;
@@ -89,6 +92,8 @@ export class Hud {
         const s = this.session;
         const cars = [];
         const screen = [];
+        const tags = [];
+        const show = s.settings.current.nameTags;
         for (const [id, st] of s.drawnStates) {
             const info = s.cars.get(id);
             if (!info)
@@ -98,6 +103,8 @@ export class Hud {
                 const p = s.view.toScreen(st.x, 1, st.z);
                 screen.push({ id, css: info.css, ...p });
             }
+            if (show === 'all' || (show === 'rivals' && !info.you))
+                tags.push({ id, name: info.name, css: info.css, ...s.view.overCar(st.x, st.z) });
         }
         this.minimap.draw(cars);
         // The live split: green when up on the record, red when down.
@@ -111,6 +118,7 @@ export class Hud {
         }
         const rect = s.view.renderer.domElement.getBoundingClientRect();
         this.arrows.update(screen, rect.width, rect.height);
+        this.names.update(tags);
         // Text at 10 Hz: nobody reads faster, and the DOM is not free.
         if (now - this.textAt < 100)
             return;
@@ -207,6 +215,7 @@ export class Hud {
     }
     dispose() {
         this.arrows.clear();
+        this.names.clear();
     }
 }
 //# sourceMappingURL=Hud.js.map

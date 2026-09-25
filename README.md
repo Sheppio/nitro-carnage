@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.27**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.28**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 735 checks: simulation and networking (Node), and real browsers
+npm test           # 737 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -820,11 +820,13 @@ though they still work if typed:
   jay, why, are), and the ones with two spellings (axe/ax, eon/aeon).
 
 **The menu is modes and settings; the track is a screen of its own.** The menu holds
-your name, Create and Join room, Quick race, Hotlap, the Garage and Settings.
+your name, Create and Join room, Quick race, Hotlap and Settings.
 Quick race or Hotlap opens the track screen, which holds:
 - the track (built-in, of the day, or a seed) and the dice;
 - a map of the track;
 - the weapons switch, for a race only, since a hotlap never has weapons;
+- the Garage, since the car is chosen for the drive you're about to start, and
+  its Done comes back here;
 - the controls.
 
 Start is already focused, so a pad player who is happy with the track presses A
@@ -842,13 +844,25 @@ cone round a yellow core at each pipe, flickering in length every frame, big eno
 read from the race camera. The flag they follow already travels in every car packet,
 so everyone's flames show. The tractor's come straight up its exhaust stack.
 
+**Driver names over the cars.** In a race each rival carries their name in a small
+dark tag, underlined in their colour. The tags are HTML over the canvas, not text drawn
+in WebGL: they stay sharp at any zoom and cost no draw calls. Each goes 2.6 m past the
+car toward the top of the screen, whichever way the car points, so it never sits on
+the roof. Settings has "Driver names": over rivals (the default), over every car
+including yours, or off, and it takes effect mid-race.
+
+**A bigger race number.** The roof disc is now as big as the roof allows: 94% of its
+width or length, whichever is less. That's between 0.9 m and 1.3 m across, where it was 0.62 m
+on every body. It's drawn at 128 pixels, so the bigger disc stays sharp, and a
+two-digit number is squeezed to fit inside the circle.
+
 **Race only** turns the weapons off for a quick race (in the menu) or a room (the host
 picks it in the lobby). It rides in the heartbeat, so every client agrees. The HUD
 hides the ammo, and a network test checks that not one shot goes on the wire.
 
 ## Your car: the Garage
 
-The Garage opens from the menu and from the lobby. It has a turntable preview (the real
+The Garage opens from the track screen and from the lobby. It has a turntable preview (the real
 `CarMesh` in a small renderer of its own) and five pickers. Body, livery and wheels
 are ‹ arrows ›, and the stripe colour is a row of colour squares. Only the race
 number, with a hundred choices, is still a dropdown:
@@ -943,7 +957,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-735 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+737 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1028,7 +1042,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (50, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (52, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
@@ -1042,8 +1056,8 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Occlusion pixel test:** a car hidden by a tower shows 0 of 25 pixels without the
     cut-away and 19 of 25 with it.
   - **Race:** a countdown with every car held; after GO six cars race, with position
-    and lap shown; the minimap draws the circuit; rivals out of view get arrows; a
-    one-lap autopilot race ends on a results table with the player marked.
+    and lap shown; the minimap draws the circuit; rivals out of view get arrows; rivals on screen
+    get their names above them, which the setting turns off mid-race; a one-lap autopilot race ends on a results table with the player marked.
   - **Weapons:** Z fires a missile that is drawn and counted off the HUD; X drops a
     mine; a hit lowers the health bar; a car shot to zero is wrecked, says so, and
     comes back with full health.

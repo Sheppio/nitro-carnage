@@ -3,6 +3,8 @@ import { BROKERS } from '../config.js';
 import type { QualityId } from '../config.js';
 import { Emitter } from '../util.js';
 
+export type NameTags = 'rivals' | 'all' | 'off';
+
 export interface InputSettings {
   /** Graphics preset; see `QUALITY` in config.ts. */
   quality: QualityId;
@@ -25,6 +27,8 @@ export interface InputSettings {
    * shows the line before you get there. Negative hides it.
    */
   ghostLead: number;
+  /** Driver names over the cars in a race: rivals only, every car, or none. */
+  nameTags: NameTags;
   /** Which public MQTT broker rooms meet on; see `BROKERS`. */
   broker: string;
 }
@@ -50,6 +54,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   sfxVolume: 1,
   musicVolume: 0.8,
   ghostLead: 0,
+  nameTags: 'rivals',
   broker: BROKERS[0]!.id,
 };
 
@@ -117,6 +122,7 @@ function coerce(state: InputSettings): InputSettings {
   }
   if (!QUALITIES.includes(out.quality)) out.quality = DEFAULT_SETTINGS.quality;
   if (!['auto', 'on', 'off'].includes(out.touchControls)) out.touchControls = 'auto';
+  if (!['rivals', 'all', 'off'].includes(out.nameTags)) out.nameTags = 'rivals';
   if (!BROKERS.some((b) => b.id === out.broker)) out.broker = BROKERS[0]!.id;
   for (const key of ['vibration', 'reduceMotion', 'autopilot'] as const) out[key] = Boolean(out[key]);
   return out;

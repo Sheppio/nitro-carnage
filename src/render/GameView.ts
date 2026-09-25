@@ -273,6 +273,16 @@ export class GameView {
 
   /* ---------------------------------------------------------------- debug */
 
+  /**
+   * Where a car's name tag goes: a point just past the car's roof toward the
+   * top of the screen, whichever way the camera faces, so the tag clears the
+   * car at any heading.
+   */
+  overCar(x: number, z: number): { x: number; y: number; onScreen: boolean } {
+    const up = new THREE.Vector3().setFromMatrixColumn(this.rig.camera.matrixWorld, 1);
+    return this.toScreen(x + up.x * 2.6, 1.5 + up.y * 2.6, z + up.z * 2.6);
+  }
+
   /** Where a world point lands on screen, in CSS pixels from the canvas's top left. */
   toScreen(x: number, y: number, z: number): { x: number; y: number; onScreen: boolean } {
     const p = new THREE.Vector3(x, y, z).project(this.rig.camera);

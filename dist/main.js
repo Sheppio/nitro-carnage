@@ -215,7 +215,8 @@ $('btn-garage-back').addEventListener('click', () => {
         lobby?.render();
     }
     else {
-        show('screen-menu');
+        // The Garage is on the track screen, so Done goes back there.
+        show('screen-track');
     }
 });
 const savedColour = store.get(COLOUR_KEY);
@@ -514,6 +515,7 @@ document.addEventListener('focusin', () => {
         audio.blip();
 });
 $('set-ghost').addEventListener('change', (e) => settings.set('ghostLead', Number(e.target.value)));
+$('set-names').addEventListener('change', (e) => settings.set('nameTags', e.target.value));
 $('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number(e.target.value)));
 $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number(e.target.value)));
 /** Where Settings' Back goes: the menu, or the pause menu of the race it was opened from. */
@@ -528,6 +530,7 @@ function openSettings(fromPause) {
     brokerSelect.value = settings.current.broker;
     $('set-sfx').value = String(settings.current.sfxVolume);
     $('set-ghost').value = String(settings.current.ghostLead);
+    $('set-names').value = settings.current.nameTags;
     $('set-music').value = String(settings.current.musicVolume);
     // The race stays where it is underneath: paused offline, held on the brakes online.
     if (fromPause)

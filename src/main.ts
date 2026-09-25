@@ -3,6 +3,7 @@ import { BROKERS } from './config.js';
 import type { QualityId } from './config.js';
 import { InputManager } from './input/InputManager.js';
 import { SettingsStore } from './input/settings.js';
+import type { NameTags } from './input/settings.js';
 import { sanitizeName } from './net/codec.js';
 import { RaceSession } from './RaceSession.js';
 import type { SessionMode } from './RaceSession.js';
@@ -240,7 +241,8 @@ $('btn-garage-back').addEventListener('click', () => {
     show('screen-lobby');
     lobby?.render();
   } else {
-    show('screen-menu');
+    // The Garage is on the track screen, so Done goes back there.
+    show('screen-track');
   }
 });
 
@@ -556,6 +558,7 @@ document.addEventListener('focusin', () => {
   if (!session || session.paused) audio.blip();
 });
 $('set-ghost').addEventListener('change', (e) => settings.set('ghostLead', Number((e.target as HTMLSelectElement).value)));
+$('set-names').addEventListener('change', (e) => settings.set('nameTags', (e.target as HTMLSelectElement).value as NameTags));
 $('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number((e.target as HTMLInputElement).value)));
 $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number((e.target as HTMLInputElement).value)));
 
@@ -571,6 +574,7 @@ function openSettings(fromPause: boolean): void {
   brokerSelect.value = settings.current.broker;
   $<HTMLInputElement>('set-sfx').value = String(settings.current.sfxVolume);
   $<HTMLSelectElement>('set-ghost').value = String(settings.current.ghostLead);
+  $<HTMLSelectElement>('set-names').value = settings.current.nameTags;
   $<HTMLInputElement>('set-music').value = String(settings.current.musicVolume);
   // The race stays where it is underneath: paused offline, held on the brakes online.
   if (fromPause) $('pause-veil').hidden = true;

@@ -277,6 +277,27 @@ try {
   const arrows = await until(() => race.evaluate(() => document.querySelectorAll('.rival-arrow').length || null), { timeout: 60000 });
   r.check('rivals out of view get an arrow at the screen edge', Boolean(arrows), `${arrows ?? 0} arrows at once`);
 
+  // Driver names: over rivals on screen by default, above the car, and gone when switched off.
+  const tagCheck = () => race.evaluate(() => {
+    const s = window.nitro.session;
+    const box = s.view.renderer.domElement.getBoundingClientRect();
+    const out = [];
+    for (const el of document.querySelectorAll('.name-tag')) {
+      const t = el.getBoundingClientRect();
+      const car = [...s.cars.values()].find((c) => c.name === el.textContent);
+      const st = car && s.drawnStates.get(car.id);
+      const p = st && s.view.toScreen(st.x, 1, st.z);
+      out.push({ name: el.textContent, above: p ? t.bottom - box.top < p.y : false });
+    }
+    return out;
+  });
+  const tags = await until(async () => { const t = await tagCheck(); return t.length ? t : null; }, { timeout: 60000 });
+  r.check('driver names float over rivals, above each car, and not over your own', Boolean(tags) && tags.every((t) => t.above && t.name !== 'YOU'),
+    JSON.stringify(tags));
+  await race.evaluate(() => window.nitro.settings.set('nameTags', 'off'));
+  const tagsOff = await until(() => race.evaluate(() => document.querySelectorAll('.name-tag').length === 0 || null), { timeout: 5000 });
+  r.check('and the setting turns them off mid-race', Boolean(tagsOff));
+
   await race.waitForSelector('#screen-results:not([hidden])', { timeout: 240000 });
   const results = await race.evaluate(() => ({
     rows: document.querySelectorAll('#results-body tr').length,
@@ -349,6 +370,7 @@ try {
   // collision footprint (4.4 m by 2.0 m, a few centimetres of bumper
   // allowed), within the triangle budget, and wearing its stripe.
   const gp = await openPage('quality=potato');
+  await gp.click('#btn-race');
   await gp.click('#btn-garage');
   await gp.waitForSelector('#screen-garage:not([hidden])');
   // No dropdowns but the number: arrows to click through, colour squares to click on.

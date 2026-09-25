@@ -160,7 +160,7 @@ export class RaceSession {
   private lastPip = -1;
   private warned = false;
 
-  constructor(host: HTMLElement, opts: SessionOptions, private input: InputManager, private settings: SettingsStore, net: NetRace | null = null) {
+  constructor(host: HTMLElement, opts: SessionOptions, private input: InputManager, readonly settings: SettingsStore, net: NetRace | null = null) {
     this.mode = opts.mode;
     this.net = net;
     this.autopilot = settings.current.autopilot;

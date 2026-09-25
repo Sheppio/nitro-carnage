@@ -2,6 +2,7 @@ import { SIM } from '../config.js';
 import type { HudSnapshot, RaceSession, ResultRow } from '../RaceSession.js';
 import type { RaceEvent } from '../sim/World.js';
 import { Minimap } from './Minimap.js';
+import { NameTags } from './NameTags.js';
 import { RivalArrows } from './RivalArrows.js';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -29,6 +30,7 @@ export function ordinal(n: number): string {
 export class Hud {
   private minimap: Minimap;
   private arrows: RivalArrows;
+  private names: NameTags;
   private textAt = 0;
   private bannerUntil = 0;
   private bannerText = '';
@@ -37,6 +39,7 @@ export class Hud {
   constructor(private session: RaceSession, debug: boolean) {
     this.minimap = new Minimap($<HTMLCanvasElement>('hud-minimap'), session.world.track);
     this.arrows = new RivalArrows($('hud-arrows'));
+    this.names = new NameTags($('hud-names'));
     const hotlap = session.mode === 'hotlap';
     $('hud-race').hidden = false;
     $('hud-minimap').hidden = false;
@@ -91,6 +94,8 @@ export class Hud {
     const s = this.session;
     const cars: { id: string; x: number; z: number; css: string; you: boolean }[] = [];
     const screen: { id: string; css: string; x: number; y: number; onScreen: boolean }[] = [];
+    const tags: { id: string; name: string; css: string; x: number; y: number; onScreen: boolean }[] = [];
+    const show = s.settings.current.nameTags;
     for (const [id, st] of s.drawnStates) {
       const info = s.cars.get(id);
       if (!info) continue;
@@ -99,6 +104,7 @@ export class Hud {
         const p = s.view.toScreen(st.x, 1, st.z);
         screen.push({ id, css: info.css, ...p });
       }
+      if (show === 'all' || (show === 'rivals' && !info.you)) tags.push({ id, name: info.name, css: info.css, ...s.view.overCar(st.x, st.z) });
     }
     this.minimap.draw(cars);
     // The live split: green when up on the record, red when down.
@@ -111,6 +117,7 @@ export class Hud {
     }
     const rect = s.view.renderer.domElement.getBoundingClientRect();
     this.arrows.update(screen, rect.width, rect.height);
+    this.names.update(tags);
 
     // Text at 10 Hz: nobody reads faster, and the DOM is not free.
     if (now - this.textAt < 100) return;
@@ -200,5 +207,6 @@ export class Hud {
 
   dispose(): void {
     this.arrows.clear();
+    this.names.clear();
   }
 }

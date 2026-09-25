@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS = {
     sfxVolume: 1,
     musicVolume: 0.8,
     ghostLead: 0,
+    nameTags: 'rivals',
     broker: BROKERS[0].id,
 };
 /**
@@ -80,6 +81,8 @@ function coerce(state) {
         out.quality = DEFAULT_SETTINGS.quality;
     if (!['auto', 'on', 'off'].includes(out.touchControls))
         out.touchControls = 'auto';
+    if (!['rivals', 'all', 'off'].includes(out.nameTags))
+        out.nameTags = 'rivals';
     if (!BROKERS.some((b) => b.id === out.broker))
         out.broker = BROKERS[0].id;
     for (const key of ['vibration', 'reduceMotion', 'autopilot'])

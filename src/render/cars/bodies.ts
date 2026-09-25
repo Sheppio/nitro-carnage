@@ -226,17 +226,18 @@ function numberTexture(n: number): THREE.CanvasTexture {
   let t = numberTextures.get(n);
   if (t) return t;
   const c = document.createElement('canvas');
-  c.width = c.height = 64;
+  c.width = c.height = 128;
   const g = c.getContext('2d')!;
   g.fillStyle = '#f4f2ec';
   g.beginPath();
-  g.arc(32, 32, 30, 0, Math.PI * 2);
+  g.arc(64, 64, 62, 0, Math.PI * 2);
   g.fill();
   g.fillStyle = '#111';
-  g.font = 'bold 38px system-ui, sans-serif';
+  g.font = 'bold 80px system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText(String(n), 32, 34);
+  // Two digits squeezed to fit inside the disc, one digit left full size.
+  g.fillText(String(n), 64, 69, 104);
   t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   numberTextures.set(n, t);
@@ -278,8 +279,9 @@ export function buildBody(look: CarLook, colour: number): BuiltBody {
   const decals: THREE.Mesh[] = [];
   const mat = new THREE.MeshBasicMaterial({ map: numberTexture(look.number), transparent: true, alphaTest: 0.5 });
   const disc = (size: number): THREE.Mesh => new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
-  const [ry, rz0, rz1] = deck.roof;
-  const roof = disc(0.62);
+  const [ry, rz0, rz1, rhw] = deck.roof;
+  // As big as the roof takes: its width or its length, whichever is less.
+  const roof = disc(Math.min(2 * rhw, rz1 - rz0) * 0.94);
   roof.rotation.x = -Math.PI / 2;
   // Readable from the camera above and behind: the top of the number faces the nose.
   roof.rotation.z = Math.PI;
