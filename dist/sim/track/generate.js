@@ -57,8 +57,9 @@ export function generateTrack(seed) {
         return hit;
     const rand = mulberry32(s);
     const int = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
+    const style = pickStyle(int);
     for (let attempt = 0; attempt < 400; attempt++) {
-        const def = candidate(s, int, attempt);
+        const def = candidate(s, int, attempt, style);
         try {
             // Checked bare: scattering a city round a candidate only to throw it away is most of the cost.
             if (validateTrack(new Track({ ...def, props: [] })) === null) {
@@ -77,8 +78,9 @@ export function attemptsFor(seed) {
     const s = seed >>> 0 || 1;
     const rand = mulberry32(s);
     const int = (lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
+    const style = pickStyle(int);
     for (let attempt = 0; attempt < 400; attempt++) {
-        const def = candidate(s, int, attempt);
+        const def = candidate(s, int, attempt, style);
         try {
             if (validateTrack(new Track({ ...def, props: [] })) === null)
                 return attempt + 1;
@@ -89,22 +91,26 @@ export function attemptsFor(seed) {
     }
     return Infinity;
 }
-function candidate(seed, int, attempt) {
-    const theme = THEMES[int(0, THEMES.length - 1)];
-    const n = int(7, 11);
-    const corners = [];
-    // Round a loose star: evenly spread bearings, jittered, at jittered distances.
-    // Integer degrees and metres throughout.
-    const spread = Math.floor(360 / n);
-    const base = int(0, 359);
-    const radius = int(150, 230);
-    for (let i = 0; i < n; i++) {
-        const deg = (base + i * spread + int(-Math.floor(spread / 3), Math.floor(spread / 3)) + 720) % 360;
-        const r = radius + int(-70, 60);
-        const x = Math.round((r * COS[deg]) / 10000);
-        const z = Math.round((r * SIN[deg]) / 10000);
-        corners.push([x, z, int(theme === 'park' ? 30 : 16, theme === 'park' ? 60 : 40)]);
-    }
+/** Layout styles, and how each reads on the menu. */
+const LAYOUTS = ['loop', 'grid', 'straights'];
+const LAYOUT_NAMES = { loop: 'Flowing loop', grid: 'City grid', straights: 'Long straights' };
+/**
+ * A seed's look and shape, drawn once before any candidate: a layout that
+ * fails validation more often is retried until it passes, not swapped for
+ * an easier one, so each layout gets its fair third of the seeds.
+ */
+function pickStyle(int) {
+    return { theme: THEMES[int(0, THEMES.length - 1)], layout: LAYOUTS[int(0, LAYOUTS.length - 1)] };
+}
+function candidate(seed, int, attempt, { theme, layout }) {
+    // The tightest corner a theme allows: the park's wide grass verge puts its wall further in.
+    const tight = theme === 'park' ? 16 : 14;
+    let corners = layout === 'grid' ? grid(int, tight) : layout === 'straights' ? straights(int, tight) : loop(int, theme);
+    // Either way round.
+    if (int(0, 1))
+        corners = corners.reverse();
+    fit(corners);
+    const n = corners.length;
     // The longest edge is the main straight: the start line goes on it.
     let longest = 0;
     let best = -1;
@@ -156,6 +162,7 @@ function candidate(seed, int, attempt) {
         laps: 3,
         seed: (seed ^ Math.imul(attempt + 1, 0x9e3779b1)) >>> 0,
         theme,
+        layout: LAYOUT_NAMES[layout],
         corners,
         width: theme === 'park' ? 13 : 14,
         verge: theme === 'park' ? { width: 6, surface: Surface.Grass } : { width: theme === 'dusk' ? 3 : 2, surface: Surface.Kerb },
@@ -166,5 +173,147 @@ function candidate(seed, int, attempt) {
         ramps: jump ? [{ at: [Math.round((jx0 + jx1) / 2), Math.round((jz0 + jz1) / 2)], len: 14, lift: 1.4 }] : [],
         props,
     };
+}
+/**
+ * A loose star: evenly spread bearings, jittered, at jittered distances, with
+ * open corners. The flowing sort of circuit.
+ */
+function loop(int, theme) {
+    const n = int(7, 11);
+    const corners = [];
+    const spread = Math.floor(360 / n);
+    const base = int(0, 359);
+    const radius = int(150, 230);
+    for (let i = 0; i < n; i++) {
+        const deg = (base + i * spread + int(-Math.floor(spread / 3), Math.floor(spread / 3)) + 720) % 360;
+        const r = radius + int(-70, 60);
+        corners.push([Math.round((r * COS[deg]) / 10000), Math.round((r * SIN[deg]) / 10000), int(theme === 'park' ? 30 : 16, theme === 'park' ? 60 : 40)]);
+    }
+    return corners;
+}
+/**
+ * City blocks, like Neon Downtown and the Docks: a rectangle whose sides have
+ * square notches cut in or pushed out, and now and then a corner cut off on
+ * the diagonal. Right angles and tight radii; every point on a 10 m grid.
+ */
+function grid(int, tight) {
+    const w = int(28, 40) * 10;
+    const h = int(20, 32) * 10;
+    // Clockwise on screen from the top-left: along the top, down the right, back along the bottom, up the left.
+    const sides = [
+        { from: [0, 0], dir: [1, 0], len: w },
+        { from: [w, 0], dir: [0, 1], len: h },
+        { from: [w, h], dir: [-1, 0], len: w },
+        { from: [0, h], dir: [0, -1], len: h },
+    ];
+    const corners = [];
+    const at = (x, z, r) => {
+        corners.push([x, z, r]);
+    };
+    const r = () => int(tight, tight + 10);
+    for (const side of sides) {
+        const [fx, fz] = side.from;
+        const [dx, dz] = side.dir;
+        // Inward is the direction turned right (clockwise on screen, +Z down): (dx, dz) -> (-dz, dx).
+        const ix = -dz;
+        const iz = dx;
+        const across = side.len === w ? h : w;
+        // The corner at the start of this side: square, or cut on the diagonal.
+        if (int(0, 3) === 0) {
+            const c = int(3, 5) * 10;
+            at(fx + ix * c, fz + iz * c, r() + 6);
+            at(fx + dx * c, fz + dz * c, r() + 6);
+        }
+        else {
+            at(fx, fz, r());
+        }
+        // Up to two notches along the side, clear of its ends and of each other.
+        const notches = side.len >= 320 ? int(0, 2) : int(0, 1);
+        let pos = 90;
+        for (let k = 0; k < notches; k++) {
+            const room = side.len - 90 - pos - (notches - k - 1) * 130;
+            if (room < 60)
+                break;
+            const span = int(6, Math.min(12, Math.floor(room / 10))) * 10;
+            const a = pos + int(0, Math.floor((room - span) / 10)) * 10;
+            const b = a + span;
+            // In is into the block the circuit goes round; out pushes a block onto the outside.
+            const inward = int(0, 2) > 0;
+            const depth = (inward ? Math.min(int(6, 12), Math.floor((across - 90) / 10)) : int(6, 10)) * 10;
+            if (depth < 50)
+                break;
+            const s = inward ? 1 : -1;
+            at(fx + dx * a, fz + dz * a, r());
+            at(fx + dx * a + ix * depth * s, fz + dz * a + iz * depth * s, r());
+            at(fx + dx * b + ix * depth * s, fz + dz * b + iz * depth * s, r());
+            at(fx + dx * b, fz + dz * b, r());
+            pos = b + 70;
+        }
+    }
+    // Centred on the origin, so the scenery's square is round it.
+    return corners.map(([x, z, rr]) => [x - Math.round(w / 2), z - Math.round(h / 2), rr]);
+}
+/**
+ * A long, thin circuit: a stretched star with few corners, deep dents that
+ * make hairpins at the ends, and radii from a crawl to flat out. Turned to
+ * any whole-degree bearing.
+ */
+function straights(int, tight) {
+    const n = int(6, 9);
+    const spread = Math.floor(360 / n);
+    const base = int(0, 359);
+    const turn = int(0, 359);
+    const long = int(330, 430);
+    const short = int(150, 210);
+    // One corner pulled well in: a dent in a long side, and a hairpin into and out of it.
+    const dent = int(0, n - 1);
+    const corners = [];
+    for (let i = 0; i < n; i++) {
+        const deg = (base + i * spread + int(-Math.floor(spread / 4), Math.floor(spread / 4)) + 720) % 360;
+        const pull = i === dent ? int(25, 50) : int(60, 100);
+        const x = Math.round((long * pull * COS[deg]) / 1000000);
+        const z = Math.round((short * pull * SIN[deg]) / 1000000);
+        const rx = Math.round((x * COS[turn] - z * SIN[turn]) / 10000);
+        const rz = Math.round((x * SIN[turn] + z * COS[turn]) / 10000);
+        corners.push([rx, rz, int(tight, tight + 12)]);
+    }
+    // The gentle ones — under about 45° — may be fast sweepers instead.
+    for (let i = 0; i < n; i++) {
+        const t = tanHalf(corners[(i + n - 1) % n], corners[i], corners[(i + 1) % n]);
+        if (int(0, 1) === 0 && t < 0.41)
+            corners[i][2] = int(30, 50);
+    }
+    return corners;
+}
+/**
+ * Shrink any corner too round for its edges: a fillet of radius r turning
+ * through angle θ runs r·tan(θ/2) along each edge, and may have half of each.
+ * tan(θ/2) comes from the edges as |a×b| / (|a||b| + a·b), which needs only
+ * square roots, and IEEE square roots are exact: the same on every engine.
+ */
+function fit(corners) {
+    const n = corners.length;
+    for (let i = 0; i < n; i++) {
+        const p = corners[(i + n - 1) % n];
+        const c = corners[i];
+        const q = corners[(i + 1) % n];
+        const t = tanHalf(p, c, q);
+        if (t === 0)
+            continue;
+        const most = Math.floor(Math.min(dist(p, c), dist(c, q)) / 2 / t);
+        if (c[2] > most)
+            c[2] = most;
+    }
+}
+/** Straight-line distance between two corners, by an exact square root. */
+function dist(a, b) {
+    return Math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]));
+}
+/** tan of half the angle the road turns through at `c`, coming from `p` and going on to `q`; 0 if it runs straight on. */
+function tanHalf(p, c, q) {
+    const ax = c[0] - p[0], az = c[1] - p[1], bx = q[0] - c[0], bz = q[1] - c[1];
+    const den = dist(p, c) * dist(c, q) + ax * bx + az * bz;
+    const cross = Math.abs(ax * bz - az * bx);
+    return cross === 0 || den <= 0 ? 0 : cross / den;
 }
 //# sourceMappingURL=generate.js.map

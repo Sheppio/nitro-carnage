@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.20**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.22**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 317 checks: simulation and networking (Node), and real browsers
+npm test           # 321 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -567,8 +567,9 @@ Everything is synthesised with Web Audio, and there are no sound files:
 ## A track from a word: the track of the day
 
 Pick **Track of the day** in the menu or the lobby and you race a circuit generated
-from today's date. Pick **Your own seed…** and type any word: the same word is the same
-track for anyone, so a track can be shared by name.
+from today's date. Type any word in the seed box and the track switches to **Custom
+seed** at the first letter: the same word is the same track for anyone, so a track can
+be shared by name.
 
 **Same seed, same track, on every computer.** That rules out anything a different
 JavaScript engine could compute differently, so the generator deals only in integers
@@ -582,20 +583,43 @@ until it hands over a `TrackDef`:
   everywhere at the same instant, and it changes at UTC midnight, not at your local
   one.
 
-A candidate is a loose star of 7–11 corners in one of the three themes. It's thrown
-away unless it passes the same validation the hand-built tracks do: an arcade lap
+**Three layouts, a third of the seeds each.** The first generator only drew loose
+stars, so every seeded track came out round, with none of the tight right-angle work
+of Neon Downtown or the Docks. Now a seed first draws its theme and one of three
+layouts:
+- **Flowing loop**: a loose star of 7–11 corners, as before. Open, fast, round.
+- **City grid**: a rectangle whose sides have square notches cut in or pushed out,
+  and now and then a corner cut off on the diagonal. Every point is on a 10 m grid and
+  the radii are tight (14–24 m), so it drives like Downtown: brake late, turn square.
+- **Long straights**: a long, thin shape turned to any bearing, with one corner
+  pulled well in to make a hairpin or a kink. Sharp corners are tight; only gentle
+  ones (under about 45°) may be fast sweepers.
+
+The layout is drawn once, before any candidate, and a failed candidate is retried in
+the same layout. So a layout that's harder to get right isn't quietly swapped for an
+easier one. Before that change, loops won three quarters of the seeds just by failing
+less. The menu's preview names the layout.
+
+A radius too big for its corner's edges is shrunk to fit. A fillet turning through θ
+runs r·tan(θ/2) along each edge, and tan(θ/2) is worked out from the edges as
+|a×b| / (|a||b| + a·b). That needs only square roots, and IEEE square roots are
+exact, so the fit is the same on every engine too.
+
+A candidate is thrown away unless it passes the same validation the hand-built tracks do: an arcade lap
 length, every corner wide enough for its inside wall, no walls crossing, and no two
 stretches of road closer than 40 m. It's checked without scenery, since scattering a
 city round a candidate only to reject it was most of the cost. Retries draw from the
-same stream, so they're part of the determinism too. A seed takes 2.4 candidates on
-average, about 6 ms.
+same stream, so they're part of the determinism too. A seed takes at most 14
+candidates in a thousand tried, about 15 ms on average.
 
 The tests hold this to account:
 - A table of seeds is **pinned to the exact bytes** of their tracks. Changing the
   generator would otherwise silently change yesterday's track of the day, and this
   makes that a decision.
 - The browser generates the pinned track and gets the same bytes as Node.
-- A thousand seeds all validate, and the autopilot laps a hundred of them cleanly.
+- A thousand seeds all validate, and share out evenly between the three layouts. Every
+  city grid really is square: each edge runs along an axis or on a 45° cut.
+- The autopilot laps a hundred of them cleanly.
 - In a room, the host's heartbeat carries the seed rather than a track index, and a
   network test finds every client building the same generated track from it.
 
@@ -623,8 +647,8 @@ seed.
 - **The first lap is a standing start**, so a flying lap soon beats it, and the ghost
   then runs alongside you.
 
-**Random seed.** Under the seed box, in the menu and (for the host) in the lobby,
-**🎲 Random seed** deals three words from a list of 367 three-letter words, joined by
+**Random seed.** The 🎲 at the end of the seed box, in the menu and (for the host) in
+the lobby, deals three words from a list of 367 three-letter words, joined by
 hyphens: `egg-cup-top`, `pin-run-dig`. That's about 49 million tracks, and each is easy
 to read out to a friend. Five words from the list the player supplied aren't dealt at
 random, because a generator will sooner or later put them beside "gas" or "pig" on
@@ -643,7 +667,9 @@ hides the ammo, and a network test checks that not one shot goes on the wire.
 ## Your car: the Garage
 
 The Garage opens from the menu and from the lobby. It has a turntable preview (the real
-`CarMesh` in a small renderer of its own) and five pickers:
+`CarMesh` in a small renderer of its own) and five pickers. Body, livery and wheels
+are ‹ arrows ›, and the stripe colour is a row of colour squares. Only the race
+number, with a hundred choices, is still a dropdown:
 
 | | Choices |
 | --- | --- |
@@ -670,9 +696,9 @@ The Garage opens from the menu and from the lobby. It has a turntable preview (t
   something it can't build.
 - **Bots are dressed from the room code and their grid slot**, so every screen dresses
   them the same way.
-- **Easy to drive without a mouse.** The pickers are ordinary dropdowns, so the arrow
-  keys, D-pad and touch all work on them unchanged, and LB/RB cycle the body from
-  anywhere on the screen. The lobby roster draws each car as a little plan-view icon
+- **Easy to drive without a mouse.** Each picker is one stop for the focus ring, and
+  left and right change it, from the arrow keys or the D-pad. The arrows and squares
+  can also be tapped or clicked. LB/RB cycle the body from anywhere on the screen. The lobby roster draws each car as a little plan-view icon
   in its colour and livery, in 2D: one WebGL context per roster row would be absurd.
 
 ## Consoles and handhelds
@@ -708,8 +734,9 @@ used device drives the car, so picking up a controller mid-race just works.
 
 **Menus need no mouse.** The arrow keys or the D-pad/left stick move the focus ring.
 Enter, Space or A/✕ selects, and Esc, Backspace or B/○ goes back. Left and right
-change a dropdown in place. In a text field, left, right and Backspace belong to the
-text; on a pad, A opens an on-screen keyboard. In a race the arrow keys drive, and
+change a dropdown or a Garage picker in place. In a text field, left, right and
+Backspace belong to the text until the caret reaches that end, when left or right steps
+out to the control beside it (the seed box's dice); on a pad, A opens an on-screen keyboard. In a race the arrow keys drive, and
 Esc opens the pause menu, which the same keys then navigate.
 
 - **Keyboard steering winds in over 140 ms** and returns faster. Keys are digital, and
@@ -734,11 +761,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-317 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+321 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (137, Node):
+- **`sim.test.mjs`** (138, Node):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
@@ -811,7 +838,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (43, browser): the browser generates a seed's track to the same
+- **`smoke.test.mjs`** (45, browser): the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
   road, off or a second ahead as set; full health at every line;
@@ -829,9 +856,10 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Weapons:** Z fires a missile that is drawn and counted off the HUD; X drops a
     mine; a hit lowers the health bar; a car shot to zero is wrecked, says so, and
     comes back with 35 health.
-  - **Garage:** all thirty body and livery combinations inside the footprint and the
-    triangle budget, each striped livery drawing its stripe; the look kept across a
-    reload.
+  - **Garage:** no dropdowns but the race number, and a click on an arrow or a colour
+    square changes the car; all thirty body and livery combinations inside the
+    footprint and the triangle budget, each striped livery drawing its stripe, and the
+    race number on top of it; the look kept across a reload.
   - **Tracks and sound:** Greenbelt and the Docks boot from a link with their scenery
     inside 150 draw calls; sound starts on the first key with the race music; only three
     engines are voiced with six cars; with both volumes at zero nothing is built.
@@ -850,11 +878,13 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   Xbox and PlayStation prompts; the on-screen keyboard; menu to race; RT drives;
   Menu/Options pauses, A resumes; leaving; every row of Settings by D-pad; the menu,
   lobby and HUD at 1280×800.
-- **`keyboard.test.mjs`** (28, browser, keys and nothing else): on the menu, settings,
+- **`keyboard.test.mjs`** (29, browser, keys and nothing else): on the menu, settings,
   Garage, join, lobby, pause and results screens, a breadth-first search over the arrow
   keys reaches every control. It presses each arrow from every control reached so
   far, so it's exact, not a walk that might be lucky. The race number changes with the
-  arrows; a typed seed shows its track on the menu, and Random seed deals three words. Also: the caret keeps left, right and Backspace in text fields; dropdowns
+  arrows. Typing a seed switches the track to Custom seed and previews it; right from
+  the end of the seed reaches the dice, which sits on the same line and deals three
+  words. Also: the caret keeps left, right and Backspace in text fields; dropdowns
   change with left and right; Space toggles a switch; Esc goes back everywhere and
   resumes from pause without reopening it; Settings from the pause menu, a volume
   slider by arrows, and Esc back to the paused race; in a race the arrows drive.
@@ -865,6 +895,19 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   doesn't brake; a small thumb movement is a small correction; the missile button fires; pause and resume by tap.
 
 These caught real bugs:
+
+- **Grid corners cut on the wrong side** (seed layouts). The diagonal cut's first
+  point was placed outside the block instead of on the side before it, so most city
+  grids folded over themselves. Nothing looked wrong in the code. It showed up as
+  grids failing validation six times as often as loops, and a count of the corners
+  that were shrunk found them.
+- **Fast sweepers on sharp corners** (seed layouts). A 130° corner that drew a 61 m
+  radius became a long, fast hairpin, and the autopilot ran wide on its exit into the
+  overcast theme's close wall. Found by the hundred-seed autopilot lap. Big radii now
+  go only to gentle corners, which is how real circuits are built anyway.
+- **The stripe covered the race number.** The roof number sat 2 cm above the roof,
+  and a stripe's top is at 2.2 cm. A browser test now checks all thirty body and livery
+  combinations for a number on top.
 
 - **The heartbeat outgrew its budget** (M7). The seed and weapons switch added 10
   bytes to the worst case, 178 against 174. The byte-budget test failed, so raising

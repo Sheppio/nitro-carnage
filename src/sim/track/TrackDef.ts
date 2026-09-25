@@ -23,6 +23,8 @@ export interface TrackDef {
   seed: number;
   /** Key into the renderer's theme table: sky, fog, ground, light. */
   theme: string;
+  /** What shape of circuit it is, in words, for the menu (generated tracks only). */
+  layout?: string;
 
   /**
    * The centreline as a closed control polygon: `[x, z, radius]` per corner.

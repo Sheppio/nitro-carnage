@@ -1065,10 +1065,10 @@ console.log('\ngenerated tracks');
  * different track: the test is there to make that a decision, not an accident.
  */
 const PINNED = [
-  [1, 'Neon Sprint', '5dbd25f5'],
-  [42, 'Static Reach', '8c924ebc'],
-  [seedOf('NITRO'), 'Neon Yard', 'b0269db'],
-  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Signal Mile', '80ed5d55'],
+  [1, 'Neon Sprint', '2440a1d1'],
+  [42, 'Static Reach', '7d8a42e8'],
+  [seedOf('NITRO'), 'Neon Yard', '1595f901'],
+  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Signal Mile', '51c3047e'],
 ];
 
 {
@@ -1092,9 +1092,17 @@ const PINNED = [
   // A thousand seeds: every one yields a track, every one valid.
   let bad = 0;
   let most = 0;
+  const layouts = {};
+  let squared = 0;
   for (let sd = 1000; sd < 2000; sd++) {
     try {
       const d = generateTrack(sd);
+      layouts[d.layout] = (layouts[d.layout] ?? 0) + 1;
+      // A city grid is right angles: every edge runs due east-west or north-south, bar the odd corner cut on the diagonal.
+      if (d.layout === 'City grid' && d.corners.every((c, i) => {
+        const q = d.corners[(i + 1) % d.corners.length];
+        return c[0] === q[0] || c[1] === q[1] || Math.abs(c[0] - q[0]) === Math.abs(c[1] - q[1]);
+      })) squared++;
       if (validateTrack(new Track({ ...d, props: [] })) !== null) bad++;
       most = Math.max(most, attemptsFor(sd));
     } catch {
@@ -1102,6 +1110,9 @@ const PINNED = [
     }
   }
   check('a thousand seeds all generate a valid track', bad === 0, `${bad} failed; at most ${most} candidates for one seed`);
+  const counts = Object.values(layouts);
+  check('seeds share out evenly between flowing loops, city grids and long straights', counts.length === 3 && counts.every((c) => c > 280) && squared === layouts['City grid'],
+    JSON.stringify(layouts));
 
   // A hundred of them lapped by the autopilot, cleanly.
   const lapped = [];

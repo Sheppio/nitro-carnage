@@ -135,9 +135,11 @@ export class GamepadNavigator {
       : null;
 
     if (direction) {
-      // Left and right inside a text field belong to the caret. Up and down do
-      // not mean anything there, so they are free to move the ring.
-      if (typing && (direction === 'left' || direction === 'right')) return;
+      // Left and right inside a text field belong to the caret — until it is
+      // at that end already, when they step out to the control beside it (the
+      // seed's dice). Up and down do not mean anything there, so they are free
+      // to move the ring.
+      if (typing && (direction === 'left' || direction === 'right') && !caretAtEnd(active as HTMLInputElement, direction)) return;
       event.preventDefault();
       event.stopPropagation();
       this.move(direction);
@@ -234,13 +236,18 @@ export class GamepadNavigator {
     // all: the D-pad would simply walk off it.
     if (dir === 'left' || dir === 'right') {
       const step = dir === 'right' ? 1 : -1;
-      if (isTextInput(from)) return; // caret movement belongs to the field
+      if (isTextInput(from) && !caretAtEnd(from, dir)) return; // caret movement belongs to the field
       if (isRange(from)) {
         this.nudgeRange(from, step);
         return;
       }
       if (from instanceof HTMLSelectElement) {
         this.cycleSelect(from, step);
+        return;
+      }
+      // A game picker (the Garage's arrows and colour squares) cycles itself.
+      if (from.hasAttribute('data-nav-cycle')) {
+        from.dispatchEvent(new CustomEvent('nc:cycle', { detail: { dir: step } }));
         return;
       }
     }
@@ -321,6 +328,8 @@ export class GamepadNavigator {
     this.lastFocus = el;
     el.classList.add('nav-focus');
     el.focus({ preventScroll: true });
+    // Arriving in a text box, the caret goes to the end: ready to add to it, and one more press right steps past it.
+    if (isTextInput(el)) el.setSelectionRange(el.value.length, el.value.length);
     el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     this.pad.triggerRumble(HAPTIC.navigate.weak, HAPTIC.navigate.strong, HAPTIC.navigate.ms);
   }
@@ -398,7 +407,7 @@ export class GamepadNavigator {
 
 /**
  * The box a control occupies for navigation: its whole form row when it sits
- * in one (`label.field`), otherwise itself.
+ * in one (`.field`), otherwise itself.
  *
  * A settings row is a label with its control at one end — dropdowns on the
  * right, checkboxes on the left. Measured by the controls alone, a column of
@@ -409,7 +418,7 @@ export class GamepadNavigator {
  * same width, so down simply means the next row.
  */
 function rectOf(el: HTMLElement): Rect {
-  const r = (el.closest('label.field') ?? el).getBoundingClientRect();
+  const r = (el.closest('.field') ?? el).getBoundingClientRect();
   return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom };
 }
 
@@ -469,4 +478,11 @@ function isRange(el: HTMLElement): el is HTMLInputElement {
 
 function isTextInput(el: HTMLElement): el is HTMLInputElement {
   return el instanceof HTMLInputElement && ['text', 'search', 'url', 'email', 'number'].includes(el.type);
+}
+
+/** Is the caret already as far as it goes that way, with nothing selected? */
+function caretAtEnd(el: HTMLInputElement, dir: 'left' | 'right'): boolean {
+  const { selectionStart: a, selectionEnd: b } = el;
+  if (a === null || b === null || a !== b) return false;
+  return dir === 'left' ? a === 0 : a === el.value.length;
 }

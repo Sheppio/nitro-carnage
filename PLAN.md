@@ -1038,6 +1038,15 @@ Build it in this order:
      road). If it fails, the generator retries from the next derived seed, and the
      number of retries is part of the determinism.
 
+   *(Follow-up, built.)* The first generator only drew loose stars, so seeded tracks
+   were all round. A seed now draws one of three layouts before any candidate: a
+   **flowing loop**; a **city grid** of notched rectangles with tight right angles,
+   like Downtown and the Docks; or **long straights**, with hairpins and kinks. Each
+   gets a third of the seeds, and a failed candidate retries in the same layout. This
+   changed every seed's track, including the track of the day, so the pinned hashes
+   were re-pinned on purpose. Hotlap records for seeds from before the change no
+   longer match their tracks.
+
    Any seed can be typed in, as a short word or number, so a track can be shared by
    name. In a room, the host's heartbeat carries the seed instead of a track index.
    Tests:
@@ -1074,6 +1083,123 @@ reloads a best lap, and a race-only room races with no weapon events on the wire
 reverse-order grids, the summary screen, and bot shopping.
 *Done when* the ledger survives host failover in tests and a 3-race championship with
 bots plays through.
+
+**M9 — Built-in tracks shaped like real circuits** *(added after M7; future)*.
+Twenty-one more built-in tracks, each a recognisable outline of a real circuit:
+
+| Europe | Americas | Rest of the world |
+| --- | --- | --- |
+| Circuit de Spa-Francorchamps | Indianapolis Motor Speedway | Suzuka Circuit |
+| Autodromo Nazionale Monza | Daytona International Speedway | Mount Panorama Circuit |
+| Circuit de Monaco | WeatherTech Raceway Laguna Seca | Yas Marina Circuit |
+| Silverstone Circuit | Sebring International Raceway | |
+| Circuit de la Sarthe | Road America | |
+| Brands Hatch (Grand Prix) | Watkins Glen International | |
+| Brands Hatch (Indy) | Circuit Gilles Villeneuve | |
+| Hockenheimring | Autódromo José Carlos Pace (Interlagos) | |
+| Red Bull Ring | | |
+| Circuit de Barcelona-Catalunya | | |
+
+They are ordinary `TrackDef`s, fillet polygons like Downtown, so everything downstream
+works unchanged: walls, racing line, bots, minimap and preview.
+
+- **Authoring.** Trace each layout as a list of points from a public circuit map,
+  then run it through a small script that:
+  - scales it;
+  - snaps it to whole metres;
+  - fits each corner's radius to its edges (`fit` from the generator);
+  - runs `validateTrack`;
+  - prints the `TrackDef`.
+
+  Hand-tune afterwards. The data files stay pure data.
+- **Scale is the hard part.** Real laps run from about 1.9 km (Brands Hatch Indy) to
+  13.6 km (la Sarthe); the arcade lap is 1.2–1.8 km. A uniform scale down to 1.8 km
+  shrinks Spa by 4× and la Sarthe by 7.5×, and their small corners fall below the
+  minimum radius. So, per track:
+  - keep the signature corners at a drivable radius (Eau Rouge, Parabolica, the
+    Loews hairpin, Maggotts–Becketts, the Esses, 130R, the Corkscrew, the Mulsanne
+    chicanes);
+  - merge wiggles that are too small to drive;
+  - allow a *grand* lap limit (say up to 2.6 km) for the longest few, with fewer laps
+    to match.
+
+  The test for each track is that it's recognisable side by side with its outline,
+  not a surveyed copy.
+- **Ovals.** Indianapolis and Daytona as bare ovals would be four corners and flat
+  out, which suits weapons more than racing. Decide per track whether to use the oval
+  or its road course (Indy's road course, Daytona's 24-hour layout). There's no
+  banking: the world is flat apart from ramps.
+- **No elevation.** Mount Panorama, Spa, Laguna Seca's Corkscrew and Road America are
+  famous for their hills, and the engine has none. A crest can become a jump (a ramp)
+  where it's safe.
+- **Themes.** Each track gets the nearest existing theme: Monaco and Circuit Gilles
+  Villeneuve the city, Spa and Mount Panorama parkland, Yas Marina city at dusk. A new
+  theme (desert, or night) is a separate decision.
+- **Names.** Circuit names and logos are trademarks. The tracks can be *shaped like*
+  the real ones, but in-game names should be the game's own (e.g. "Ardennes" for Spa,
+  "Royal Park" for Monza), perhaps with a small "inspired by" line. See §12.
+- **The menu.** Twenty-four built-in tracks is too many for a flat dropdown. Group
+  them ("Originals", "Real circuits", "Generated"), and let the preview show each
+  shape before it's picked.
+- **Order.** Build in batches of about five, each fully tested before the next: the
+  compact road courses first (Brands Hatch ×2, the Red Bull Ring, Laguna Seca,
+  Monaco), then the classic Grand Prix tracks, then the long ones and the ovals.
+
+*Done when* every track passes `validateTrack`, the autopilot laps each one cleanly
+within its par, the whole set loads within the draw-call budget, and a contact sheet
+of the minimaps next to the reference outlines shows each is recognisable.
+
+**M10 — Richer environments** *(added after M7; future)*.
+Make the three settings feel like places. Start with a daytime city, then add props to
+the parkland and the docks.
+
+1. **The city by day.** A `day` theme beside `dusk`: a blue sky, a high sun with crisp
+   shadows, lighter fog, street lamps off, and windows as glass rather than lit. It
+   uses the same `city` scatter and the same buildings, so it's a theme, not a new
+   track. Downtown can be raced at dusk or by day, and generated city tracks draw
+   either. The theme table and the preview's style line gain the new entry.
+2. **Parkland, as farmland.** New scatter rules and props:
+   - ponds;
+   - flower beds;
+   - windmills, with turning sails;
+   - barns, silos and a farmhouse;
+   - a tractor and a combine harvester;
+   - cows and sheep, grazing;
+   - cornfields;
+   - hay bales.
+
+   Ponds are `water` rectangles, or a new round water shape, so a car that leaves the
+   road into one is put back like at the docks. Fields and flowers are ground patches
+   with low instanced stalks. The rest are low-poly models placed by rule, e.g.
+   "a farm: a house, a barn, a silo and bales, 60 m clear of the road".
+3. **Docks, as a working port.** New props:
+   - cargo ships and yachts moored along the water;
+   - gantry cranes over the quay (the existing cranes, extended);
+   - forklifts and flatbed trucks;
+   - pallets and wooden crates;
+   - oil drums;
+   - warehouses.
+
+   Ships sit in the water rectangles, against the quay wall. Crates, pallets and drums
+   scatter in yards between the container stacks.
+
+Rules that hold throughout:
+- **Scenery only.** Props sit behind the walls (or in the open parkland verge beyond
+  the wall gaps) and don't collide. Making drums or bales knockable or explosive
+  would be a gameplay change, decided separately.
+- **Budgets.** Every new prop kind is one merged or instanced mesh per track, so the
+  high preset stays within 150 draw calls and the smoke test keeps checking it.
+  Animals and flowers thin out on the low presets, and potato drops them.
+- **Tall things never hide a car.** Windmills, silos, cranes, ships and warehouses
+  join the occlusion cut-away (§4.2), and the occlusion probe test covers them.
+- **Deterministic.** Placement comes from the seeded scatter, so every client sees
+  the same farm. Animation (sails, grazing) is visual only and runs on the local clock.
+- **Generated tracks use them too**, so a seeded parkland track gets farms and a
+  docks track gets ships.
+
+*Done when* the day city, the farmland and the port each boot within the draw-call
+budget on the high preset; the occlusion test passes with the new tall props; and
+screenshots of each theme show the new props clear of the road.
 
 ---
 

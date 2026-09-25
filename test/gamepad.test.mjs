@@ -165,13 +165,13 @@ try {
   await padTo(page, 'btn-garage', B.DOWN);
   await tap(page, B.A);
   await until(() => page.evaluate(() => !document.getElementById('screen-garage').hidden));
-  const body0 = await page.evaluate(() => document.getElementById('garage-body').value);
+  const body0 = await page.evaluate(() => document.getElementById('garage-body').dataset.value);
   await tap(page, B.RB);
-  const body1 = await page.evaluate(() => document.getElementById('garage-body').value);
+  const body1 = await page.evaluate(() => document.getElementById('garage-body').dataset.value);
   await padTo(page, 'garage-pattern', B.DOWN);
-  const pat0 = await page.evaluate(() => document.getElementById('garage-pattern').value);
+  const pat0 = await page.evaluate(() => document.getElementById('garage-pattern').dataset.value);
   await tap(page, B.RIGHT);
-  const pat1 = await page.evaluate(() => document.getElementById('garage-pattern').value);
+  const pat1 = await page.evaluate(() => document.getElementById('garage-pattern').dataset.value);
   await tap(page, B.B);
   const gOut = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden));
   const saved = await page.evaluate(() => window.nitro.look);

@@ -128,7 +128,7 @@ for (const sel of [$<HTMLSelectElement>('menu-track'), $<HTMLSelectElement>('lob
     o.textContent = text;
     return o;
   };
-  sel.replaceChildren(...TRACKS.map((t, i) => opt(String(i), t.name)), opt('day', 'Track of the day'), opt('seed', 'Your own seed…'));
+  sel.replaceChildren(...TRACKS.map((t, i) => opt(String(i), t.name)), opt('day', 'Track of the day'), opt('seed', 'Custom seed'));
 }
 
 function trackChoice(value: string, seedText: string, index = 0): TrackChoice {
@@ -153,22 +153,20 @@ const trackParam = params.get('seed') ? 'seed' : params.get('track') === 'day' ?
 const savedTrack = store.get(TRACK_KEY);
 menuTrack.value = trackParam !== '-1' ? trackParam : [...menuTrack.options].some((o) => o.value === savedTrack) ? savedTrack : '0';
 menuSeed.value = params.get('seed') ?? store.get(SEED_KEY);
-const syncSeedRows = (): void => {
-  $('menu-seed-row').hidden = $('menu-seed-random').hidden = menuTrack.value !== 'seed';
-  $('lobby-seed-row').hidden = $('lobby-seed-random').hidden = $<HTMLSelectElement>('lobby-track').value !== 'seed';
+/** Touching the seed means racing it: the track switches to Custom seed. */
+const useMenuSeed = (): void => {
+  menuTrack.value = 'seed';
+  store.set(TRACK_KEY, 'seed');
+  store.set(SEED_KEY, menuSeed.value);
+  previewTrack();
 };
 // Three words from the list, hyphenated: "egg-cup-top".
 $('menu-seed-random').addEventListener('click', () => {
   menuSeed.value = randomSeedText();
-  store.set(SEED_KEY, menuSeed.value);
-  previewTrack();
+  useMenuSeed();
 });
-syncSeedRows();
-menuTrack.addEventListener('change', () => {
-  store.set(TRACK_KEY, menuTrack.value);
-  syncSeedRows();
-});
-menuSeed.addEventListener('input', () => store.set(SEED_KEY, menuSeed.value));
+menuTrack.addEventListener('change', () => store.set(TRACK_KEY, menuTrack.value));
+menuSeed.addEventListener('input', useMenuSeed);
 const chosenTrack = (): TrackChoice => trackChoice(menuTrack.value, menuSeed.value);
 
 /** Draw the chosen track in the menu: redrawn as the choice changes, and as a seed is typed. */
@@ -182,7 +180,6 @@ function previewTrack(): void {
   }, 60);
 }
 menuTrack.addEventListener('change', previewTrack);
-menuSeed.addEventListener('input', previewTrack);
 const menuWeapons = $<HTMLSelectElement>('menu-weapons');
 menuWeapons.value = store.get(WEAPONS_KEY) === '0' ? '0' : '1';
 menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.value));
@@ -476,7 +473,6 @@ $('lobby-colour').addEventListener('change', (e) => {
   lobby?.render();
 });
 const lobbySettings = (): void => {
-  syncSeedRows();
   const pick = $<HTMLSelectElement>('lobby-track').value;
   const choice = trackChoice(pick, $<HTMLInputElement>('lobby-seed').value);
   room?.net.configure(
@@ -492,8 +488,16 @@ $('lobby-laps').addEventListener('change', lobbySettings);
 $('lobby-track').addEventListener('change', lobbySettings);
 $('lobby-weapons').addEventListener('change', lobbySettings);
 $('lobby-seed').addEventListener('change', lobbySettings);
+// As in the menu, typing a seed switches the room to it; the rest of the room hears when the typing is done.
+$('lobby-seed').addEventListener('input', () => {
+  const sel = $<HTMLSelectElement>('lobby-track');
+  if (sel.value === 'seed') return;
+  sel.value = 'seed';
+  lobbySettings();
+});
 $('lobby-seed-random').addEventListener('click', () => {
   $<HTMLInputElement>('lobby-seed').value = randomSeedText();
+  $<HTMLSelectElement>('lobby-track').value = 'seed';
   lobbySettings();
 });
 

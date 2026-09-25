@@ -60,14 +60,7 @@ try {
   // Bob's look, set in his Garage, reaches Alice's lobby.
   await b.evaluate(() => {
     document.getElementById('btn-lobby-garage').click();
-    const set = (id, v) => {
-      const el = document.getElementById(id);
-      el.value = v;
-      el.dispatchEvent(new Event('change'));
-    };
-    set('garage-body', 'buggy');
-    set('garage-pattern', 'roundel');
-    set('garage-number', '42');
+    window.nitro.garage.set({ body: 'buggy', pattern: 'roundel', number: 42 });
     document.getElementById('btn-garage-back').click();
   });
   const bobId = await b.evaluate(() => window.nitro.room.net.playerId);

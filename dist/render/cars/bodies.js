@@ -182,7 +182,8 @@ export function buildBody(look, colour) {
     roof.rotation.x = -Math.PI / 2;
     // Readable from the camera above and behind: the top of the number faces the nose.
     roof.rotation.z = Math.PI;
-    roof.position.set(0, ry + 0.02, (rz0 + rz1) / 2);
+    // Above the stripes (whose tops are at +0.022), so a stripe runs under the number, not over it.
+    roof.position.set(0, ry + 0.035, (rz0 + rz1) / 2);
     decals.push(roof);
     if (look.pattern === 'roundel') {
         const [y, z0, z1, x] = deck.side;

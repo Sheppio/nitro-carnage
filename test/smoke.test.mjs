@@ -318,28 +318,45 @@ try {
   const gp = await openPage('quality=potato');
   await gp.click('#btn-garage');
   await gp.waitForSelector('#screen-garage:not([hidden])');
+  // No dropdowns but the number: arrows to click through, colour squares to click on.
+  const noSelects = await gp.evaluate(() => [...document.querySelectorAll('#screen-garage select')].map((s) => s.id).join());
+  await gp.click('#garage-body .step:last-child');
+  const clickedBody = await gp.evaluate(() => window.nitro.garage.current.body);
+  await gp.click('#garage-stripe .swatch[title="Jade"]');
+  const clickedStripe = await gp.evaluate(() => [window.nitro.garage.current.stripe, document.querySelectorAll('#garage-stripe .swatch.on').length]);
+  r.check('the Garage picks by arrows and colour squares; only the race number is a dropdown',
+    noSelects === 'garage-number' && clickedBody === 'hatch' && clickedStripe[0] === 'jade' && clickedStripe[1] === 1, `${noSelects}; › gave ${clickedBody}; square gave ${clickedStripe[0]}`);
   const bodies = await gp.evaluate(async () => {
     const out = [];
-    const sel = (id, v) => {
-      const el = document.getElementById(id);
-      el.value = v;
-      el.dispatchEvent(new Event('change'));
-    };
-    sel('garage-stripe', 'jade');
     for (const body of ['coupe', 'hatch', 'muscle', 'wedge', 'buggy']) {
       for (const pattern of ['none', 'twin', 'offset', 'flash', 'chequer', 'roundel']) {
-        sel('garage-body', body);
-        sel('garage-pattern', pattern);
+        window.nitro.garage.set({ body, pattern });
         const mesh = window.nitro.garage.view.mesh;
         const hull = mesh.root.getObjectByName('car-body');
         hull.geometry.computeBoundingBox();
         const bb = hull.geometry.boundingBox;
+        // The roof number: the decal nearest the top, which must sit above any stripe under it.
+        const disc = mesh.body.children.filter((c) => c.geometry?.type === 'PlaneGeometry').sort((a, b) => b.position.y - a.position.y)[0];
+        // The top of whatever the hull has under the disc: every triangle whose plan overlaps the disc's square.
+        const pos = hull.geometry.getAttribute('position');
+        const idx = hull.geometry.index;
+        const vert = (k) => (idx ? idx.getX(k) : k);
+        const tri = idx ? idx.count : pos.count;
+        let under = -Infinity;
+        for (let k = 0; k < tri; k += 3) {
+          const v = [vert(k), vert(k + 1), vert(k + 2)];
+          const xs = v.map((i) => pos.getX(i)), zs = v.map((i) => pos.getZ(i));
+          const half = disc.geometry.parameters.width * 0.45;
+          if (Math.min(...xs) <= disc.position.x + half && disc.position.x - half <= Math.max(...xs) && Math.min(...zs) <= disc.position.z + half && disc.position.z - half <= Math.max(...zs)) {
+            under = Math.max(under, ...v.map((i) => pos.getY(i)));
+          }
+        }
         const tris = hull.geometry.getAttribute('position').count / 3;
         // Jade is 0x00c07a: look for its green among the vertex colours (linear, so roughly).
         const col = hull.geometry.getAttribute('color');
         let jade = 0;
         for (let i = 0; i < col.count; i++) if (col.getX(i) < 0.05 && col.getY(i) > 0.4 && col.getZ(i) > 0.1 && col.getZ(i) < 0.4) jade++;
-        out.push({ body, pattern, x: Math.max(-bb.min.x, bb.max.x), z: Math.max(-bb.min.z, bb.max.z), tris, jade });
+        out.push({ body, pattern, x: Math.max(-bb.min.x, bb.max.x), z: Math.max(-bb.min.z, bb.max.z), tris, jade, clear: disc.position.y - under });
       }
     }
     return out;
@@ -353,6 +370,9 @@ try {
   r.check('every striped livery draws its stripe colour, and "none" draws none',
     striped.every((b) => b.jade > 0) && bodies.filter((b) => b.pattern === 'none').every((b) => b.jade === 0),
     striped.filter((b) => b.jade === 0).map((b) => `${b.body}/${b.pattern}`).join(' '));
+  const buried = bodies.filter((b) => !(b.clear > 0.005 && b.clear < 0.1));
+  r.check('the race number sits on top of the stripes, not under them', buried.length === 0,
+    buried.length ? buried.map((b) => `${b.body}/${b.pattern} ${b.clear.toFixed(3)}`).join(' ') : `clear by ${Math.min(...bodies.map((b) => b.clear)).toFixed(3)} m at least`);
   await gp.reload();
   await gp.waitForSelector('#screen-menu:not([hidden])');
   const kept = await gp.evaluate(() => window.nitro.look);
@@ -371,7 +391,7 @@ try {
     const u = await import(new URL('util.js', main).href);
     return u.hashString(JSON.stringify(g.generateTrack(g.daySeed(Date.UTC(2026, 8, 25, 12))))).toString(16);
   });
-  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === '80ed5d55', sameTrack);
+  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === '51c3047e', sameTrack);
   const label = await hl.evaluate(() => document.getElementById('hud-track').textContent);
   const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: getComputedStyle(document.getElementById('hud-arms')).display === 'none' }));
   r.check('a hotlap on the track of the day: named on the HUD, a record to beat, no position, no weapons',

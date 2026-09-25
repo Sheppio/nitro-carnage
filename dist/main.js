@@ -105,7 +105,7 @@ for (const sel of [$('menu-track'), $('lobby-track')]) {
         o.textContent = text;
         return o;
     };
-    sel.replaceChildren(...TRACKS.map((t, i) => opt(String(i), t.name)), opt('day', 'Track of the day'), opt('seed', 'Your own seed…'));
+    sel.replaceChildren(...TRACKS.map((t, i) => opt(String(i), t.name)), opt('day', 'Track of the day'), opt('seed', 'Custom seed'));
 }
 function trackChoice(value, seedText, index = 0) {
     if (value === 'day') {
@@ -128,22 +128,20 @@ const trackParam = params.get('seed') ? 'seed' : params.get('track') === 'day' ?
 const savedTrack = store.get(TRACK_KEY);
 menuTrack.value = trackParam !== '-1' ? trackParam : [...menuTrack.options].some((o) => o.value === savedTrack) ? savedTrack : '0';
 menuSeed.value = params.get('seed') ?? store.get(SEED_KEY);
-const syncSeedRows = () => {
-    $('menu-seed-row').hidden = $('menu-seed-random').hidden = menuTrack.value !== 'seed';
-    $('lobby-seed-row').hidden = $('lobby-seed-random').hidden = $('lobby-track').value !== 'seed';
+/** Touching the seed means racing it: the track switches to Custom seed. */
+const useMenuSeed = () => {
+    menuTrack.value = 'seed';
+    store.set(TRACK_KEY, 'seed');
+    store.set(SEED_KEY, menuSeed.value);
+    previewTrack();
 };
 // Three words from the list, hyphenated: "egg-cup-top".
 $('menu-seed-random').addEventListener('click', () => {
     menuSeed.value = randomSeedText();
-    store.set(SEED_KEY, menuSeed.value);
-    previewTrack();
+    useMenuSeed();
 });
-syncSeedRows();
-menuTrack.addEventListener('change', () => {
-    store.set(TRACK_KEY, menuTrack.value);
-    syncSeedRows();
-});
-menuSeed.addEventListener('input', () => store.set(SEED_KEY, menuSeed.value));
+menuTrack.addEventListener('change', () => store.set(TRACK_KEY, menuTrack.value));
+menuSeed.addEventListener('input', useMenuSeed);
 const chosenTrack = () => trackChoice(menuTrack.value, menuSeed.value);
 /** Draw the chosen track in the menu: redrawn as the choice changes, and as a seed is typed. */
 let previewTimer = 0;
@@ -157,7 +155,6 @@ function previewTrack() {
     }, 60);
 }
 menuTrack.addEventListener('change', previewTrack);
-menuSeed.addEventListener('input', previewTrack);
 const menuWeapons = $('menu-weapons');
 menuWeapons.value = store.get(WEAPONS_KEY) === '0' ? '0' : '1';
 menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.value));
@@ -444,7 +441,6 @@ $('lobby-colour').addEventListener('change', (e) => {
     lobby?.render();
 });
 const lobbySettings = () => {
-    syncSeedRows();
     const pick = $('lobby-track').value;
     const choice = trackChoice(pick, $('lobby-seed').value);
     room?.net.configure(Number($('lobby-cars').value), Number($('lobby-laps').value), choice.seed ? 0 : Number(pick), choice.seed, Number($('lobby-weapons').value));
@@ -454,8 +450,17 @@ $('lobby-laps').addEventListener('change', lobbySettings);
 $('lobby-track').addEventListener('change', lobbySettings);
 $('lobby-weapons').addEventListener('change', lobbySettings);
 $('lobby-seed').addEventListener('change', lobbySettings);
+// As in the menu, typing a seed switches the room to it; the rest of the room hears when the typing is done.
+$('lobby-seed').addEventListener('input', () => {
+    const sel = $('lobby-track');
+    if (sel.value === 'seed')
+        return;
+    sel.value = 'seed';
+    lobbySettings();
+});
 $('lobby-seed-random').addEventListener('click', () => {
     $('lobby-seed').value = randomSeedText();
+    $('lobby-track').value = 'seed';
     lobbySettings();
 });
 const brokerSelect = $('set-broker');

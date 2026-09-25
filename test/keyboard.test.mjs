@@ -29,7 +29,9 @@ const controls = (page) => page.evaluate(() => {
  * reached so far, press each arrow (real key presses) and note where the
  * focus lands; then put the focus back and try the next. Left and right are
  * skipped on controls that keep them for themselves (a dropdown cycles, a
- * slider moves, a text field has a caret), exactly as the navigator does.
+ * slider moves), exactly as the navigator does. A text field keeps them for
+ * its caret until the caret is at that end, so they are pressed there with
+ * the caret put at the end first.
  */
 async function walk(page) {
   const start = await focused(page);
@@ -40,10 +42,17 @@ async function walk(page) {
     for (const key of ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft']) {
       const owns = await page.evaluate((id) => {
         const el = document.getElementById(id);
-        return el && (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && ['range', 'text'].includes(el.type)));
+        return el && (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type === 'range'));
       }, from);
       if (owns && (key === 'ArrowLeft' || key === 'ArrowRight')) continue;
-      await page.evaluate((id) => document.getElementById(id)?.focus(), from);
+      await page.evaluate(([id, k]) => {
+        const el = document.getElementById(id);
+        el?.focus();
+        if (el?.tagName === 'INPUT' && el.type === 'text') {
+          const at = k === 'ArrowLeft' ? 0 : el.value.length;
+          el.setSelectionRange(at, at);
+        }
+      }, [from, key]);
       await page.keyboard.press(key);
       const to = await focused(page);
       if (to && !seen.has(to)) {
@@ -126,16 +135,17 @@ try {
   r.check('Esc goes back to the menu', Boolean(backToMenu));
 
   /* ------------------------------------------------------ track preview */
-  // Pick "your own seed", type one: the preview maps it and says what it is.
-  await goTo(page, 'menu-track');
-  for (let k = 0; k < 8 && (await page.evaluate(() => document.getElementById('menu-track').value)) !== 'seed'; k++) await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('ArrowDown');
-  const onSeed = (await focused(page)) === 'menu-seed';
+  // From a built-in track, type in the seed box: the track becomes Custom
+  // seed at the first letter, and the preview maps it and says what it is.
+  const trackBefore = await page.evaluate(() => document.getElementById('menu-track').value);
+  await goTo(page, 'menu-seed');
+  await page.keyboard.press('Control+a');
   await page.keyboard.type('sheppio');
   const preview = await until(() => page.evaluate(() => {
     const t = document.getElementById('menu-track-info').textContent;
     return /seed sheppio/.test(t) ? t : null;
   }));
+  const switched = await page.evaluate(() => document.getElementById('menu-track').selectedOptions[0].textContent);
   const inked = await page.evaluate(() => {
     const c = document.getElementById('menu-track-map');
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
@@ -143,19 +153,30 @@ try {
     for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
     return n / (c.width * c.height);
   });
-  r.check('typing a seed shows its track on the menu: a map, a name and its style', onSeed && Boolean(preview) && inked > 0.03, preview ?? '');
-  // Down from the seed to Random: Enter deals three words, and the preview follows.
-  await goTo(page, 'menu-seed-random');
+  r.check('typing a seed switches the track to Custom seed and shows it on the menu: a map, a name, its style and layout',
+    trackBefore !== 'seed' && switched === 'Custom seed' && Boolean(preview) && /Flowing loop|City grid|Long straights/.test(preview) && inked > 0.03, `${trackBefore} -> ${switched}; ${preview ?? ''}`);
+  // Right from the end of the seed is the dice, sitting at the end of the box: Enter deals three words, and the preview follows.
+  await page.keyboard.press('ArrowRight');
+  const onDice = (await focused(page)) === 'menu-seed-random';
+  const sameLine = await page.evaluate(() => {
+    const a = document.getElementById('menu-seed').getBoundingClientRect();
+    const b = document.getElementById('menu-seed-random').getBoundingClientRect();
+    return b.left >= a.right && b.top < a.bottom && b.bottom > a.top && b.width < 60;
+  });
   await page.keyboard.press('Enter');
   const dealt = await until(() => page.evaluate(() => {
     const v = document.getElementById('menu-seed').value;
     const t = document.getElementById('menu-track-info').textContent;
     return /^[a-z]{3}-[a-z]{3}-[a-z]{3}$/.test(v) && t.includes(`seed ${v}`) ? v : null;
   }));
-  r.check('Random seed deals three hyphenated words, and the preview shows that track', Boolean(dealt), dealt ?? '');
+  r.check('the dice sits at the end of the seed box, right-arrow reaches it, and it deals three hyphenated words', onDice && sameLine && Boolean(dealt), dealt ?? '');
+  await page.keyboard.press('ArrowLeft');
+  const backInSeed = (await focused(page)) === 'menu-seed';
+  // Picking a built-in track again keeps the seed typed, for later.
   await goTo(page, 'menu-track');
-  await page.keyboard.press('ArrowUp');
   for (let k = 0; k < 8 && (await page.evaluate(() => document.getElementById('menu-track').value)) !== '0'; k++) await page.keyboard.press('ArrowRight');
+  const kept = await page.evaluate(() => [document.getElementById('menu-track').value, document.getElementById('menu-seed').value]);
+  r.check('left from the dice is the seed again; a built-in track can be picked back, and the seed stays in the box', backInSeed && kept[0] === '0' && kept[1] === dealt, JSON.stringify(kept));
 
   /* -------------------------------------------------------------- garage */
   await goTo(page, 'btn-garage');
