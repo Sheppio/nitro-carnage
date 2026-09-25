@@ -58,6 +58,11 @@ export class RaceSession {
     onOver = null;
     /** Sound, if the page has it. Set by the page after construction. */
     audio = null;
+    /** The best lap on record for this track (hotlap); the page loads and saves it. */
+    record = null;
+    splitAt = -1;
+    splitDelta = 0;
+    seenSplits = 0;
     lastPip = -1;
     warned = false;
     constructor(host, opts, input, settings, net = null) {
@@ -83,7 +88,9 @@ export class RaceSession {
         }
         else {
             const race = opts.mode === 'race';
-            this.world = new World(opts.track, { laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0 });
+            this.world = new World(opts.track, {
+                laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0, weapons: race && opts.weapons !== false,
+            });
             this.playerId = 'you';
             // The player starts mid-grid in a race — there is somebody to catch and
             // somebody to hold off — and on pole in a free drive.
@@ -355,8 +362,24 @@ export class RaceSession {
         const e = this.player ?? order[0];
         const car = e.car;
         const last = e.lap.lapTimes.length ? e.lap.lapTimes[e.lap.lapTimes.length - 1] : null;
+        // Hotlap: the latest checkpoint against the record's split there.
+        const splits = e.lap.splits;
+        if (splits.length !== this.seenSplits) {
+            this.seenSplits = splits.length;
+            const k = splits.length - 1;
+            const ref = this.record?.splits[k];
+            if (k >= 0 && ref !== undefined) {
+                this.splitDelta = splits[k] - ref;
+                this.splitAt = w.time;
+            }
+        }
+        const lapTime = e.lap.completed >= 0 ? w.time - e.lap.lapStart : 0;
         return {
             mode: this.mode,
+            lapTime,
+            record: this.record?.time ?? null,
+            split: this.splitAt >= 0 && w.time - this.splitAt < 3 ? { delta: this.splitDelta, age: w.time - this.splitAt } : null,
+            weapons: w.weapons,
             speedKmh: Math.hypot(car.vx, car.vz) * 3.6,
             turbo: car.turbo,
             fps: this.fps,

@@ -4,7 +4,7 @@ import { Emitter } from '../util.js';
 import { decodeHeartbeat, decodePresence, encodeHeartbeat, encodePresence } from './codec.js';
 import { Topics, segment } from './topics.js';
 export const LOBBY_STATE = {
-    phase: 'L', race: 1, of: 1, track: 0, laps: 3, goAt: 0, grid: [], finish: [], cars: 6,
+    phase: 'L', race: 1, of: 1, track: 0, laps: 3, goAt: 0, grid: [], finish: [], cars: 6, seed: 0, arms: 1,
 };
 /**
  * Room membership and authority — ported from glitchburst, where every rule

@@ -21,6 +21,9 @@ import { applyDeadzone1, filterAxis } from '../dist/input/sources.js';
 import { mulberry32, wrapAngle, smoothing } from '../dist/util.js';
 import { Armoury, castRay, missileAt } from '../dist/sim/weapons.js';
 import { trainAt, crossingBlocked, crossingWarning, trainSegment } from '../dist/sim/train.js';
+import { generateTrack, seedOf, daySeed, utcDay, trackName, attemptsFor } from '../dist/sim/track/generate.js';
+import { validateTrack } from '../dist/sim/track/validate.js';
+import { hashString } from '../dist/util.js';
 
 let pass = 0;
 let fail = 0;
@@ -1048,6 +1051,89 @@ console.log('\nhazards');
   };
   check('an oil patch is oil, and a car steering across it barely turns',
     t.surfaceAt(oil.at[0], oil.at[1]) === 3 && run(3) < run(0) * 0.4, `turned ${run(0).toFixed(2)} rad on tarmac, ${run(3).toFixed(2)} on oil`);
+}
+
+/* ------------------------------------------------------ generated tracks */
+
+console.log('\ngenerated tracks');
+
+/**
+ * The exact output for a few seeds, pinned. If the generator changes, these
+ * change, and yesterday's track of the day would silently become a
+ * different track: the test is there to make that a decision, not an accident.
+ */
+const PINNED = [
+  [1, 'Neon Sprint', '5dbd25f5'],
+  [42, 'Static Reach', '8c924ebc'],
+  [seedOf('NITRO'), 'Neon Yard', 'b0269db'],
+  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Signal Mile', '80ed5d55'],
+];
+
+{
+  const got = PINNED.map(([seed]) => {
+    const d = generateTrack(seed);
+    return [seed, d.name, hashString(JSON.stringify(d)).toString(16)];
+  });
+  check('the pinned seeds still generate exactly the same tracks', JSON.stringify(got) === JSON.stringify(PINNED),
+    got.map(([, n, h]) => `${n} ${h}`).join(', '));
+
+  // Integers only in the definition: nothing a different engine's Math.sin could nudge.
+  const ints = [1, 2, 3, 7, 99].every((sd) => generateTrack(sd).corners.every((c) => c.every(Number.isInteger)));
+  check('a generated track\'s corners are whole metres and whole numbers', ints);
+
+  check('a seed is any word: case and spacing do not matter', seedOf('  green  mile ') === seedOf('GREEN MILE') && seedOf('a') !== seedOf('b'));
+  const day = Date.UTC(2026, 8, 25);
+  check('the track of the day changes at UTC midnight and not before',
+    daySeed(day) === daySeed(day + 86399999) && daySeed(day) !== daySeed(day + 86400000) && daySeed(day - 1) !== daySeed(day)
+    && utcDay(day + 86399999) === '2026-09-25', `today is "${trackName(daySeed(day))}"`);
+
+  // A thousand seeds: every one yields a track, every one valid.
+  let bad = 0;
+  let most = 0;
+  for (let sd = 1000; sd < 2000; sd++) {
+    try {
+      const d = generateTrack(sd);
+      if (validateTrack(new Track({ ...d, props: [] })) !== null) bad++;
+      most = Math.max(most, attemptsFor(sd));
+    } catch {
+      bad++;
+    }
+  }
+  check('a thousand seeds all generate a valid track', bad === 0, `${bad} failed; at most ${most} candidates for one seed`);
+
+  // A hundred of them lapped by the autopilot, cleanly.
+  const lapped = [];
+  const failed = [];
+  for (let sd = 1; sd <= 100; sd++) {
+    const w = new World(generateTrack(sd), { laps: 1, countdown: 0, weapons: false });
+    const b = w.addBot('b', 0, SKILLS[0], 1);
+    while (!b.lap.finished && w.time < 200) w.step();
+    if (b.lap.finished && b.respawns === 0 && b.car.impacts <= 3) lapped.push(b.lap.best);
+    else failed.push(sd);
+  }
+  check('the autopilot laps a hundred generated tracks cleanly', failed.length === 0,
+    failed.length ? `failed seeds ${failed.join(' ')}` : `laps ${Math.min(...lapped).toFixed(0)}-${Math.max(...lapped).toFixed(0)} s`);
+
+  // And the hotlap's splits: a time at each checkpoint, kept for the lap just done.
+  const w = new World(generateTrack(7), { laps: 0, countdown: 0, weapons: false });
+  const b = w.addBot('b', 0, SKILLS[0], 1);
+  while (b.lap.completed < 2 && w.time < 200) w.step();
+  const sp = b.lap.lastSplits;
+  check('a lap records a split at every checkpoint, in order, inside the lap time',
+    sp.length === w.track.checkpoints.length && sp.every((t, i) => t > 0 && (i === 0 || t > sp[i - 1])) && sp[sp.length - 1] < b.lap.lapTimes[1],
+    sp.map((t) => t.toFixed(1)).join(' / '));
+}
+
+{
+  // Race only: the trigger does nothing at all.
+  const w = new World(TRACKS[0], { laps: 1, countdown: 0, weapons: false });
+  const e = w.addCar('a', 0, () => intent({ fireFront: true, fireRear: true, throttle: 1 }));
+  let fired = 0;
+  while (w.time < 8) {
+    w.step();
+    fired += w.drain().filter((x) => x.kind === 'fire' || x.kind === 'mine').length;
+  }
+  check('a race-only world ignores every trigger', fired === 0 && e.ammo.front === SIM.weapons.loadout.front);
 }
 
 /* ------------------------------------------------------------ determinism */

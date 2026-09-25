@@ -230,6 +230,10 @@ export interface Heartbeat {
   finish: { slot: number; t: number }[];
   /** Lobby setting: fill the grid with bots up to this many cars. */
   cars: number;
+  /** A generated track's seed (M7); 0 means the built-in track at `track`. */
+  seed: number;
+  /** Weapons on (1) or a race-only room (0) (M7). */
+  arms: number;
 }
 
 export function encodeHeartbeat(h: Heartbeat): string {
@@ -246,6 +250,8 @@ export function encodeHeartbeat(h: Heartbeat): string {
     h.grid.join(LIST),
     h.finish.map((f) => `${b36(f.slot)}:${b36(f.t)}`).join(LIST),
     b36(h.cars),
+    b36(h.seed),
+    b36(h.arms),
   ].join(FLD);
 }
 
@@ -272,6 +278,9 @@ export function decodeHeartbeat(payload: string): Heartbeat | null {
         })
       : [],
     cars: un36(f[11]),
+    // Older builds send neither: a built-in track, weapons on.
+    seed: un36(f[12]),
+    arms: f[13] === undefined ? 1 : un36(f[13]),
   };
 }
 

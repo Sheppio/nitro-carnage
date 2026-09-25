@@ -1,5 +1,6 @@
 import { colourOf, PALETTE } from '../sim/palette.js';
 import { TRACKS } from '../sim/track/index.js';
+import { daySeed, generateTrack } from '../sim/track/generate.js';
 import { carIcon } from './carIcon.js';
 const $ = (id) => document.getElementById(id);
 /**
@@ -58,11 +59,18 @@ export class Lobby {
             select.value = mine;
         $('lobby-cars').value = String(net.state.cars);
         $('lobby-laps').value = String(net.state.laps);
-        $('lobby-track').value = String(net.state.track);
+        const st = net.state;
+        const today = st.seed !== 0 && st.seed === daySeed(Date.now());
+        const trackSel = $('lobby-track');
+        // The host's own pick is left alone while they type a seed.
+        if (!(net.isHost && trackSel.value === 'seed' && st.seed !== 0 && !today)) {
+            trackSel.value = st.seed === 0 ? String(st.track) : today ? 'day' : 'seed';
+        }
+        $('lobby-weapons').value = String(st.arms);
         $('lobby-wait').hidden = net.isHost;
-        const track = TRACKS[net.state.track]?.name ?? '';
+        const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? 'Track of the day · ' : ''}${generateTrack(st.seed).name}`;
         $('lobby-wait').textContent = room.hostId
-            ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}. Waiting for the host to start it.`
+            ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}. Waiting for the host to start it.`
             : 'Looking for the room…';
     }
     row(name, colourId, badges, look) {

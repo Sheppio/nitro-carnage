@@ -4,6 +4,7 @@ import { createAutopilot, autopilot, SKILLS } from '../sim/autopilot.js';
 import { BOT_NAMES } from '../sim/bots.js';
 import { COLOUR_ORDER, DEFAULT_COLOUR } from '../sim/palette.js';
 import { standings } from '../sim/race.js';
+import { generateTrack } from '../sim/track/generate.js';
 import { botLook, decodeLook } from '../sim/look.js';
 import type { CarLook } from '../sim/look.js';
 import { racingLine } from '../sim/racingLine.js';
@@ -191,10 +192,13 @@ export class NetRace {
   /* ------------------------------------------------------------ the lobby */
 
   /** Host: change the lobby settings (cars on the grid, laps). */
-  configure(cars: number, laps: number, track = this.state.track): void {
+  configure(cars: number, laps: number, track = this.state.track, seed = this.state.seed, arms = this.state.arms): void {
     if (!this.isHost || this.state.phase !== 'L') return;
     track = Math.max(0, Math.min(this.tracks.length - 1, Math.round(track) || 0));
-    this.state = { ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(9, laps)), track };
+    this.state = {
+      ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(9, laps)), track,
+      seed: seed >>> 0, arms: arms ? 1 : 0,
+    };
     this.room.beatNow();
     this.events.emit('state', { state: this.state });
   }
@@ -391,13 +395,13 @@ export class NetRace {
 
   private beginRace(s: RoomState): void {
     this.endRace();
-    const def = this.tracks[s.track] ?? this.tracks[0]!;
+    const def = s.seed ? generateTrack(s.seed) : (this.tracks[s.track] ?? this.tracks[0]!);
     const now = this.roomNow;
     const countdown = Math.max(0, (s.goAt - now) / 1000);
     // A late arrival (a failover, or a spectator) starts its world part-way
     // through, so world time and room time still line up.
     const elapsed = Math.max(0, (now - s.goAt) / 1000);
-    const w = new World(def, { laps: s.laps, countdown, elapsed });
+    const w = new World(def, { laps: s.laps, countdown, elapsed, weapons: s.arms !== 0 });
     this.worldZero = s.goAt - w.goTime * 1000;
     this.raceGoAt = s.goAt;
     this.resultsSent = false;

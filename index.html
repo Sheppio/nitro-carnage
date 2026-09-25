@@ -40,9 +40,17 @@
               <span>Offline track</span>
               <select id="menu-track"></select>
             </label>
+            <label class="field" id="menu-seed-row" hidden>
+              <span>Seed</span>
+              <input type="text" id="menu-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
+            </label>
+            <label class="field">
+              <span>Weapons</span>
+              <select id="menu-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
+            </label>
             <div class="btn-row">
               <button class="btn" id="btn-race">Quick race</button>
-              <button class="btn" id="btn-free-drive">Free drive</button>
+              <button class="btn" id="btn-free-drive">Hotlap</button>
             </div>
             <div class="btn-row">
               <button class="btn" id="btn-garage">Garage</button>
@@ -114,6 +122,14 @@
               <span>Track</span>
               <select id="lobby-track"></select>
             </label>
+            <label class="field host-only" id="lobby-seed-row" hidden>
+              <span>Seed</span>
+              <input type="text" id="lobby-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
+            </label>
+            <label class="field host-only">
+              <span>Weapons</span>
+              <select id="lobby-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
+            </label>
             <label class="field host-only">
               <span>Laps</span>
               <select id="lobby-laps">
@@ -127,8 +143,10 @@
           <p class="menu-note" id="lobby-wait">Waiting for the host to start the race.</p>
           <nav class="menu-actions">
             <button class="btn primary host-only" id="btn-start-race" data-nav-default>Start race</button>
-            <button class="btn" id="btn-lobby-garage">Garage</button>
-            <button class="btn" id="btn-lobby-leave" data-nav-back>Leave room</button>
+            <div class="btn-row">
+              <button class="btn" id="btn-lobby-garage">Garage</button>
+              <button class="btn" id="btn-lobby-leave" data-nav-back>Leave room</button>
+            </div>
           </nav>
         </div>
       </section>
@@ -150,7 +168,9 @@
           <h2>Garage</h2>
           <div class="garage-view" id="garage-view" aria-hidden="true"></div>
           <p class="menu-note">Looks only: every car drives the same. <span class="pad-only"><span data-glyph="prev">LB</span> / <span data-glyph="next">RB</span> change the body.</span></p>
-          <div class="lobby-grid">
+          <!-- One column on purpose: a dropdown keeps left/right for itself, so a
+               second column of them could not be reached from keys or a pad. -->
+          <div class="lobby-grid one-column">
             <label class="field"><span>Body</span><select id="garage-body"></select></label>
             <label class="field"><span>Livery</span><select id="garage-pattern"></select></label>
             <label class="field"><span>Stripe colour</span><select id="garage-stripe"></select></label>
@@ -217,6 +237,8 @@
             <div class="hud-lap">LAP <b id="hud-lap">1</b><small id="hud-laps">/3</small></div>
             <div class="hud-time" id="hud-time">0:00.00</div>
             <div class="hud-splits">LAST <span id="hud-last">—</span> · BEST <span id="hud-best">—</span></div>
+            <div class="hud-splits" id="hud-record-row" hidden>RECORD <span id="hud-record">—</span></div>
+            <div class="hud-split" id="hud-split"></div>
           </div>
         </div>
         <canvas class="hud-minimap" id="hud-minimap" aria-hidden="true"></canvas>

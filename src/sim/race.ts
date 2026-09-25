@@ -35,6 +35,10 @@ export interface LapState {
   /** Seconds spent going backwards; see `WRONG_WAY_AFTER`. */
   backwards: number;
   wrongWay: boolean;
+  /** Seconds into the current lap at each checkpoint passed so far (M7: hotlap splits). */
+  splits: number[];
+  /** The splits of the last completed lap. */
+  lastSplits: number[];
 }
 
 /** Seconds of reversing along the track before the WRONG WAY banner. */
@@ -53,6 +57,8 @@ export function createLapState(track: Track, s: number, goTime: number): LapStat
     finishTime: null,
     backwards: 0,
     wrongWay: false,
+    splits: [],
+    lastSplits: [],
   };
 }
 
@@ -100,10 +106,12 @@ export function stepLaps(
   // Backwards over the last passed checkpoint: it no longer counts.
   if (st.nextCp > 0 && st.nextCp <= cps.length && crossing(track, prev, s, cps[st.nextCp - 1]!) < 0) {
     st.nextCp--;
+    st.splits.length = Math.min(st.splits.length, st.nextCp);
     return null;
   }
   if (st.nextCp < cps.length && crossing(track, prev, s, cps[st.nextCp]!) > 0) {
     st.nextCp++;
+    if (st.completed >= 0) st.splits[st.nextCp - 1] = time - st.lapStart;
     return null;
   }
 
@@ -124,6 +132,8 @@ export function stepLaps(
     if (st.completed === 0) return null; // left the grid: lap 1 has begun
     const lapTime = at - st.lapStart;
     st.lapTimes.push(lapTime);
+    st.lastSplits = st.splits;
+    st.splits = [];
     st.best = st.best === null ? lapTime : Math.min(st.best, lapTime);
     st.lapStart = at;
     if (laps > 0 && st.completed >= laps) {

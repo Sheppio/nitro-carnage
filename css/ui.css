@@ -544,6 +544,13 @@ input[type='text'] {
 .roster li.bot { opacity: 0.6; }
 
 .lobby-grid { display: grid; gap: 4px; margin-bottom: 6px; }
+
+/* Wide screens (the Deck's 1280x800 included): settings in two columns, so the
+   lobby's six rows and its buttons fit on the screen without scrolling. */
+@media (min-width: 720px) {
+  .menu-card.wide { width: min(720px, 100%); }
+  .lobby-grid:not(.one-column) { grid-template-columns: 1fr 1fr; column-gap: 22px; }
+}
 body:not(.is-host) .host-only { display: none !important; }
 
 .console-banner {
@@ -626,3 +633,15 @@ body:not(.is-host) .host-only { display: none !important; }
 body[data-pad="none"] .pad-only { display: none; }
 
 .car-icon { flex: none; margin-right: 2px; }
+
+/* ------------------------------------------------------------------ hotlap */
+
+.hud-split {
+  font: 700 22px var(--display);
+  font-style: italic;
+  min-height: 26px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+.hud-split.up { color: #4be08a; }
+.hud-split.down { color: #ff5a5a; }

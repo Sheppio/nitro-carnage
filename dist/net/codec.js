@@ -174,6 +174,8 @@ export function encodeHeartbeat(h) {
         h.grid.join(LIST),
         h.finish.map((f) => `${b36(f.slot)}:${b36(f.t)}`).join(LIST),
         b36(h.cars),
+        b36(h.seed),
+        b36(h.arms),
     ].join(FLD);
 }
 export function decodeHeartbeat(payload) {
@@ -201,6 +203,9 @@ export function decodeHeartbeat(payload) {
             })
             : [],
         cars: un36(f[11]),
+        // Older builds send neither: a built-in track, weapons on.
+        seed: un36(f[12]),
+        arms: f[13] === undefined ? 1 : un36(f[13]),
     };
 }
 /** Names go inside a comma-delimited record, so they must not contain one. */

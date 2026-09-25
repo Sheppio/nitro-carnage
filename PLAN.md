@@ -11,7 +11,7 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status:** M1 to M6 are built (see README). Where building changed a decision, this plan has been
+> **Status:** M1 to M7 are built (see README). M8 is deferred. Where building changed a decision, this plan has been
 > updated to match, and the change is marked with its milestone, as in *(M1)* or *(M4)*.
 
 ---
@@ -799,7 +799,7 @@ hostId,seq,roomT,phase,race,of,track,laps,goAt,grid,finish,pickups,trainSeed
 | train seed | 2 |
 | separators | 12 |
 
-**About 110 bytes typical and 174 worst.** At 2 Hz that's 350 B/s at most.
+**About 110 bytes typical and 184 worst** *(M7: was 174; a track seed and the weapons switch added 10)*. At 2 Hz that's under 370 B/s.
 
 **Presence** (`pr/<pid>`) is `name,colour,host,alive,ready,ver`, about 35 bytes.
 **Ledger** (`ch`) has a header and one record per car: `id,name,pts,cash,hp,eng,tyr,arm,tur,front,rear,mines,wrecks,wins`.
@@ -1022,7 +1022,7 @@ look is cosmetic only: handling and the collision capsule are the same for every
 - `gamepad.test` covering the Garage by pad alone, and at 1280×800;
 - `multiplayer.test` showing that a second tab sees your body, stripe and number.
 
-**M7 — Track of the day, hotlaps, and a race-only mode** *(added after M3)*.
+**M7 — Track of the day, hotlaps, and a race-only mode** *(added after M3)* *(built)*.
 Build it in this order:
 
 1. **Track of the day.** A track generated from a seed, and the day's seed derived
@@ -1061,6 +1061,13 @@ Build it in this order:
 
 *Done when* the generator tests above are green, a hotlap on today's track records and
 reloads a best lap, and a race-only room races with no weapon events on the wire.
+*(As built:*
+- *the corners are integers from an integer-trig table, and the scenery scatter and
+  fillet maths run on those same integers in every engine. The tests pin the
+  `TrackDef` bytes, which is what decides the track;*
+- *the autopilot laps a hundred generated seeds cleanly, rather than a thousand, to
+  keep CI quick; all thousand are validated;*
+- *the ghost of your best lap stays a stretch goal.)*
 
 **M8 — Shop, upgrades and the championship** *(deferred: moved to the end after M4; it may be dropped to keep the game simple)*.
 `economy.ts`, `championship.ts`, the host ledger, shop UI, upgrades feeding physics,

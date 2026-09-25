@@ -10,6 +10,8 @@ import { RoomClient } from './RoomClient.js';
 import { isColourId } from './sim/palette.js';
 import { TRACKS } from './sim/track/index.js';
 import { AudioEngine } from './audio/AudioEngine.js';
+import { daySeed, generateTrack, seedOf } from './sim/track/generate.js';
+import type { LapRecord } from './RaceSession.js';
 import { decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import type { CarLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
@@ -17,7 +19,7 @@ import { GaragePreview } from './render/GaragePreview.js';
 import type { TrackDef } from './sim/track/TrackDef.js';
 import { applyGlyphs, padFamily } from './ui/glyphs.js';
 import { GamepadNavigator } from './ui/GamepadNavigator.js';
-import { Hud } from './ui/Hud.js';
+import { formatTime, Hud } from './ui/Hud.js';
 import { Keyboard } from './ui/Keyboard.js';
 import { Lobby } from './ui/Lobby.js';
 import { makePlayerId, makeRoomCode } from './util.js';
@@ -99,22 +101,81 @@ nameInput.addEventListener('input', () => {
 const playerName = (): string => sanitizeName(nameInput.value);
 /* ------------------------------------------------------------------ track */
 
-const TRACK_KEY = `${SLUG}.track`;
-const trackSelects = [$<HTMLSelectElement>('menu-track'), $<HTMLSelectElement>('lobby-track')];
-for (const sel of trackSelects) {
-  sel.replaceChildren(...TRACKS.map((t, i) => {
-    const o = document.createElement('option');
-    o.value = String(i);
-    o.textContent = t.name;
-    return o;
-  }));
+/**
+ * Which track: one of the built-ins, the track of the day, or a seed of your
+ * own (M7). Built-ins are their index in `TRACKS`; generated tracks travel
+ * as their seed, and every client generates the same track from it.
+ */
+interface TrackChoice {
+  def: TrackDef;
+  /** 0 for a built-in. */
+  seed: number;
+  /** What the HUD and the lobby call it. */
+  label: string;
 }
-/** `?track=docks` picks a track by id, for tests and links. */
-const trackParam = TRACKS.findIndex((t) => t.id === params.get('track'));
-const savedTrack = TRACKS.findIndex((t) => t.id === store.get(TRACK_KEY));
-$<HTMLSelectElement>('menu-track').value = String(trackParam >= 0 ? trackParam : Math.max(0, savedTrack));
-$('menu-track').addEventListener('change', () => store.set(TRACK_KEY, chosenTrack().id));
-const chosenTrack = (): TrackDef => TRACKS[Number($<HTMLSelectElement>('menu-track').value)] ?? TRACKS[0]!;
+
+const TRACK_KEY = `${SLUG}.track`;
+const SEED_KEY = `${SLUG}.seed`;
+const WEAPONS_KEY = `${SLUG}.weapons`;
+for (const sel of [$<HTMLSelectElement>('menu-track'), $<HTMLSelectElement>('lobby-track')]) {
+  const opt = (value: string, text: string): HTMLOptionElement => {
+    const o = document.createElement('option');
+    o.value = value;
+    o.textContent = text;
+    return o;
+  };
+  sel.replaceChildren(...TRACKS.map((t, i) => opt(String(i), t.name)), opt('day', 'Track of the day'), opt('seed', 'Your own seed…'));
+}
+
+function trackChoice(value: string, seedText: string, index = 0): TrackChoice {
+  if (value === 'day') {
+    const seed = daySeed(Date.now());
+    const def = generateTrack(seed);
+    return { def, seed, label: `Track of the day · ${def.name}` };
+  }
+  if (value === 'seed') {
+    const seed = seedOf(seedText || 'NITRO');
+    const def = generateTrack(seed);
+    return { def, seed, label: `${def.name} · seed ${seedText.trim().toUpperCase() || 'NITRO'}` };
+  }
+  const def = TRACKS[Number(value)] ?? TRACKS[index] ?? TRACKS[0]!;
+  return { def, seed: 0, label: def.name };
+}
+
+const menuTrack = $<HTMLSelectElement>('menu-track');
+const menuSeed = $<HTMLInputElement>('menu-seed');
+/** `?track=docks` or `?track=day` picks a track, and `?seed=word` a seed: for tests and links. */
+const trackParam = params.get('seed') ? 'seed' : params.get('track') === 'day' ? 'day' : String(TRACKS.findIndex((t) => t.id === params.get('track')));
+const savedTrack = store.get(TRACK_KEY);
+menuTrack.value = trackParam !== '-1' ? trackParam : [...menuTrack.options].some((o) => o.value === savedTrack) ? savedTrack : '0';
+menuSeed.value = params.get('seed') ?? store.get(SEED_KEY);
+const syncSeedRows = (): void => {
+  $('menu-seed-row').hidden = menuTrack.value !== 'seed';
+  $('lobby-seed-row').hidden = $<HTMLSelectElement>('lobby-track').value !== 'seed';
+};
+syncSeedRows();
+menuTrack.addEventListener('change', () => {
+  store.set(TRACK_KEY, menuTrack.value);
+  syncSeedRows();
+});
+menuSeed.addEventListener('input', () => store.set(SEED_KEY, menuSeed.value));
+const chosenTrack = (): TrackChoice => trackChoice(menuTrack.value, menuSeed.value);
+const menuWeapons = $<HTMLSelectElement>('menu-weapons');
+menuWeapons.value = store.get(WEAPONS_KEY) === '0' ? '0' : '1';
+menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.value));
+
+/* ---------------------------------------------------------------- records */
+
+/** Hotlap bests, per track (a generated one by its seed), kept on this device. */
+const recordKey = (def: TrackDef): string => `${SLUG}.best.${def.id}`;
+function loadRecord(def: TrackDef): LapRecord | null {
+  try {
+    const r = JSON.parse(store.get(recordKey(def)) || 'null') as LapRecord | null;
+    return r && Number.isFinite(r.time) && r.time > 0 && Array.isArray(r.splits) ? r : null;
+  } catch {
+    return null;
+  }
+}
 
 /* ------------------------------------------------------------------- look */
 
@@ -163,12 +224,23 @@ let lastMode: SessionMode = 'race';
 /** `?laps=1` shortens races, for tests and for trying things quickly. */
 const lapsOverride = Number(params.get('laps')) || 0;
 
-function begin(mode: SessionMode, s: RaceSession, track: TrackDef): void {
+function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track.name): void {
   session = s;
   if (params.has('autopilot')) s.autopilot = true;
   hud = new Hud(s, params.has('debug'));
   s.onHud = (h) => hud?.update(h);
-  s.onEvent = (ev) => hud?.event(ev);
+  s.onEvent = (ev) => {
+    hud?.event(ev);
+    // Hotlap: a lap faster than the record is the new record.
+    if (mode === 'hotlap' && ev.kind === 'lap' && ev.id === s.playerId && s.player) {
+      if (!s.record || ev.lapTime < s.record.time) {
+        const beaten = s.record !== null;
+        s.record = { time: ev.lapTime, splits: [...s.player.lap.lastSplits] };
+        store.set(recordKey(track), JSON.stringify(s.record));
+        if (beaten) hud?.banner(`NEW RECORD  ·  ${formatTime(ev.lapTime)}`, 3);
+      }
+    }
+  };
   s.onOver = (rows) => {
     Hud.results(rows);
     const online = mode === 'net';
@@ -179,7 +251,7 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef): void {
     closePause();
     show('screen-results');
   };
-  $('hud-track').textContent = track.name;
+  $('hud-track').textContent = label;
   const help = $('hud-help');
   // The controls, briefly, at the start of every drive: weapons are new to everybody once.
   help.hidden = false;
@@ -192,18 +264,24 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef): void {
   s.start();
 }
 
-function startOffline(mode: 'race' | 'free'): void {
+/** `?bots=0` races alone, for tests. */
+const botsOverride = params.has('bots') ? Math.max(0, Math.min(5, Number(params.get('bots')) || 0)) : 5;
+
+function startOffline(mode: 'race' | 'hotlap'): void {
   leaveRoom();
   stopSession();
   lastMode = mode;
   const quality = qualityOverride ?? settings.current.quality;
-  const track = chosenTrack();
-  begin(mode, new RaceSession(
+  const choice = chosenTrack();
+  const track = choice.def;
+  const s = new RaceSession(
     gameRoot,
-    { mode, track, quality, colourId, bots: 5, laps: lapsOverride || track.laps, look },
+    { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || track.laps, look, weapons: menuWeapons.value !== '0' },
     input,
     settings,
-  ), track);
+  );
+  if (mode === 'hotlap') s.record = loadRecord(track);
+  begin(mode, s, track, choice.label);
 }
 
 function stopSession(): void {
@@ -252,7 +330,8 @@ async function openRoom(code: string): Promise<void> {
     if (room !== client) return;
     stopSession();
     const quality = qualityOverride ?? settings.current.quality;
-    const track = TRACKS[net.state.track] ?? TRACKS[0]!;
+    // The world the room built: a generated track when the heartbeat carried a seed.
+    const track = net.world?.track.def ?? TRACKS[net.state.track] ?? TRACKS[0]!;
     begin('net', new RaceSession(gameRoot, { mode: 'net', track, quality, colourId, bots: 0, laps: 0 }, input, settings, net), track);
   });
   net.events.on('raceEnd', () => {
@@ -355,8 +434,8 @@ $('input-room').addEventListener('keydown', (e) => {
 $('btn-connect-cancel').addEventListener('click', toMenu);
 $('btn-full-back').addEventListener('click', () => show('screen-menu'));
 $('btn-race').addEventListener('click', () => startOffline('race'));
-$('btn-free-drive').addEventListener('click', () => startOffline('free'));
-$('btn-again').addEventListener('click', () => startOffline(lastMode === 'free' ? 'free' : 'race'));
+$('btn-free-drive').addEventListener('click', () => startOffline('hotlap'));
+$('btn-again').addEventListener('click', () => startOffline(lastMode === 'hotlap' ? 'hotlap' : 'race'));
 $('btn-results-menu').addEventListener('click', toMenu);
 $('btn-pause').addEventListener('click', openPause);
 $('btn-resume').addEventListener('click', closePause);
@@ -371,15 +450,22 @@ $('lobby-colour').addEventListener('change', (e) => {
   lobby?.render();
 });
 const lobbySettings = (): void => {
+  syncSeedRows();
+  const pick = $<HTMLSelectElement>('lobby-track').value;
+  const choice = trackChoice(pick, $<HTMLInputElement>('lobby-seed').value);
   room?.net.configure(
     Number($<HTMLSelectElement>('lobby-cars').value),
     Number($<HTMLSelectElement>('lobby-laps').value),
-    Number($<HTMLSelectElement>('lobby-track').value),
+    choice.seed ? 0 : Number(pick),
+    choice.seed,
+    Number($<HTMLSelectElement>('lobby-weapons').value),
   );
 };
 $('lobby-cars').addEventListener('change', lobbySettings);
 $('lobby-laps').addEventListener('change', lobbySettings);
 $('lobby-track').addEventListener('change', lobbySettings);
+$('lobby-weapons').addEventListener('change', lobbySettings);
+$('lobby-seed').addEventListener('change', lobbySettings);
 
 const brokerSelect = $<HTMLSelectElement>('set-broker');
 brokerSelect.replaceChildren(
@@ -458,7 +544,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 show('screen-menu');
-if (params.has('drive')) startOffline('free');
+if (params.has('drive') || params.has('hotlap')) startOffline('hotlap');
 if (params.has('race')) startOffline('race');
 const linked = params.get('room');
 if (linked) {
@@ -477,7 +563,7 @@ declare global {
       input: InputManager;
       readonly session: RaceSession | null;
       readonly room: RoomClient | null;
-      start: (mode: 'race' | 'free') => void;
+      start: (mode: 'race' | 'hotlap') => void;
       openRoom: (code: string) => Promise<void>;
       leave: () => void;
     };

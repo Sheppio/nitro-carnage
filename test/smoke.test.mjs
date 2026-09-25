@@ -256,9 +256,12 @@ try {
   await race.close();
 
   /* --------------------------------------------------------------- weapons */
-  const arms = await openPage('quality=potato&drive');
-  // Past the start grace: nobody fires in the first seconds after GO.
-  await until(() => arms.evaluate(() => window.nitro.session?.world.time > 4.3), { timeout: 60000 });
+  // A race alone (a hotlap has no weapons since M7), past the start grace.
+  const arms = await openPage('quality=potato&race&bots=0&laps=9');
+  await until(() => arms.evaluate(() => {
+    const w = window.nitro.session?.world;
+    return w && w.time - w.goTime > 4.3;
+  }), { timeout: 60000 });
   const ammo0 = await arms.evaluate(() => document.getElementById('hud-ammo-front').textContent);
   await arms.keyboard.press('KeyZ');
   const drawn = await until(() => arms.evaluate(() => window.nitro.session.view.scene.getObjectByName('missiles').count || null), { timeout: 10000 });
@@ -356,6 +359,34 @@ try {
   r.check('the chosen look is kept for next time: after a reload it is the last one picked', kept.body === 'buggy' && kept.pattern === 'roundel' && kept.stripe === 'jade',
     `${kept.body} / ${kept.pattern} / ${kept.stripe}`);
   await gp.close();
+
+  /* ------------------------------------------------------------- hotlap */
+  // The track of the day, generated in the browser: the same track Node
+  // generates from the same seed, to the byte.
+  const hl = await openPage('quality=potato&hotlap&track=day&autopilot');
+  const sameTrack = await hl.evaluate(async () => {
+    // The same modules the page itself runs, resolved from its own script.
+    const main = document.querySelector('script[type="module"][src]').src;
+    const g = await import(new URL('sim/track/generate.js', main).href);
+    const u = await import(new URL('util.js', main).href);
+    return u.hashString(JSON.stringify(g.generateTrack(g.daySeed(Date.UTC(2026, 8, 25, 12))))).toString(16);
+  });
+  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === '80ed5d55', sameTrack);
+  const label = await hl.evaluate(() => document.getElementById('hud-track').textContent);
+  const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: document.getElementById('hud-arms').hidden }));
+  r.check('a hotlap on the track of the day: named on the HUD, a record to beat, no position, no weapons',
+    /^Track of the day · /.test(label) && shows.record && shows.pos && shows.arms, label);
+  // Two laps on autopilot: the first sets the record, which is saved.
+  const saved = await until(() => hl.evaluate(() => {
+    const id = window.nitro.session.world.track.def.id;
+    const r = localStorage.getItem(`nitrocarnage.best.${id}`);
+    return r ? JSON.parse(r) : null;
+  }), { timeout: 150000, interval: 500 });
+  r.check('a finished lap becomes the record, with its splits, and is kept', saved && saved.time > 20 && saved.splits.length === 3,
+    saved ? `${saved.time.toFixed(2)} s, splits ${saved.splits.map((t) => t.toFixed(1)).join(' / ')}` : 'none');
+  const split = await until(() => hl.evaluate(() => document.getElementById('hud-split').textContent || null), { timeout: 60000, interval: 100 });
+  r.check('on the next lap each checkpoint shows the split against the record', /^[−+]\d+\.\d\d$/.test(split ?? ''), split);
+  await hl.close();
 
   /* ------------------------------------------------------ every track */
   // Each track boots from a link, names itself on the HUD, and draws inside

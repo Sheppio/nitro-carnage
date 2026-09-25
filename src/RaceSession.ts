@@ -29,7 +29,14 @@ const COUNTDOWN = 3;
 const FINISH_GRACE = 25;
 
 /** Offline race, free drive, or a race in a networked room. */
-export type SessionMode = 'race' | 'free' | 'net';
+/** An offline race, a solo hotlap (M7: replaces free drive), or a race in a room. */
+export type SessionMode = 'race' | 'hotlap' | 'net';
+
+/** A best lap worth beating: its time and the split at each checkpoint. */
+export interface LapRecord {
+  time: number;
+  splits: number[];
+}
 
 export interface CarInfo {
   id: string;
@@ -61,6 +68,14 @@ export interface HudSnapshot {
   autopilot: boolean;
   spectating: boolean;
   paused: boolean;
+  /** Seconds into the lap being driven (hotlap). */
+  lapTime: number;
+  /** The all-time best on this track, kept by the page (hotlap). */
+  record: number | null;
+  /** The latest checkpoint split against the record: seconds up (negative) or down, and how long ago. */
+  split: { delta: number; age: number } | null;
+  /** Weapons in this race at all (off in a hotlap or a race-only room). */
+  weapons: boolean;
   /** The followed car's health (0-100), ammo, and whether it is wrecked. */
   hp: number;
   ammo: { front: number; rear: number; mines: number };
@@ -85,6 +100,8 @@ export interface SessionOptions {
   laps: number;
   /** The player's own look (offline; online it comes from the room). */
   look?: CarLook;
+  /** Weapons on; off makes a race-only race (M7). A hotlap never has them. */
+  weapons?: boolean;
 }
 
 /**
@@ -128,6 +145,11 @@ export class RaceSession {
   onOver: ((rows: ResultRow[]) => void) | null = null;
   /** Sound, if the page has it. Set by the page after construction. */
   audio: AudioEngine | null = null;
+  /** The best lap on record for this track (hotlap); the page loads and saves it. */
+  record: LapRecord | null = null;
+  private splitAt = -1;
+  private splitDelta = 0;
+  private seenSplits = 0;
   private lastPip = -1;
   private warned = false;
 
@@ -155,7 +177,9 @@ export class RaceSession {
       );
     } else {
       const race = opts.mode === 'race';
-      this.world = new World(opts.track, { laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0 });
+      this.world = new World(opts.track, {
+        laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0, weapons: race && opts.weapons !== false,
+      });
       this.playerId = 'you';
       // The player starts mid-grid in a race — there is somebody to catch and
       // somebody to hold off — and on pole in a free drive.
@@ -419,8 +443,24 @@ export class RaceSession {
     const e = this.player ?? order[0]!;
     const car = e.car;
     const last = e.lap.lapTimes.length ? e.lap.lapTimes[e.lap.lapTimes.length - 1]! : null;
+    // Hotlap: the latest checkpoint against the record's split there.
+    const splits = e.lap.splits;
+    if (splits.length !== this.seenSplits) {
+      this.seenSplits = splits.length;
+      const k = splits.length - 1;
+      const ref = this.record?.splits[k];
+      if (k >= 0 && ref !== undefined) {
+        this.splitDelta = splits[k]! - ref;
+        this.splitAt = w.time;
+      }
+    }
+    const lapTime = e.lap.completed >= 0 ? w.time - e.lap.lapStart : 0;
     return {
       mode: this.mode,
+      lapTime,
+      record: this.record?.time ?? null,
+      split: this.splitAt >= 0 && w.time - this.splitAt < 3 ? { delta: this.splitDelta, age: w.time - this.splitAt } : null,
+      weapons: w.weapons,
       speedKmh: Math.hypot(car.vx, car.vz) * 3.6,
       turbo: car.turbo,
       fps: this.fps,

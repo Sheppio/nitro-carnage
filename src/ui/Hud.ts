@@ -37,9 +37,12 @@ export class Hud {
   constructor(private session: RaceSession, debug: boolean) {
     this.minimap = new Minimap($<HTMLCanvasElement>('hud-minimap'), session.world.track);
     this.arrows = new RivalArrows($('hud-arrows'));
-    const race = session.mode !== 'free';
-    $('hud-race').hidden = !race;
-    $('hud-minimap').hidden = !race;
+    const hotlap = session.mode === 'hotlap';
+    $('hud-race').hidden = false;
+    $('hud-minimap').hidden = false;
+    // A hotlap is you against the clock: no position, and a record to beat.
+    $('hud-pos').parentElement!.hidden = hotlap;
+    $('hud-record-row').hidden = !hotlap;
     $('hud-debug').hidden = !debug;
     this.banner('', 0);
   }
@@ -55,7 +58,8 @@ export class Hud {
 
     // Countdown: 3, 2, 1, GO — GO lingers for a second after the lights.
     const cd = $('hud-countdown');
-    const racing = hud.mode !== 'free';
+    const racing = hud.mode !== 'hotlap';
+    $('hud-arms').hidden = !hud.weapons;
     if (racing && hud.countdown > 0) {
       cd.textContent = String(Math.ceil(hud.countdown));
       cd.classList.remove('go');
@@ -96,7 +100,15 @@ export class Hud {
         screen.push({ id, css: info.css, ...p });
       }
     }
-    if (racing) this.minimap.draw(cars);
+    this.minimap.draw(cars);
+    // The live split: green when up on the record, red when down.
+    const split = $('hud-split');
+    if (hud.split) {
+      split.textContent = `${hud.split.delta <= 0 ? '−' : '+'}${Math.abs(hud.split.delta).toFixed(2)}`;
+      split.className = `hud-split ${hud.split.delta <= 0 ? 'up' : 'down'}`;
+    } else {
+      split.textContent = '';
+    }
     const rect = s.view.renderer.domElement.getBoundingClientRect();
     this.arrows.update(screen, rect.width, rect.height);
 
@@ -116,9 +128,14 @@ export class Hud {
       $('hud-lap').textContent = String(hud.lap);
       $('hud-laps').textContent = `/${hud.laps}`;
       $('hud-time').textContent = formatTime(Math.max(0, hud.raceTime));
-      $('hud-last').textContent = formatTime(hud.lastLap);
-      $('hud-best').textContent = formatTime(hud.bestLap);
+    } else {
+      $('hud-lap').textContent = String(hud.lap);
+      $('hud-laps').textContent = '';
+      $('hud-time').textContent = formatTime(hud.lapTime);
+      $('hud-record').textContent = formatTime(hud.record);
     }
+    $('hud-last').textContent = formatTime(hud.lastLap);
+    $('hud-best').textContent = formatTime(hud.bestLap);
     $('hud-debug').textContent = `${hud.fps.toFixed(0)} fps\n${hud.drawCalls} draws`;
   }
 
@@ -126,7 +143,9 @@ export class Hud {
   event(ev: RaceEvent): void {
     const w = this.session.world;
     const me = this.session.playerId;
-    if (ev.kind === 'lap' && ev.id === me) {
+    if (ev.kind === 'lap' && ev.id === me && this.session.mode === 'hotlap') {
+      this.banner(`LAP ${ev.lap}  ·  ${formatTime(ev.lapTime)}`, 2.2);
+    } else if (ev.kind === 'lap' && ev.id === me) {
       const next = ev.lap + 1;
       if (next === w.laps) this.banner('FINAL LAP', 2.2);
       else if (next < w.laps) this.banner(`LAP ${next}  ·  ${formatTime(ev.lapTime)}`, 2.2);
@@ -146,7 +165,7 @@ export class Hud {
     }
   }
 
-  private banner(text: string, seconds: number, warn = false): void {
+  banner(text: string, seconds: number, warn = false): void {
     this.bannerText = text;
     this.bannerWarn = warn;
     this.bannerUntil = performance.now() + seconds * 1000;

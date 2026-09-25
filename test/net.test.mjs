@@ -22,6 +22,7 @@ import { World } from '../dist/sim/World.js';
 import { mulberry32, wrapAngle } from '../dist/util.js';
 import { SIM } from '../dist/config.js';
 import { trainAt } from '../dist/sim/train.js';
+import { generateTrack, seedOf } from '../dist/sim/track/generate.js';
 import { encodeLook, decodeLook, botLook, DEFAULT_LOOK, BODIES, PATTERNS } from '../dist/sim/look.js';
 
 let pass = 0;
@@ -124,11 +125,16 @@ console.log('\nnet.test\n\ncodecs');
 
   const grid = Array.from({ length: 6 }, (_, i) => 'mfy2k3x9a' + String(i).padStart(4, '0'));
   const hb = { hostId: grid[0], seq: 1295, roomT: 36 ** 6 - 1, phase: 'F', race: 9, of: 9, track: 2, laps: 9, goAt: 36 ** 6 - 1, grid,
-    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6 };
+    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1 };
   const enc2 = encodeHeartbeat(hb);
   const d2 = decodeHeartbeat(enc2);
+  const withSeed = decodeHeartbeat(encodeHeartbeat({ ...hb, seed: 0xffffffff, arms: 0 }));
+  const legacy = decodeHeartbeat(encodeHeartbeat(hb).split(',').slice(0, 12).join(','));
+  check('the heartbeat carries a track seed and the weapons switch; an older one means built-in track, weapons on',
+    withSeed.seed === 0xffffffff && withSeed.arms === 0 && legacy.seed === 0 && legacy.arms === 1);
   check('a full heartbeat (six humans, all finished) round-trips', d2.grid.length === 6 && d2.finish.length === 6 && d2.finish[5].t === STAMP_WRAP - 1 && d2.phase === 'F');
-  check('and is at most 174 bytes, as budgeted', enc2.length <= 174, `${enc2.length} bytes`);
+  // 184 since M7: a track seed (up to 7 characters) and the weapons switch joined the heartbeat.
+  check('and is at most 184 bytes, as budgeted', enc2.length <= 184, `${enc2.length} bytes`);
 
   const pres = encodePresence({ name: 'A LONG NAME,WITH,COMMAS', colour: 'vermilion', host: 1, alive: 1, ready: 0, ver: '0.1.99', look: '000000' });
   const dp = decodePresence(pres);
@@ -463,6 +469,24 @@ const toResults = (room, ms = 200000) => room.run(ms, () => room.clients.filter(
   const spread = Math.max(...heads) - Math.min(...heads);
   check('a room on the docks: every client on that track, and the train within a metre everywhere',
     ids.every((id) => id === 'docks') && trains.every(Boolean) && spread < 1, `train heads ${heads.map((h) => h.toFixed(1)).join(' / ')}`);
+}
+
+{
+  // A room on a seed, race only: every client builds the same generated
+  // track from the seed alone, and not one shot goes on the wire.
+  const room = makeRoom(3, { latency: 40 });
+  room.run(2500);
+  const host = hostOf(room);
+  const seed = seedOf('ROOM TEST');
+  host.net.configure(4, 1, 0, seed, 0);
+  host.net.startRace();
+  const from = room.broker.log.length;
+  room.run(NET.countdownMs + 20000);
+  const ids = room.clients.map((c) => c.net.world?.track.def.id);
+  const shots = room.broker.log.slice(from).filter((m) => m.topic.includes('/e/') && /(^|\|)[FM]:/.test(m.payload)).length;
+  check('a race-only room on a seed: every client on the generated track, no shots on the wire',
+    ids.every((id) => id === generateTrack(seed).id) && room.clients.every((c) => c.net.world?.weapons === false) && shots === 0,
+    `${generateTrack(seed).name}, ${shots} shots`);
 }
 
 /* -------------------------------------------------------------- weapons */
