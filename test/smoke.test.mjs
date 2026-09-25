@@ -184,17 +184,19 @@ try {
     const counts = await occ.evaluate((pr) => {
       const s = window.nitro.session;
       const view = s.view;
-      if (!view.cars.has('probe')) view.addCar('probe', 0x8cf000);
+      // A plain lime car: no stripes (M6 liveries would be counted as "not car").
+      if (!view.cars.has('probe')) view.addCar('probe', 0x8cf000, { body: 'coupe', pattern: 'none', stripe: 'lime', rims: 'body', number: 0 });
       const probeState = { ...s.drawnStates.get('you'), x: pr.x, z: pr.z, y: 0, yaw: pr.yaw, vx: 0, vz: 0, forward: 0, accelLat: 0, accelLong: 0 };
       const states = new Map([...s.drawnStates, ['probe', probeState]]);
       // Lime: green high, red and blue low. No tower, window or lamp is that colour.
       const lime = (px) => px.filter(([r, g, b]) => g > 120 && g > r * 1.25 && g > b * 1.8).length;
       view.setCutaway(false);
-      const off = view.samplePixels(states, pr.x, 1.15, pr.z, 2);
+      // The bonnet, not the roof: the roof carries the race number (M6).
+      const off = view.samplePixels(states, pr.x, 0.9, pr.z + 1.2, 2);
       view.setCutaway(true);
       // The springs in the car mesh settle over a few frames.
       for (let k = 0; k < 10; k++) view.render(states, 1 / 60);
-      const on = view.samplePixels(states, pr.x, 1.15, pr.z, 2);
+      const on = view.samplePixels(states, pr.x, 0.9, pr.z + 1.2, 2);
       return { off: lime(off), on: lime(on), total: on.length };
     }, probe);
     r.check('without the cut-away the tower really does hide the car', counts.off <= counts.total * 0.3,
@@ -305,6 +307,55 @@ try {
   const shadows = await hi.evaluate(() => window.nitro.session.view.renderer.shadowMap.enabled);
   r.check('high quality renders with shadows inside 150 draw calls', shadows && calls > 0 && calls < 150, `${calls} draw calls`);
   await hi.close();
+
+  /* -------------------------------------------------------------- garage */
+  // Every body in every livery: built without error, inside the shared
+  // collision footprint (4.4 m by 2.0 m, a few centimetres of bumper
+  // allowed), within the triangle budget, and wearing its stripe.
+  const gp = await openPage('quality=potato');
+  await gp.click('#btn-garage');
+  await gp.waitForSelector('#screen-garage:not([hidden])');
+  const bodies = await gp.evaluate(async () => {
+    const out = [];
+    const sel = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('change'));
+    };
+    sel('garage-stripe', 'jade');
+    for (const body of ['coupe', 'hatch', 'muscle', 'wedge', 'buggy']) {
+      for (const pattern of ['none', 'twin', 'offset', 'flash', 'chequer', 'roundel']) {
+        sel('garage-body', body);
+        sel('garage-pattern', pattern);
+        const mesh = window.nitro.garage.view.mesh;
+        const hull = mesh.root.getObjectByName('car-body');
+        hull.geometry.computeBoundingBox();
+        const bb = hull.geometry.boundingBox;
+        const tris = hull.geometry.getAttribute('position').count / 3;
+        // Jade is 0x00c07a: look for its green among the vertex colours (linear, so roughly).
+        const col = hull.geometry.getAttribute('color');
+        let jade = 0;
+        for (let i = 0; i < col.count; i++) if (col.getX(i) < 0.05 && col.getY(i) > 0.4 && col.getZ(i) > 0.1 && col.getZ(i) < 0.4) jade++;
+        out.push({ body, pattern, x: Math.max(-bb.min.x, bb.max.x), z: Math.max(-bb.min.z, bb.max.z), tris, jade });
+      }
+    }
+    return out;
+  });
+  const outside = bodies.filter((b) => b.x > 1.03 || b.z > 2.25);
+  const heavy = bodies.filter((b) => b.tris > 600);
+  r.check('five bodies, six liveries each: all inside the shared footprint and under 600 triangles',
+    bodies.length === 30 && outside.length === 0 && heavy.length === 0,
+    `widest ${Math.max(...bodies.map((b) => b.x)).toFixed(2)} m half-width, longest ${Math.max(...bodies.map((b) => b.z)).toFixed(2)} m half-length, most ${Math.max(...bodies.map((b) => b.tris))} triangles${outside.length ? `; outside: ${outside.map((b) => b.body).join(' ')}` : ''}`);
+  const striped = bodies.filter((b) => ['twin', 'offset', 'flash', 'chequer'].includes(b.pattern));
+  r.check('every striped livery draws its stripe colour, and "none" draws none',
+    striped.every((b) => b.jade > 0) && bodies.filter((b) => b.pattern === 'none').every((b) => b.jade === 0),
+    striped.filter((b) => b.jade === 0).map((b) => `${b.body}/${b.pattern}`).join(' '));
+  await gp.reload();
+  await gp.waitForSelector('#screen-menu:not([hidden])');
+  const kept = await gp.evaluate(() => window.nitro.look);
+  r.check('the chosen look is kept for next time: after a reload it is the last one picked', kept.body === 'buggy' && kept.pattern === 'roundel' && kept.stripe === 'jade',
+    `${kept.body} / ${kept.pattern} / ${kept.stripe}`);
+  await gp.close();
 
   /* ------------------------------------------------------ every track */
   // Each track boots from a link, names itself on the HUD, and draws inside

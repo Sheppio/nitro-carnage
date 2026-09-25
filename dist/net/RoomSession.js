@@ -74,13 +74,16 @@ export class RoomSession {
         return ids.sort();
     }
     /** Change how this client appears to the room, and say so now rather than at the next beacon. */
-    setIdentity(name, colour = this.colour) {
-        if (name === this.name && colour === this.colour)
+    setIdentity(name, colour = this.colour, look = this.look) {
+        if (name === this.name && colour === this.colour && look === this.look)
             return;
         this.name = name;
         this.colour = colour;
+        this.look = look;
         this.announcePresence();
     }
+    /** This client's own encoded look. */
+    look = '';
     setReady(ready) {
         if (ready === this.ready)
             return;
@@ -146,6 +149,7 @@ export class RoomSession {
             alive: alive ? 1 : 0,
             ready: this.ready ? 1 : 0,
             ver: this.ver,
+            look: this.look,
         });
     }
     announcePresence() {
@@ -177,10 +181,11 @@ export class RoomSession {
             claimsHost: msg.host === 1,
             ready: msg.ready === 1,
             ver: msg.ver,
+            look: msg.look ?? '',
             lastSeen: this.clock.now(),
         };
         this.peers.set(id, record);
-        const changed = !existing || existing.name !== record.name || existing.colour !== record.colour || existing.ready !== record.ready;
+        const changed = !existing || existing.name !== record.name || existing.colour !== record.colour || existing.ready !== record.ready || existing.look !== record.look;
         if (!existing) {
             this.events.emit('peerJoin', { peer: record });
             // A newcomer needs to know who is in charge without waiting for a beat.

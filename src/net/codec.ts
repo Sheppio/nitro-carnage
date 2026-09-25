@@ -288,6 +288,8 @@ export interface Presence {
   ready: number;
   /** Build version, so a mixed room can be diagnosed. */
   ver: string;
+  /** The car's look (M6), six base-36 characters; see `sim/look.ts`. Empty from older builds. */
+  look?: string;
 }
 
 /** Names go inside a comma-delimited record, so they must not contain one. */
@@ -296,7 +298,7 @@ export function sanitizeName(name: string): string {
 }
 
 export function encodePresence(p: Presence): string {
-  return [sanitizeName(p.name), p.colour, p.host, p.alive, p.ready, p.ver].join(FLD);
+  return [sanitizeName(p.name), p.colour, p.host, p.alive, p.ready, p.ver, p.look ?? ''].join(FLD);
 }
 
 export function decodePresence(payload: string): Presence | null {
@@ -309,6 +311,7 @@ export function decodePresence(payload: string): Presence | null {
     alive: un36(f[3]),
     ready: un36(f[4]),
     ver: f[5] ?? '',
+    look: f[6] ?? '',
   };
 }
 

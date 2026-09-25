@@ -57,6 +57,27 @@ try {
   });
   r.check('two players asking for the same colour get different ones', new Set(colours).size === 2, colours.join(' / '));
 
+  // Bob's look, set in his Garage, reaches Alice's lobby.
+  await b.evaluate(() => {
+    document.getElementById('btn-lobby-garage').click();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('change'));
+    };
+    set('garage-body', 'buggy');
+    set('garage-pattern', 'roundel');
+    set('garage-number', '42');
+    document.getElementById('btn-garage-back').click();
+  });
+  const bobId = await b.evaluate(() => window.nitro.room.net.playerId);
+  const seen = await until(() => a.evaluate((id) => {
+    const l = window.nitro.room.net.carInfo(id).look;
+    const icons = [...document.querySelectorAll('#lobby-roster canvas.car-icon')].map((c) => c.dataset.body);
+    return l.body === 'buggy' && l.number === 42 && icons.includes('buggy') ? `${l.body} #${l.number}` : null;
+  }, bobId), { timeout: 10000 });
+  r.check('a look chosen in one tab\'s Garage shows in the other tab\'s lobby', Boolean(seen), seen ?? '');
+
   const hostOnly = await b.evaluate(() => getComputedStyle(document.getElementById('btn-start-race')).display);
   r.check('only the host gets the Start button', hostOnly === 'none');
 

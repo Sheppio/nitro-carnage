@@ -4,6 +4,8 @@ import { createAutopilot, autopilot, SKILLS } from '../sim/autopilot.js';
 import { BOT_NAMES } from '../sim/bots.js';
 import { COLOUR_ORDER, DEFAULT_COLOUR } from '../sim/palette.js';
 import { standings } from '../sim/race.js';
+import { botLook, decodeLook } from '../sim/look.js';
+import type { CarLook } from '../sim/look.js';
 import { racingLine } from '../sim/racingLine.js';
 import type { TrackDef } from '../sim/track/TrackDef.js';
 import { World } from '../sim/World.js';
@@ -27,6 +29,7 @@ export interface NetCarInfo {
   colour: string;
   bot: boolean;
   you: boolean;
+  look: CarLook;
 }
 
 export interface NetResultRow {
@@ -217,10 +220,13 @@ export class NetRace {
       const free = COLOUR_ORDER.filter((c) => !taken.has(c));
       const bots = this.state.grid.filter((g) => /^b\d+$/.test(g));
       const k = Math.max(0, bots.indexOf(id));
-      return { id, name: BOT_NAMES[slot % BOT_NAMES.length]!, colour: free[k % free.length] ?? DEFAULT_COLOUR, bot: true, you: false };
+      // Dressed from the room and the slot, which every client knows.
+      const look = botLook(hashString(`${this.room.roomId}:${id}`));
+      return { id, name: BOT_NAMES[slot % BOT_NAMES.length]!, colour: free[k % free.length] ?? DEFAULT_COLOUR, bot: true, you: false, look };
     }
     const peer = this.room.peers.get(id);
-    return { id, name: you ? this.room.displayName : (peer?.name ?? '—'), colour: colours[id] ?? DEFAULT_COLOUR, bot: false, you };
+    const look = decodeLook(you ? this.room.look : peer?.look);
+    return { id, name: you ? this.room.displayName : (peer?.name ?? '—'), colour: colours[id] ?? DEFAULT_COLOUR, bot: false, you, look };
   }
 
   /* -------------------------------------------------------------- update */

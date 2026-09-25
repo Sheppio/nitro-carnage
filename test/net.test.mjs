@@ -22,6 +22,7 @@ import { World } from '../dist/sim/World.js';
 import { mulberry32, wrapAngle } from '../dist/util.js';
 import { SIM } from '../dist/config.js';
 import { trainAt } from '../dist/sim/train.js';
+import { encodeLook, decodeLook, botLook, DEFAULT_LOOK, BODIES, PATTERNS } from '../dist/sim/look.js';
 
 let pass = 0;
 let fail = 0;
@@ -129,9 +130,27 @@ console.log('\nnet.test\n\ncodecs');
   check('a full heartbeat (six humans, all finished) round-trips', d2.grid.length === 6 && d2.finish.length === 6 && d2.finish[5].t === STAMP_WRAP - 1 && d2.phase === 'F');
   check('and is at most 174 bytes, as budgeted', enc2.length <= 174, `${enc2.length} bytes`);
 
-  const pres = encodePresence({ name: 'A LONG NAME,WITH,COMMAS', colour: 'vermilion', host: 1, alive: 1, ready: 0, ver: '0.1.99' });
+  const pres = encodePresence({ name: 'A LONG NAME,WITH,COMMAS', colour: 'vermilion', host: 1, alive: 1, ready: 0, ver: '0.1.99', look: '000000' });
   const dp = decodePresence(pres);
-  check('presence sanitises names that would break the record', dp.name === 'A LONG NAMEW' && dp.colour === 'vermilion' && pres.length <= 40, `"${pres}"`);
+  check('presence sanitises names that would break the record', dp.name === 'A LONG NAMEW' && dp.colour === 'vermilion' && pres.length <= 47, `"${pres}"`);
+
+  // Looks (M6): six characters on presence, and junk becomes the stock car.
+  const look = { body: 'buggy', pattern: 'roundel', stripe: 'jade', rims: 'gold', number: 99 };
+  const lk = encodeLook(look);
+  const round = decodeLook(lk);
+  const everyOne = BODIES.every((b) => PATTERNS.every((pt) => {
+    const l = { ...look, body: b, pattern: pt, number: 42 };
+    return JSON.stringify(decodeLook(encodeLook(l))) === JSON.stringify(l);
+  }));
+  check('a car look round-trips in six characters, every body and livery', lk.length === 6 && JSON.stringify(round) === JSON.stringify(look) && everyOne, `"${lk}"`);
+  const junk = ['', 'zzzzzz', '0000zz', '99', null, undefined, '0,0,0', '5a0000', '000000x'];
+  check('a malformed look falls back to the stock car, never throws', junk.every((j) => JSON.stringify(decodeLook(j)) === JSON.stringify(DEFAULT_LOOK) || JSON.stringify(decodeLook(j)) === JSON.stringify(decodeLook('000000'))) && decodeLook('zzzzzz').body === 'coupe');
+  const withLook = encodePresence({ name: 'LOOKER', colour: 'cyan', host: 0, alive: 1, ready: 0, ver: '0.1.99', look: lk });
+  const old = decodePresence('OLDTIMER,cyan,0,1,0,0.1.3');
+  check('the look rides on presence, and a presence from an older build still decodes', decodePresence(withLook).look === lk && old.name === 'OLDTIMER' && decodeLook(old.look).body === DEFAULT_LOOK.body,
+    `presence ${withLook.length} bytes`);
+  check('a bot\'s look is the same from the same seed, and varies between seeds',
+    JSON.stringify(botLook(123)) === JSON.stringify(botLook(123)) && new Set([1, 2, 3, 4, 5, 6, 7, 8].map((k) => encodeLook(botLook(k)))).size >= 6);
 
   const now = 5 * STAMP_WRAP + 1000;
   check('wrapped time stamps decode to the nearest real time', decodeStamp(encodeStamp(now - 3000), now) === now - 3000 && decodeStamp(encodeStamp(now + 500), now) === now + 500);

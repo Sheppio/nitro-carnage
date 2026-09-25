@@ -7,6 +7,7 @@ import { BOT_NAMES } from './sim/bots.js';
 import { createCar } from './sim/car.js';
 import { interpolateCar } from './sim/interpolate.js';
 import { COLOUR_ORDER, colourOf } from './sim/palette.js';
+import { botLook, DEFAULT_LOOK } from './sim/look.js';
 import { displayLap, standings } from './sim/race.js';
 import { racingLine } from './sim/racingLine.js';
 import { World } from './sim/World.js';
@@ -70,7 +71,7 @@ export class RaceSession {
             this.playerId = net.playerId;
             for (const e of this.world.entrants) {
                 const info = net.carInfo(e.id);
-                this.addInfo(e.id, info.you ? 'YOU' : info.name, info.colour, info.you);
+                this.addInfo(e.id, info.you ? 'YOU' : info.name, info.colour, info.you, info.look);
             }
             net.drive = () => this.playerIntent();
             this.offNet.push(net.events.on('race', ({ ev }) => this.handle(ev)), net.events.on('results', ({ rows }) => {
@@ -90,20 +91,21 @@ export class RaceSession {
             const playerSlot = race ? Math.min(bots, 3) : 0;
             const colours = COLOUR_ORDER.filter((c) => c !== opts.colourId);
             this.player = this.world.addCar('you', playerSlot, () => this.playerIntent());
-            this.addInfo('you', 'YOU', opts.colourId, true);
+            this.addInfo('you', 'YOU', opts.colourId, true, opts.look ?? DEFAULT_LOOK);
             let slot = 0;
             for (let b = 0; b < bots; b++) {
                 if (slot === playerSlot)
                     slot++;
                 const id = `b${b}`;
                 this.world.addBot(id, slot, SKILLS[b % SKILLS.length], 1000 + b);
-                this.addInfo(id, BOT_NAMES[b % BOT_NAMES.length], colours[b % colours.length], false);
+                this.addInfo(id, BOT_NAMES[b % BOT_NAMES.length], colours[b % colours.length], false, botLook(1000 + b));
                 slot++;
             }
         }
         this.view = new GameView(host, this.world.track, opts.quality);
         for (const e of this.world.entrants) {
-            this.view.addCar(e.id, this.cars.get(e.id).colour);
+            const info = this.cars.get(e.id);
+            this.view.addCar(e.id, info.colour, info.look);
             this.drawn.set(e.id, createCar(e.car.x, e.car.z, e.car.yaw));
         }
         this.view.focusId = this.player?.id ?? this.world.entrants[0]?.id ?? null;
@@ -120,9 +122,9 @@ export class RaceSession {
     get spectating() {
         return this.player === null;
     }
-    addInfo(id, name, colourId, you) {
+    addInfo(id, name, colourId, you, look) {
         const c = colourOf(colourId);
-        this.cars.set(id, { id, name, colour: c.colour, css: c.cssColour, you });
+        this.cars.set(id, { id, name, colour: c.colour, css: c.cssColour, you, look });
     }
     start() {
         if (this.running)

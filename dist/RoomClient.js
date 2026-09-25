@@ -23,12 +23,13 @@ export class RoomClient {
     mqtt = new MqttNet();
     net;
     stopTicker = null;
-    constructor(roomId, playerId, name, colour) {
+    constructor(roomId, playerId, name, colour, look = '') {
         this.roomId = roomId;
         this.playerId = playerId;
         this.net = new NetRace({
             transport: this.mqtt, clock: this.clock, roomId, playerId, name, colour, ver: VERSION, tracks: TRACKS,
         });
+        this.net.room.look = look;
     }
     get status() {
         return this.mqtt.status;

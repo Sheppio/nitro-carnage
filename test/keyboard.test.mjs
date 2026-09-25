@@ -24,20 +24,35 @@ const controls = (page) => page.evaluate(() => {
 });
 
 /**
- * Walk the focus ring with the arrow keys and report what was reached. Up and
- * down only where a control would take left and right itself (a dropdown
- * cycles its value), so the walk explores rather than fiddles.
+ * Everything the arrow keys can reach from where the focus starts: a
+ * breadth-first search over the navigator's own moves. From each control
+ * reached so far, press each arrow (real key presses) and note where the
+ * focus lands; then put the focus back and try the next. Left and right are
+ * skipped on controls that keep them for themselves (a dropdown cycles, a
+ * slider moves, a text field has a caret), exactly as the navigator does.
  */
-async function walk(page, presses = 60) {
-  const seen = new Set([await focused(page)]);
-  const keys = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowDown', 'ArrowRight'];
-  for (let k = 0; k < presses; k++) {
-    const onSelect = await page.evaluate(() => document.activeElement?.tagName === 'SELECT');
-    let key = keys[k % keys.length];
-    if (onSelect && (key === 'ArrowLeft' || key === 'ArrowRight')) key = 'ArrowDown';
-    await page.keyboard.press(key);
-    seen.add(await focused(page));
+async function walk(page) {
+  const start = await focused(page);
+  const seen = new Set([start]);
+  const queue = [start];
+  while (queue.length) {
+    const from = queue.shift();
+    for (const key of ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft']) {
+      const owns = await page.evaluate((id) => {
+        const el = document.getElementById(id);
+        return el && (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && ['range', 'text'].includes(el.type)));
+      }, from);
+      if (owns && (key === 'ArrowLeft' || key === 'ArrowRight')) continue;
+      await page.evaluate((id) => document.getElementById(id)?.focus(), from);
+      await page.keyboard.press(key);
+      const to = await focused(page);
+      if (to && !seen.has(to)) {
+        seen.add(to);
+        queue.push(to);
+      }
+    }
   }
+  await page.evaluate((id) => document.getElementById(id)?.focus(), start);
   return seen;
 }
 
@@ -109,6 +124,22 @@ try {
   await page.keyboard.press('Escape');
   const backToMenu = await until(() => visible(page, 'screen-menu'));
   r.check('Esc goes back to the menu', Boolean(backToMenu));
+
+  /* -------------------------------------------------------------- garage */
+  await goTo(page, 'btn-garage');
+  await page.keyboard.press('Enter');
+  await until(() => visible(page, 'screen-garage'));
+  {
+    const x = await reach(page);
+    r.check('garage: every control is reachable with the arrow keys', x.ok, x.note);
+  }
+  await goTo(page, 'garage-number');
+  const n0 = await page.evaluate(() => window.nitro.look.number);
+  await page.keyboard.press('ArrowRight');
+  const n1 = await page.evaluate(() => window.nitro.look.number);
+  await page.keyboard.press('Escape');
+  const gBack = await until(() => visible(page, 'screen-menu'));
+  r.check('the race number changes with the arrows, and Esc leaves the Garage', n1 !== n0 && Boolean(gBack), `${n0} -> ${n1}`);
 
   /* ---------------------------------------------------------------- join */
   await goTo(page, 'btn-join');

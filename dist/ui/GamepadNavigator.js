@@ -79,6 +79,9 @@ export class GamepadNavigator {
                 this.confirm();
             if (nav.back)
                 this.back();
+            // Shoulders go to whatever screen wants them (the Garage cycles bodies).
+            if (nav.prev || nav.next)
+                document.dispatchEvent(new CustomEvent('nc:shoulder', { detail: { dir: nav.next ? 1 : -1 } }));
             // Start belongs to the pause control whenever a modal is up: in a match
             // that is the one button that has to resume, and taking the page
             // fullscreen instead would be a baffling answer to it.

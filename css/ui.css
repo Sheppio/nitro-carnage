@@ -609,3 +609,20 @@ body:not(.is-host) .host-only { display: none !important; }
   .tagline { margin-bottom: 14px; }
   .btn { padding: 11px 16px; }
 }
+
+/* ------------------------------------------------------------------ garage */
+
+.garage-view {
+  width: 100%;
+  height: clamp(150px, 30vh, 260px);
+  border-radius: 12px;
+  background: radial-gradient(ellipse at 50% 60%, #3a3552, #1a1726 70%);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.garage-canvas { width: 100%; height: 100%; display: block; }
+
+body[data-pad="none"] .pad-only { display: none; }
+
+.car-icon { flex: none; margin-right: 2px; }

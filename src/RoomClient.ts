@@ -25,10 +25,11 @@ export class RoomClient {
   readonly net: NetRace;
   private stopTicker: (() => void) | null = null;
 
-  constructor(readonly roomId: RoomId, readonly playerId: PlayerId, name: string, colour: string) {
+  constructor(readonly roomId: RoomId, readonly playerId: PlayerId, name: string, colour: string, look = '') {
     this.net = new NetRace({
       transport: this.mqtt, clock: this.clock, roomId, playerId, name, colour, ver: VERSION, tracks: TRACKS,
     });
+    this.net.room.look = look;
   }
 
   get status(): NetStatus {

@@ -1,5 +1,6 @@
 import { colourOf, PALETTE } from '../sim/palette.js';
 import { TRACKS } from '../sim/track/index.js';
+import { carIcon } from './carIcon.js';
 const $ = (id) => document.getElementById(id);
 /**
  * The room's staging area: who is here, in which colour, and — for the host —
@@ -34,14 +35,14 @@ export class Lobby {
             const info = net.carInfo(id);
             list.appendChild(this.row(info.name, colours[id] ?? info.colour, [
                 id === room.hostId ? 'HOST' : '', id === net.playerId ? 'YOU' : '',
-            ]));
+            ], info.look));
         }
         // Bots that will fill the grid, shown faintly so nobody is surprised by them.
         const bots = Math.max(0, net.state.cars - ids.length);
         const taken = new Set(Object.values(colours));
         const free = PALETTE.map((c) => c.id).filter((c) => !taken.has(c));
         for (let b = 0; b < bots; b++) {
-            const li = this.row(`BOT ${b + 1}`, free[b % free.length] ?? 'black', ['BOT']);
+            const li = this.row(`BOT ${b + 1}`, free[b % free.length] ?? 'black', ['BOT'], net.carInfo(`b${ids.length + b}`).look);
             li.classList.add('bot');
             list.appendChild(li);
         }
@@ -64,15 +65,15 @@ export class Lobby {
             ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}. Waiting for the host to start it.`
             : 'Looking for the room…';
     }
-    row(name, colourId, badges) {
+    row(name, colourId, badges, look) {
         const li = document.createElement('li');
-        const sw = document.createElement('span');
-        sw.className = 'swatch';
-        sw.style.background = colourOf(colourId).cssColour;
+        // The car itself, in its colour and livery, rather than a plain swatch.
+        const icon = carIcon(look, colourId);
+        icon.classList.add('swatch-car');
         const n = document.createElement('span');
         n.className = 'name';
         n.textContent = name;
-        li.append(sw, n);
+        li.append(icon, n);
         for (const b of badges.filter(Boolean)) {
             const tag = document.createElement('span');
             tag.className = `badge${b === 'HOST' ? ' host' : ''}`;

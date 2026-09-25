@@ -11,7 +11,7 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status:** M1 to M5 are built (see README). Where building changed a decision, this plan has been
+> **Status:** M1 to M6 are built (see README). Where building changed a decision, this plan has been
 > updated to match, and the change is marked with its milestone, as in *(M1)* or *(M4)*.
 
 ---
@@ -517,6 +517,15 @@ from the lobby colour picker, and the Garage shows it but doesn't change it.
   isn't affected.
 - Damage smoke, the airborne shadow and the ghost dither work the same on every body.
 
+*(As built in M6:*
+- *stripes are geometry (thin boxes on the bonnet, roof and boot), not a
+  `CanvasTexture`, which matches the flat-shaded look and costs no texture per car;*
+- *the race number is a small canvas-drawn disc: on the roof always, and on the doors
+  with the roundel;*
+- *each body carries its own light positions;*
+- *the footprint and triangle-budget check runs in the browser suite, because the
+  bodies are three.js geometry.)*
+
 **Handling per model (future, not M6).** If body styles are ever made to drive
 differently, it would be a small multiplier table on top of `SIM.car`: mass, grip, top
 speed and turn-in. It would be balanced by a test in which the autopilot laps every
@@ -1001,7 +1010,7 @@ clients to within one frame, and every suite is green.
 - *the train agrees across clients to the metre in a network test;*
 - *the pause menu gained Settings, with the volume sliders, at the player's request.)*
 
-**M6 — Car customisation: liveries and body styles** *(added after M3; see §4.5b)*.
+**M6 — Car customisation: liveries and body styles** *(added after M3; see §4.5b)* *(built)*.
 Five procedural body styles, stripe patterns, stripe and rim colours, and race numbers.
 Also the `look` field on presence and its sanitiser, bot looks from the room seed, the
 Garage screen (pad-driven, and fitting the Deck), and look icons in the lobby roster. The

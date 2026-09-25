@@ -161,6 +161,23 @@ try {
   const menu = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden && window.nitro.session === null));
   r.check('and Leave race goes back to the menu', Boolean(onLeave) && Boolean(menu),
     `focus ${onLeave ? 'reached' : 'missed'} Leave, ${menu ? 'back at menu' : `still on ${await page.evaluate(() => [...document.querySelectorAll('.screen:not([hidden])')].map((x) => x.id).join())}`}`);
+  /* ---------------------------------------------------------- garage */
+  await padTo(page, 'btn-garage', B.DOWN);
+  await tap(page, B.A);
+  await until(() => page.evaluate(() => !document.getElementById('screen-garage').hidden));
+  const body0 = await page.evaluate(() => document.getElementById('garage-body').value);
+  await tap(page, B.RB);
+  const body1 = await page.evaluate(() => document.getElementById('garage-body').value);
+  await padTo(page, 'garage-pattern', B.DOWN);
+  const pat0 = await page.evaluate(() => document.getElementById('garage-pattern').value);
+  await tap(page, B.RIGHT);
+  const pat1 = await page.evaluate(() => document.getElementById('garage-pattern').value);
+  await tap(page, B.B);
+  const gOut = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden));
+  const saved = await page.evaluate(() => window.nitro.look);
+  r.check('the Garage by pad: RB changes the body, the D-pad the livery, B leaves, and the look is kept',
+    body1 !== body0 && pat1 !== pat0 && Boolean(gOut) && saved.body === body1 && saved.pattern === pat1, `${body0}->${body1}, ${pat0}->${pat1}`);
+
   /* -------------------------------------------------------- settings */
   // Every row of Settings by D-pad alone — the on/off switches included,
   // which sit at the opposite edge of their rows from the dropdowns.
@@ -201,6 +218,12 @@ try {
   const deckGlyph = await until(() => deck.evaluate(() => document.body.dataset.pad));
   const menuBad = await clipped('#screen-menu');
   r.check('Steam Deck (1280x800): the menu fits, nothing clipped or covered, Deck prompts shown', menuBad.length === 0 && deckGlyph === 'deck', menuBad.join(', ') || `pad ${deckGlyph}`);
+
+  await deck.evaluate(() => document.getElementById('btn-garage').click());
+  await deck.waitForSelector('#screen-garage:not([hidden])');
+  const garageBad = await clipped('#screen-garage');
+  r.check('the Garage fits the Deck screen', garageBad.length === 0, garageBad.join(', '));
+  await deck.evaluate(() => document.getElementById('btn-garage-back').click());
 
   await deck.evaluate(() => window.nitro.openRoom('DECK'));
   await deck.waitForSelector('#screen-lobby:not([hidden])', { timeout: 20000 });

@@ -15,24 +15,24 @@ export function padFamily(id) {
 const LABELS = {
     xbox: {
         confirm: 'A', back: 'B', menu: '☰ Menu', move: 'D-pad', throttle: 'RT', brake: 'LT', handbrake: 'A',
-        turbo: 'B', front: 'RB', rear: 'LB', steer: 'Left stick',
+        turbo: 'B', front: 'RB', rear: 'LB', steer: 'Left stick', prev: 'LB', next: 'RB',
     },
     playstation: {
         confirm: '✕', back: '○', menu: 'Options', move: 'D-pad', throttle: 'R2', brake: 'L2', handbrake: '✕',
-        turbo: '○', front: 'R1', rear: 'L1', steer: 'Left stick',
+        turbo: '○', front: 'R1', rear: 'L1', steer: 'Left stick', prev: 'L1', next: 'R1',
     },
     deck: {
         confirm: 'A', back: 'B', menu: '☰', move: 'D-pad', throttle: 'R2', brake: 'L2', handbrake: 'A',
-        turbo: 'B', front: 'R1', rear: 'L1', steer: 'Left stick',
+        turbo: 'B', front: 'R1', rear: 'L1', steer: 'Left stick', prev: 'L1', next: 'R1',
     },
     generic: {
         confirm: 'A', back: 'B', menu: 'Start', move: 'D-pad', throttle: 'RT', brake: 'LT', handbrake: 'A',
-        turbo: 'B', front: 'RB', rear: 'LB', steer: 'Left stick',
+        turbo: 'B', front: 'RB', rear: 'LB', steer: 'Left stick', prev: 'LB', next: 'RB',
     },
 };
 const KEYS = {
     confirm: 'Enter', back: 'Esc', menu: 'Esc', move: 'Arrows', throttle: '↑ / W', brake: '↓ / S', handbrake: 'Space',
-    turbo: 'Shift', front: 'Z / J', rear: 'X / K', steer: '← → / A D',
+    turbo: 'Shift', front: 'Z / J', rear: 'X / K', steer: '← → / A D', prev: '←', next: '→',
 };
 export function label(action, family) {
     return family === 'none' ? KEYS[action] : LABELS[family][action];

@@ -8,6 +8,9 @@ import { RoomClient } from './RoomClient.js';
 import { isColourId } from './sim/palette.js';
 import { TRACKS } from './sim/track/index.js';
 import { AudioEngine } from './audio/AudioEngine.js';
+import { decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
+import { Garage } from './ui/Garage.js';
+import { GaragePreview } from './render/GaragePreview.js';
 import { applyGlyphs, padFamily } from './ui/glyphs.js';
 import { GamepadNavigator } from './ui/GamepadNavigator.js';
 import { Hud } from './ui/Hud.js';
@@ -40,9 +43,13 @@ const keyboard = new Keyboard();
 /* ---------------------------------------------------------------- screens */
 const screens = [
     'screen-menu', 'screen-join', 'screen-connecting', 'screen-lobby', 'screen-full', 'screen-settings', 'screen-hud', 'screen-results',
+    'screen-garage',
 ];
 let current = 'screen-menu';
 function show(id) {
+    // A race can start while the host's guest is in the Garage: stop its turntable.
+    if (id !== 'screen-garage')
+        garage?.close();
     current = id;
     for (const s of screens)
         $(s).hidden = s !== id;
@@ -99,6 +106,40 @@ const savedTrack = TRACKS.findIndex((t) => t.id === store.get(TRACK_KEY));
 $('menu-track').value = String(trackParam >= 0 ? trackParam : Math.max(0, savedTrack));
 $('menu-track').addEventListener('change', () => store.set(TRACK_KEY, chosenTrack().id));
 const chosenTrack = () => TRACKS[Number($('menu-track').value)] ?? TRACKS[0];
+/* ------------------------------------------------------------------- look */
+const LOOK_KEY = `${SLUG}.look`;
+/** The car's look, stored as its six-character wire form: one format, one sanitiser. */
+let look = store.get(LOOK_KEY) ? decodeLook(store.get(LOOK_KEY)) : { ...DEFAULT_LOOK };
+let garage = null;
+let garageFromLobby = false;
+function openGarage(fromLobby) {
+    garageFromLobby = fromLobby;
+    // The preview is a WebGL context of its own: made on first use, not at boot.
+    garage ??= (() => {
+        const g = new Garage(new GaragePreview($('garage-view')), look);
+        g.onChange = (l) => {
+            look = l;
+            store.set(LOOK_KEY, encodeLook(l));
+            room?.net.room.setIdentity(playerName(), colourId, encodeLook(l));
+        };
+        return g;
+    })();
+    const colour = fromLobby && room ? (room.net.room.resolvedColours()[room.net.playerId] ?? colourId) : colourId;
+    show('screen-garage');
+    garage.open(colour);
+}
+$('btn-garage').addEventListener('click', () => openGarage(false));
+$('btn-lobby-garage').addEventListener('click', () => openGarage(true));
+$('btn-garage-back').addEventListener('click', () => {
+    garage?.close();
+    if (garageFromLobby && room) {
+        show('screen-lobby');
+        lobby?.render();
+    }
+    else {
+        show('screen-menu');
+    }
+});
 const savedColour = store.get(COLOUR_KEY);
 let colourId = isColourId(savedColour) ? savedColour : 'vermilion';
 /* --------------------------------------------------------- race sessions */
@@ -144,7 +185,7 @@ function startOffline(mode) {
     lastMode = mode;
     const quality = qualityOverride ?? settings.current.quality;
     const track = chosenTrack();
-    begin(mode, new RaceSession(gameRoot, { mode, track, quality, colourId, bots: 5, laps: lapsOverride || track.laps }, input, settings), track);
+    begin(mode, new RaceSession(gameRoot, { mode, track, quality, colourId, bots: 5, laps: lapsOverride || track.laps, look }, input, settings), track);
 }
 function stopSession() {
     if (session)
@@ -170,7 +211,7 @@ async function openRoom(code) {
     if (code.length < 4)
         return;
     const broker = BROKERS.find((b) => b.id === settings.current.broker) ?? BROKERS[0];
-    const client = new RoomClient(code, makePlayerId(), playerName(), colourId);
+    const client = new RoomClient(code, makePlayerId(), playerName(), colourId, encodeLook(look));
     room = client;
     $('connect-status').textContent = `Reaching ${broker.label}…`;
     show('screen-connecting');
@@ -308,7 +349,7 @@ $('btn-copy-link').addEventListener('click', () => void navigator.clipboard?.wri
 $('lobby-colour').addEventListener('change', (e) => {
     colourId = e.target.value;
     store.set(COLOUR_KEY, colourId);
-    room?.net.room.setIdentity(playerName(), colourId);
+    room?.net.room.setIdentity(playerName(), colourId, encodeLook(look));
     lobby?.render();
 });
 const lobbySettings = () => {
@@ -405,6 +446,12 @@ if (linked) {
 window.nitro = {
     settings,
     audio,
+    get garage() {
+        return garage;
+    },
+    get look() {
+        return look;
+    },
     input,
     get session() {
         return session;

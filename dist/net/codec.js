@@ -208,7 +208,7 @@ export function sanitizeName(name) {
     return (name || 'DRIVER').toUpperCase().replace(/[^A-Z0-9_\- ]/g, '').slice(0, 12).trim() || 'DRIVER';
 }
 export function encodePresence(p) {
-    return [sanitizeName(p.name), p.colour, p.host, p.alive, p.ready, p.ver].join(FLD);
+    return [sanitizeName(p.name), p.colour, p.host, p.alive, p.ready, p.ver, p.look ?? ''].join(FLD);
 }
 export function decodePresence(payload) {
     const f = payload.split(FLD);
@@ -221,6 +221,7 @@ export function decodePresence(payload) {
         alive: un36(f[3]),
         ready: un36(f[4]),
         ver: f[5] ?? '',
+        look: f[6] ?? '',
     };
 }
 /* ---------------------------------------------------------------- clock */

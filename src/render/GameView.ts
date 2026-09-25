@@ -5,6 +5,7 @@ import type { CarState } from '../sim/car.js';
 import type { Track } from '../sim/track/buildTrack.js';
 import { CameraRig } from './CameraRig.js';
 import { CarMesh } from './CarMesh.js';
+import type { CarLook } from '../sim/look.js';
 import { Fx } from './Fx.js';
 import { cutawayUniforms, MAX_CUT_CARS } from './materials.js';
 import { Scenery } from './Scenery.js';
@@ -97,8 +98,8 @@ export class GameView {
     return this.quality;
   }
 
-  addCar(id: string, colour: number): CarView {
-    const mesh = new CarMesh(colour, QUALITY[this.quality].shadowMapSize > 0);
+  addCar(id: string, colour: number, look?: CarLook): CarView {
+    const mesh = new CarMesh(colour, QUALITY[this.quality].shadowMapSize > 0, look);
     this.scene.add(mesh.root, mesh.blob);
     const view: CarView = { id, mesh, landings: 0, impacts: 0, hp: 100, wrecked: false, ghost: false };
     this.cars.set(id, view);

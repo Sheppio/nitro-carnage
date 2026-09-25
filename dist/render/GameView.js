@@ -75,8 +75,8 @@ export class GameView {
     get qualityId() {
         return this.quality;
     }
-    addCar(id, colour) {
-        const mesh = new CarMesh(colour, QUALITY[this.quality].shadowMapSize > 0);
+    addCar(id, colour, look) {
+        const mesh = new CarMesh(colour, QUALITY[this.quality].shadowMapSize > 0, look);
         this.scene.add(mesh.root, mesh.blob);
         const view = { id, mesh, landings: 0, impacts: 0, hp: 100, wrecked: false, ghost: false };
         this.cars.set(id, view);

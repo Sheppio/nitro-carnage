@@ -44,7 +44,10 @@
               <button class="btn" id="btn-race">Quick race</button>
               <button class="btn" id="btn-free-drive">Free drive</button>
             </div>
-            <button class="btn" id="btn-settings">Settings</button>
+            <div class="btn-row">
+              <button class="btn" id="btn-garage">Garage</button>
+              <button class="btn" id="btn-settings">Settings</button>
+            </div>
           </nav>
           <aside class="console-banner" id="console-banner" hidden>
             <b>Playing with a controller?</b>
@@ -124,6 +127,7 @@
           <p class="menu-note" id="lobby-wait">Waiting for the host to start the race.</p>
           <nav class="menu-actions">
             <button class="btn primary host-only" id="btn-start-race" data-nav-default>Start race</button>
+            <button class="btn" id="btn-lobby-garage">Garage</button>
             <button class="btn" id="btn-lobby-leave" data-nav-back>Leave room</button>
           </nav>
         </div>
@@ -136,6 +140,25 @@
           <p class="menu-note">That room already has six drivers. Try another, or create your own.</p>
           <nav class="menu-actions">
             <button class="btn primary" id="btn-full-back" data-nav-back data-nav-default>Back</button>
+          </nav>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- GARAGE -->
+      <section class="screen menu" id="screen-garage" hidden>
+        <div class="menu-card wide garage">
+          <h2>Garage</h2>
+          <div class="garage-view" id="garage-view" aria-hidden="true"></div>
+          <p class="menu-note">Looks only: every car drives the same. <span class="pad-only"><span data-glyph="prev">LB</span> / <span data-glyph="next">RB</span> change the body.</span></p>
+          <div class="lobby-grid">
+            <label class="field"><span>Body</span><select id="garage-body"></select></label>
+            <label class="field"><span>Livery</span><select id="garage-pattern"></select></label>
+            <label class="field"><span>Stripe colour</span><select id="garage-stripe"></select></label>
+            <label class="field"><span>Wheels</span><select id="garage-rims"></select></label>
+            <label class="field"><span>Race number</span><select id="garage-number"></select></label>
+          </div>
+          <nav class="menu-actions">
+            <button class="btn primary" id="btn-garage-back" data-nav-back data-nav-default>Done</button>
           </nav>
         </div>
       </section>
