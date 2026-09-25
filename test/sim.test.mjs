@@ -23,6 +23,7 @@ import { Armoury, castRay, missileAt } from '../dist/sim/weapons.js';
 import { trainAt, crossingBlocked, crossingWarning, trainSegment } from '../dist/sim/train.js';
 import { generateTrack, seedOf, daySeed, utcDay, trackName, attemptsFor } from '../dist/sim/track/generate.js';
 import { validateTrack } from '../dist/sim/track/validate.js';
+import { LapTrace, ghostAt, validTrace, GHOST_HZ } from '../dist/sim/ghost.js';
 import { hashString } from '../dist/util.js';
 
 let pass = 0;
@@ -1122,6 +1123,33 @@ const PINNED = [
   check('a lap records a split at every checkpoint, in order, inside the lap time',
     sp.length === w.track.checkpoints.length && sp.every((t, i) => t > 0 && (i === 0 || t > sp[i - 1])) && sp[sp.length - 1] < b.lap.lapTimes[1],
     sp.map((t) => t.toFixed(1)).join(' / '));
+}
+
+{
+  // The hotlap ghost: record a bot's lap, then play it back at the same
+  // moments and find the car where it really was.
+  const w = new World(TRACKS[0], { laps: 0, countdown: 0, weapons: false });
+  const b = w.addBot('b', 0, SKILLS[0], 3);
+  while (b.lap.completed < 0) w.step();
+  const trace = new LapTrace();
+  const truth = [];
+  while (b.lap.completed < 1) {
+    w.step();
+    if (b.lap.completed >= 1) break;
+    const t = w.time - b.lap.lapStart;
+    trace.offer(t, b.car.x, b.car.z, b.car.yaw);
+    truth.push([t, b.car.x, b.car.z]);
+  }
+  let worst = 0;
+  for (const [t, x, z] of truth) {
+    const g = ghostAt(trace.data, t);
+    if (g) worst = Math.max(worst, Math.hypot(g.x - x, g.z - z));
+  }
+  const samples = trace.data.length / 3;
+  const lapTime = b.lap.lapTimes[0];
+  check('a lap recorded at 10 Hz plays back where the car really was', worst < 1.2 && Math.abs(samples - lapTime * GHOST_HZ) < 2 && ghostAt(trace.data, lapTime + 1) === null,
+    `worst ${worst.toFixed(2)} m off over a ${lapTime.toFixed(1)} s lap, ${samples} samples, ${JSON.stringify(trace.data).length} bytes stored`);
+  check('a damaged ghost from storage is refused, not played', !validTrace([1, 2]) && !validTrace('x') && !validTrace([1, 2, 3.5, 4, 5, 6]) && validTrace(trace.data));
 }
 
 {

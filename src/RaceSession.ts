@@ -7,6 +7,8 @@ import type { NetRace } from './net/NetRace.js';
 import { GameView } from './render/GameView.js';
 import type { AudioEngine } from './audio/AudioEngine.js';
 import { crossingWarning, trainAt } from './sim/train.js';
+import { ghostAt, LapTrace } from './sim/ghost.js';
+import { SIM } from './config.js';
 import { autopilot, createAutopilot, SKILLS } from './sim/autopilot.js';
 import { BOT_NAMES } from './sim/bots.js';
 import { createCar } from './sim/car.js';
@@ -36,6 +38,8 @@ export type SessionMode = 'race' | 'hotlap' | 'net';
 export interface LapRecord {
   time: number;
   splits: number[];
+  /** The lap's recorded path, for the ghost (see `sim/ghost.ts`). */
+  ghost?: number[];
 }
 
 export interface CarInfo {
@@ -147,13 +151,16 @@ export class RaceSession {
   audio: AudioEngine | null = null;
   /** The best lap on record for this track (hotlap); the page loads and saves it. */
   record: LapRecord | null = null;
+  /** The lap being recorded (hotlap), and the recording of the lap just finished. */
+  private trace = new LapTrace();
+  lastTrace: number[] = [];
   private splitAt = -1;
   private splitDelta = 0;
   private seenSplits = 0;
   private lastPip = -1;
   private warned = false;
 
-  constructor(host: HTMLElement, opts: SessionOptions, private input: InputManager, settings: SettingsStore, net: NetRace | null = null) {
+  constructor(host: HTMLElement, opts: SessionOptions, private input: InputManager, private settings: SettingsStore, net: NetRace | null = null) {
     this.mode = opts.mode;
     this.net = net;
     this.autopilot = settings.current.autopilot;
@@ -297,6 +304,7 @@ export class RaceSession {
     const drawTime = this.world.time - (1 - alpha) * STEP;
     this.view.drawWeapons(this.world.armoury, drawTime, this.paused && !this.net ? 0 : dt, this.drawn.values());
     this.view.drawHazards(drawTime - this.world.goTime, dt);
+    if (this.mode === 'hotlap') this.hotlapFrame(drawTime);
     this.sound(drawTime - this.world.goTime);
     // Spectating: follow whoever is leading.
     if (!this.player) this.view.focusId = standings(this.world.entrants)[0]?.id ?? this.view.focusId;
@@ -354,8 +362,36 @@ export class RaceSession {
     }
   }
 
+  /**
+   * Hotlap, once a frame: record this lap's path, and pose the ghost of the
+   * record lap at the same moment into its own lap.
+   */
+  private hotlapFrame(drawTime: number): void {
+    const me = this.player;
+    if (!me) return;
+    const lap = me.lap;
+    const t = drawTime - lap.lapStart;
+    if (lap.completed >= 0) this.trace.offer(this.world.time - lap.lapStart, me.car.x, me.car.z, me.car.yaw);
+    // Ahead by the player's chosen lead, so it shows the line before you reach it.
+    const lead = this.settings.current.ghostLead;
+    // Near the line a lead runs past the end of the recorded lap: the ghost
+    // is already on its next one, from the start of the recording.
+    const rec = this.record;
+    let at = t + lead;
+    if (rec && at > rec.time) at -= rec.time;
+    const g = rec?.ghost && lead >= 0 && lap.completed >= 0 && !lap.finished ? ghostAt(rec.ghost, at) : null;
+    this.view.drawGhost(g);
+  }
+
   private handle(ev: RaceEvent): void {
     if (ev.kind === 'go') this.input.rumble(HAPTIC.go.weak, HAPTIC.go.strong, HAPTIC.go.ms);
+    if (this.mode === 'hotlap' && ev.kind === 'lap' && ev.id === this.playerId && this.player) {
+      // A new lap: the recording of the last one is handed over, and the car
+      // is made whole — every hotlap starts from full health.
+      this.lastTrace = this.trace.data;
+      this.trace = new LapTrace();
+      if (this.player.wrecked <= 0) this.player.hp = SIM.weapons.health;
+    }
     this.soundFor(ev);
     const focus = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
     if (ev.kind === 'hit') {

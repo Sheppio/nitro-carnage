@@ -44,6 +44,10 @@
               <span>Seed</span>
               <input type="text" id="menu-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
             </label>
+            <div class="track-preview" id="menu-track-preview" aria-live="polite">
+              <canvas class="track-map" id="menu-track-map" aria-hidden="true"></canvas>
+              <p class="track-info" id="menu-track-info"></p>
+            </div>
             <label class="field">
               <span>Weapons</span>
               <select id="menu-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
@@ -210,6 +214,19 @@
           <label class="field">
             <span>Music</span>
             <input type="range" id="set-music" min="0" max="1" step="0.1" />
+          </label>
+          <label class="field">
+            <span>Hotlap ghost</span>
+            <select id="set-ghost">
+              <option value="-1">Off</option>
+              <option value="0">Beside you</option>
+              <option value="0.25">0.25 s ahead</option>
+              <option value="0.5">0.5 s ahead</option>
+              <option value="0.75">0.75 s ahead</option>
+              <option value="1">1 s ahead</option>
+              <option value="1.5">1.5 s ahead</option>
+              <option value="2">2 s ahead</option>
+            </select>
           </label>
           <label class="field check"><input type="checkbox" id="set-vibration" /> <span>Vibration</span></label>
           <label class="field check"><input type="checkbox" id="set-motion" /> <span>Reduce camera shake</span></label>

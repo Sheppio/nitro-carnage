@@ -125,6 +125,28 @@ try {
   const backToMenu = await until(() => visible(page, 'screen-menu'));
   r.check('Esc goes back to the menu', Boolean(backToMenu));
 
+  /* ------------------------------------------------------ track preview */
+  // Pick "your own seed", type one: the preview maps it and says what it is.
+  await goTo(page, 'menu-track');
+  for (let k = 0; k < 8 && (await page.evaluate(() => document.getElementById('menu-track').value)) !== 'seed'; k++) await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowDown');
+  const onSeed = (await focused(page)) === 'menu-seed';
+  await page.keyboard.type('sheppio');
+  const preview = await until(() => page.evaluate(() => {
+    const t = document.getElementById('menu-track-info').textContent;
+    return /seed SHEPPIO/.test(t) ? t : null;
+  }));
+  const inked = await page.evaluate(() => {
+    const c = document.getElementById('menu-track-map');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+    return n / (c.width * c.height);
+  });
+  r.check('typing a seed shows its track on the menu: a map, a name and its style', onSeed && Boolean(preview) && inked > 0.03, preview ?? '');
+  await page.keyboard.press('ArrowUp');
+  for (let k = 0; k < 8 && (await page.evaluate(() => document.getElementById('menu-track').value)) !== '0'; k++) await page.keyboard.press('ArrowRight');
+
   /* -------------------------------------------------------------- garage */
   await goTo(page, 'btn-garage');
   await page.keyboard.press('Enter');

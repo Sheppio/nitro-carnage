@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.18**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.19**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 308 checks: simulation and networking (Node), and real browsers
+npm test           # 315 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -609,7 +609,24 @@ and no weapons:
 - A faster lap becomes the new record.
 
 Records are kept on the device, per track, and generated tracks are keyed by their
-seed. A shared leaderboard would need a server, or the public broker's retained
+seed.
+
+- **Every lap starts with full health.** Damage from the last lap is gone at the line.
+- **Your ghost.** The record lap's path is recorded ten times a second: about 1,400
+  whole numbers, a few kilobytes, saved with the record. A see-through copy of your car
+  drives it beside you. It exists only on screen, so nothing can hit it. Played back
+  against the real car, it is never more than 0.8 m off over a whole lap.
+- **Ghost ahead by.** In Settings (also reachable from the pause menu), you can set the
+  ghost to run up to 2 s ahead, so it shows you the line before you reach the corner,
+  or switch it off. Near the line, a lead carries the ghost straight into its next
+  lap.
+- **The first lap is a standing start**, so a flying lap soon beats it, and the ghost
+  then runs alongside you.
+
+**The menu previews the track.** Pick a track, the track of the day, or type a seed,
+and a small map of the circuit appears on its theme's ground. Beside it are the track's
+name and style: theme, lap length, corners, and any jump, level crossing, water or oil.
+It redraws as you type. A shared leaderboard would need a server, or the public broker's retained
 messages, so it's left for later.
 
 **Race only** turns the weapons off for a quick race (in the menu) or a room (the host
@@ -710,16 +727,17 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-308 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+315 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (134, Node):
+- **`sim.test.mjs`** (136, Node):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
     by the autopilot; a split at every checkpoint; a race-only world ignores every
-    trigger.
+    trigger; a recorded lap plays back where the car was; a damaged ghost from storage is
+    refused.
   - **Tracks, each of the three:** lap length; corner radius against the wall offset;
     no wall crossing another; the centreline clear of every wall; projection
     round-trips; ordered checkpoints; s = 0 at the start line; deterministic scenery;
@@ -786,9 +804,10 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (39, browser): the browser generates a seed's track to the same
+- **`smoke.test.mjs`** (43, browser): the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
-  weapons) sets and keeps a record with its splits, then shows splits against it;
+  weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
+  road, off or a second ahead as set; full health at every line;
   - **Boot and driving:** the name comes from the one constant; nothing invisible
     covers the menu; the world takes exactly 60 steps per second of (clamped) clock; ↑
     drives and ← steers left; the HUD shows speed.
@@ -824,11 +843,11 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   Xbox and PlayStation prompts; the on-screen keyboard; menu to race; RT drives;
   Menu/Options pauses, A resumes; leaving; every row of Settings by D-pad; the menu,
   lobby and HUD at 1280×800.
-- **`keyboard.test.mjs`** (26, browser, keys and nothing else): on the menu, settings,
+- **`keyboard.test.mjs`** (27, browser, keys and nothing else): on the menu, settings,
   Garage, join, lobby, pause and results screens, a breadth-first search over the arrow
   keys reaches every control. It presses each arrow from every control reached so
   far, so it's exact, not a walk that might be lucky. The race number changes with the
-  arrows. Also: the caret keeps left, right and Backspace in text fields; dropdowns
+  arrows; a typed seed shows its track on the menu. Also: the caret keeps left, right and Backspace in text fields; dropdowns
   change with left and right; Space toggles a switch; Esc goes back everywhere and
   resumes from pause without reopening it; Settings from the pause menu, a volume
   slider by arrows, and Esc back to the paused race; in a race the arrows drive.

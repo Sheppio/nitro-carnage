@@ -195,6 +195,8 @@ select {
   transform-origin: left;
 }
 
+.hud-arms[hidden] { display: none; }
+
 .hud-arms {
   display: flex;
   flex-direction: column;
@@ -645,3 +647,23 @@ body[data-pad="none"] .pad-only { display: none; }
 
 .hud-split.up { color: #4be08a; }
 .hud-split.down { color: #ff5a5a; }
+
+/* ------------------------------------------------------------ track preview */
+
+.track-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0 4px;
+}
+
+.track-map {
+  flex: none;
+  width: 92px;
+  height: 92px;
+  border-radius: 10px;
+  border: 1px solid var(--edge);
+}
+
+.track-info { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.track-info b { color: var(--text); font-family: var(--display); letter-spacing: 0.04em; }

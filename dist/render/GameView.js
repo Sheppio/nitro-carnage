@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { QUALITY } from '../config.js';
 import { CameraRig } from './CameraRig.js';
 import { CarMesh } from './CarMesh.js';
+import { createCar } from '../sim/car.js';
 import { Fx } from './Fx.js';
 import { cutawayUniforms, MAX_CUT_CARS } from './materials.js';
 import { Scenery } from './Scenery.js';
@@ -33,6 +34,8 @@ export class GameView {
     fx;
     weapons = new WeaponView();
     hazards;
+    ghost = null;
+    ghostState = createCar(0, 0, 0);
     clock = 0;
     quality;
     resizeObserver;
@@ -104,6 +107,48 @@ export class GameView {
             const p = missileAt(m, time);
             this.fx.trail(m, p.x - m.dx * 1.4, p.z - m.dz * 1.4, m.dx, m.dz, m.speed, dt);
         }
+    }
+    /**
+     * The hotlap ghost: a see-through copy of the followed car, posed on the
+     * record lap's path, or hidden when there is none. Drawn only — the world
+     * never hears of it, so nothing can hit it.
+     */
+    drawGhost(pose) {
+        if (!pose) {
+            if (this.ghost)
+                this.ghost.root.visible = false;
+            return;
+        }
+        if (!this.ghost) {
+            const me = this.focusId ? this.cars.get(this.focusId) : undefined;
+            if (!me)
+                return;
+            const g = new CarMesh(me.mesh.colour, false, me.mesh.look);
+            g.root.name = 'ghost';
+            g.root.traverse((o) => {
+                const mesh = o;
+                if (!mesh.material)
+                    return;
+                const mats = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((m) => {
+                    const c = m.clone();
+                    c.transparent = true;
+                    c.opacity = 0.38;
+                    c.depthWrite = false;
+                    return c;
+                });
+                mesh.material = Array.isArray(mesh.material) ? mats : mats[0];
+                mesh.castShadow = false;
+            });
+            this.scene.add(g.root);
+            this.ghost = g;
+        }
+        const st = this.ghostState;
+        st.x = pose.x;
+        st.z = pose.z;
+        st.yaw = pose.yaw;
+        st.forward = pose.speed;
+        this.ghost.root.visible = true;
+        this.ghost.update(st, 1 / 60);
     }
     /** The train and the crossing, at a race time (seconds since GO). */
     drawHazards(raceTime, dt) {

@@ -12,6 +12,8 @@ import { TRACKS } from './sim/track/index.js';
 import { AudioEngine } from './audio/AudioEngine.js';
 import { daySeed, generateTrack, seedOf } from './sim/track/generate.js';
 import type { LapRecord } from './RaceSession.js';
+import { validTrace } from './sim/ghost.js';
+import { drawTrackPreview } from './ui/trackPreview.js';
 import { decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import type { CarLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
@@ -70,6 +72,7 @@ function show(id: ScreenId): void {
     nav.start();
     nav.focusFirst();
   }
+  if (id === 'screen-menu') previewTrack();
 }
 
 /* --------------------------------------------------------- name and colour */
@@ -160,6 +163,19 @@ menuTrack.addEventListener('change', () => {
 });
 menuSeed.addEventListener('input', () => store.set(SEED_KEY, menuSeed.value));
 const chosenTrack = (): TrackChoice => trackChoice(menuTrack.value, menuSeed.value);
+
+/** Draw the chosen track in the menu: redrawn as the choice changes, and as a seed is typed. */
+let previewTimer = 0;
+function previewTrack(): void {
+  clearTimeout(previewTimer);
+  previewTimer = window.setTimeout(() => {
+    if ($('screen-menu').hidden) return;
+    const c = chosenTrack();
+    drawTrackPreview($<HTMLCanvasElement>('menu-track-map'), $('menu-track-info'), c.def, c.label);
+  }, 60);
+}
+menuTrack.addEventListener('change', previewTrack);
+menuSeed.addEventListener('input', previewTrack);
 const menuWeapons = $<HTMLSelectElement>('menu-weapons');
 menuWeapons.value = store.get(WEAPONS_KEY) === '0' ? '0' : '1';
 menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.value));
@@ -171,7 +187,10 @@ const recordKey = (def: TrackDef): string => `${SLUG}.best.${def.id}`;
 function loadRecord(def: TrackDef): LapRecord | null {
   try {
     const r = JSON.parse(store.get(recordKey(def)) || 'null') as LapRecord | null;
-    return r && Number.isFinite(r.time) && r.time > 0 && Array.isArray(r.splits) ? r : null;
+    if (!r || !Number.isFinite(r.time) || r.time <= 0 || !Array.isArray(r.splits)) return null;
+    // A record from before the ghost (or a damaged one) races without it.
+    if (r.ghost !== undefined && !validTrace(r.ghost)) delete r.ghost;
+    return r;
   } catch {
     return null;
   }
@@ -235,7 +254,7 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
     if (mode === 'hotlap' && ev.kind === 'lap' && ev.id === s.playerId && s.player) {
       if (!s.record || ev.lapTime < s.record.time) {
         const beaten = s.record !== null;
-        s.record = { time: ev.lapTime, splits: [...s.player.lap.lastSplits] };
+        s.record = { time: ev.lapTime, splits: [...s.player.lap.lastSplits], ghost: s.lastTrace };
         store.set(recordKey(track), JSON.stringify(s.record));
         if (beaten) hud?.banner(`NEW RECORD  ·  ${formatTime(ev.lapTime)}`, 3);
       }
@@ -493,6 +512,7 @@ for (const type of ['keydown', 'pointerdown', 'touchstart'] as const) {
 document.addEventListener('focusin', () => {
   if (!session || session.paused) audio.blip();
 });
+$('set-ghost').addEventListener('change', (e) => settings.set('ghostLead', Number((e.target as HTMLSelectElement).value)));
 $('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number((e.target as HTMLInputElement).value)));
 $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number((e.target as HTMLInputElement).value)));
 
@@ -507,6 +527,7 @@ function openSettings(fromPause: boolean): void {
   $<HTMLInputElement>('set-autopilot').checked = settings.current.autopilot;
   brokerSelect.value = settings.current.broker;
   $<HTMLInputElement>('set-sfx').value = String(settings.current.sfxVolume);
+  $<HTMLSelectElement>('set-ghost').value = String(settings.current.ghostLead);
   $<HTMLInputElement>('set-music').value = String(settings.current.musicVolume);
   // The race stays where it is underneath: paused offline, held on the brakes online.
   if (fromPause) $('pause-veil').hidden = true;

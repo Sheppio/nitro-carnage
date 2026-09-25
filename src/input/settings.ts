@@ -20,6 +20,11 @@ export interface InputSettings {
   autopilot: boolean;
   sfxVolume: number;
   musicVolume: number;
+  /**
+   * Hotlap ghost: how far ahead of you it runs, in seconds of its lap, so it
+   * shows the line before you get there. Negative hides it.
+   */
+  ghostLead: number;
   /** Which public MQTT broker rooms meet on; see `BROKERS`. */
   broker: string;
 }
@@ -29,6 +34,7 @@ export const RANGES = {
   deadzone: { min: 0.15, max: 0.45 },
   sfxVolume: { min: 0, max: 1 },
   musicVolume: { min: 0, max: 1 },
+  ghostLead: { min: -1, max: 3 },
 } as const satisfies Record<string, { min: number; max: number }>;
 
 const STORAGE_KEY = `${SLUG}.settings.v1`;
@@ -43,6 +49,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   autopilot: false,
   sfxVolume: 1,
   musicVolume: 0.8,
+  ghostLead: 0,
   broker: BROKERS[0]!.id,
 };
 

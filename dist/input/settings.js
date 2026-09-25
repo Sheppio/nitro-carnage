@@ -6,6 +6,7 @@ export const RANGES = {
     deadzone: { min: 0.15, max: 0.45 },
     sfxVolume: { min: 0, max: 1 },
     musicVolume: { min: 0, max: 1 },
+    ghostLead: { min: -1, max: 3 },
 };
 const STORAGE_KEY = `${SLUG}.settings.v1`;
 const QUALITIES = ['potato', 'low', 'medium', 'high'];
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS = {
     autopilot: false,
     sfxVolume: 1,
     musicVolume: 0.8,
+    ghostLead: 0,
     broker: BROKERS[0].id,
 };
 /**

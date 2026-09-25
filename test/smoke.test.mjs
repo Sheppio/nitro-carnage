@@ -373,7 +373,7 @@ try {
   });
   r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === '80ed5d55', sameTrack);
   const label = await hl.evaluate(() => document.getElementById('hud-track').textContent);
-  const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: document.getElementById('hud-arms').hidden }));
+  const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: getComputedStyle(document.getElementById('hud-arms')).display === 'none' }));
   r.check('a hotlap on the track of the day: named on the HUD, a record to beat, no position, no weapons',
     /^Track of the day · /.test(label) && shows.record && shows.pos && shows.arms, label);
   // Two laps on autopilot: the first sets the record, which is saved.
@@ -386,6 +386,55 @@ try {
     saved ? `${saved.time.toFixed(2)} s, splits ${saved.splits.map((t) => t.toFixed(1)).join(' / ')}` : 'none');
   const split = await until(() => hl.evaluate(() => document.getElementById('hud-split').textContent || null), { timeout: 60000, interval: 100 });
   r.check('on the next lap each checkpoint shows the split against the record', /^[−+]\d+\.\d\d$/.test(split ?? ''), split);
+  r.check('the record keeps the lap\'s path for the ghost', Array.isArray(saved?.ghost) && Math.abs(saved.ghost.length / 3 - saved.time * 10) < 3,
+    saved?.ghost ? `${saved.ghost.length / 3} poses` : 'no ghost');
+  // The ghost: out on the road, a see-through copy, drawn where the record lap was at this moment of the lap.
+  const ghost = await until(() => hl.evaluate(() => {
+    const s = window.nitro.session;
+    const g = s.view.scene.getObjectByName('ghost');
+    if (!g || !g.visible) return null;
+    const d = Math.abs(s.world.track.project(g.position.x, g.position.z).d);
+    let seeThrough = true;
+    g.traverse((o) => { if (o.material && !(o.material.transparent && o.material.opacity < 0.5)) seeThrough = false; });
+    return { d, seeThrough };
+  }), { timeout: 20000, interval: 100 });
+  r.check('a see-through ghost drives the record lap on the road beside you', ghost && ghost.d < 9 && ghost.seeThrough, ghost ? `${ghost.d.toFixed(1)} m off the centre line` : 'no ghost');
+  // The ghost's lead: Off hides it; a second ahead puts it a second's driving up the road.
+  const ahead = await hl.evaluate(async () => {
+    const s = window.nitro.session;
+    const pos = () => {
+      const g = s.view.scene.getObjectByName('ghost');
+      return g.visible ? s.world.track.project(g.position.x, g.position.z).s : null;
+    };
+    const frame = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+    s.frozen = true;
+    window.nitro.settings.set('ghostLead', -1);
+    await frame();
+    const off = pos();
+    window.nitro.settings.set('ghostLead', 0);
+    await frame();
+    const beside = pos();
+    window.nitro.settings.set('ghostLead', 1);
+    await frame();
+    const ahead = pos();
+    s.frozen = false;
+    window.nitro.settings.set('ghostLead', 0);
+    return { off, gap: beside === null || ahead === null ? null : s.world.track.deltaS(beside, ahead) };
+  });
+  r.check('the ghost can be switched off, or run ahead to show the line: a second ahead is metres up the road',
+    ahead.off === null && ahead.gap !== null && ahead.gap > 10, ahead.gap === null ? 'no ghost' : `${ahead.gap.toFixed(1)} m ahead at 1 s`);
+
+  // Damage from a lap is gone at the line.
+  const lapsBefore = await hl.evaluate(() => {
+    const p = window.nitro.session.player;
+    p.hp = 40;
+    return p.lap.completed;
+  });
+  const healed = await until(() => hl.evaluate((n) => {
+    const p = window.nitro.session.player;
+    return p.lap.completed > n ? p.hp : null;
+  }, lapsBefore), { timeout: 150000, interval: 200 });
+  r.check('in a hotlap every lap starts with full health', healed === 100, `health ${healed} after the line`);
   await hl.close();
 
   /* ------------------------------------------------------ every track */
