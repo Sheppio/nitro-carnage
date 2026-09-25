@@ -113,6 +113,11 @@ try {
   r.check('a second thumb on the left slides to steer, while the first keeps the throttle down', Boolean(steer), `steer ${steer?.toFixed(2)}`);
   const upward = await page.evaluate(() => window.nitro.session.player.intent.brake);
   r.check('drifting the steering thumb upwards does not brake', upward === 0);
+  // A nudge is a nudge: 20 px of thumb is a touch of lock, not a big bite of it.
+  await touch('touchMove', [gas, [steerAt[0] + 20, steerAt[1]]]);
+  await page.waitForTimeout(400);
+  const nudge = await page.evaluate(() => window.nitro.session.player.intent.steer);
+  r.check('a small thumb movement is a small correction', nudge > 0 && nudge < 0.15, `steer ${nudge.toFixed(3)} for 20 px`);
   await touch('touchEnd', []);
 
   // Past the start grace, the missile button fires.

@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.17**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.18**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 307 checks: simulation and networking (Node), and real browsers
+npm test           # 308 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -695,7 +695,10 @@ Esc opens the pause menu, which the same keys then navigate.
   a trigger is half throttle. It rumbles on landings and wall hits. Menus are driven by
   the ported spatial `GamepadNavigator`.
 - **Touch.** Steering is a floating slider: wherever your thumb lands is centre, and
-  only horizontal travel counts. A thumb that drifts upward must not start braking. The
+  only horizontal travel counts. Full lock is 110 px away, on a curve, so the first half
+  of the slider is fine control, and the wheel winds in like the keyboard's. It used to
+  be linear, instant and 70 px, and on an iPad any thumb movement at speed threw the car
+  sideways. A thumb that drifts upward must not start braking. The
   layer exists only while driving: glitchburst learned that an invisible full-screen
   touch layer over the menu swallows every tap.
 
@@ -707,7 +710,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-307 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+308 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -829,11 +832,11 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   change with left and right; Space toggles a switch; Esc goes back everywhere and
   resumes from pause without reopening it; Settings from the pause menu, a volume
   slider by arrows, and Esc back to the paused race; in a race the arrows drive.
-- **`mobile.test.mjs`** (12, browser, an emulated phone in landscape, real touch
+- **`mobile.test.mjs`** (13, browser, an emulated phone in landscape, real touch
   events): the menu is all tappable; the touch layer is only up in a race; nothing
   covers a touch button or the pause button; no two HUD panels overlap; the pedal
   drives; a second thumb steers while the first holds the throttle; an upward thumb
-  doesn't brake; the missile button fires; pause and resume by tap.
+  doesn't brake; a small thumb movement is a small correction; the missile button fires; pause and resume by tap.
 
 These caught real bugs:
 

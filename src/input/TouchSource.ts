@@ -4,7 +4,16 @@ import type { DriveSample, InputSource } from './sources.js';
 type Action = 'throttle' | 'brake' | 'handbrake' | 'front' | 'rear' | 'turbo';
 
 /** Pixels of thumb travel from where it landed to full lock. */
-const STEER_TRAVEL = 70;
+const STEER_TRAVEL = 110;
+/**
+ * Response curve: the thumb's travel is raised to this power, so the first
+ * half of the slider is fine control and full lock is at the end. Linear, a
+ * nudge at speed was already a big bite of lock.
+ */
+const STEER_CURVE = 1.7;
+/** Seconds for the wheel to follow the thumb from centre to full lock, and back. */
+const STEER_IN = 0.12;
+const STEER_OUT = 0.07;
 
 /**
  * Touch driving: steer with the left thumb, pedals and weapons under the right.
@@ -29,6 +38,10 @@ export class TouchSource implements InputSource {
   private steerPointer: number | null = null;
   private originX = 0;
   private steer = 0;
+  /** Where the thumb says the wheel should be; `steer` follows it at the rack's pace. */
+  private steerTarget = 0;
+  /** The thumb's own position on the slider, -1..1, for drawing the knob under it. */
+  private thumb = 0;
   private held = new Map<Action, Set<number>>();
   private dirty = false;
   private enabled = false;
@@ -74,8 +87,16 @@ export class TouchSource implements InputSource {
     return this.enabled;
   }
 
-  poll(): DriveSample {
+  poll(dt = 1 / 60): DriveSample {
     const on = (a: Action): boolean => (this.held.get(a)?.size ?? 0) > 0;
+    // Wind the wheel towards the thumb, as the keyboard does: glass has no
+    // resistance, and a thumb flicked across it was full lock in one frame —
+    // at speed, a car snapped sideways. (Touch had none of this until M7.)
+    const t = this.steerTarget;
+    const rate = t === 0 || Math.sign(t) !== Math.sign(this.steer) ? 1 / STEER_OUT : 1 / STEER_IN;
+    const step = rate * dt;
+    this.steer += Math.max(-step, Math.min(step, t - this.steer));
+    this.drawKnob();
     const sample: DriveSample = {
       ...EMPTY_SAMPLE,
       throttle: on('throttle') ? 1 : 0,
@@ -102,6 +123,8 @@ export class TouchSource implements InputSource {
     this.held.clear();
     this.steerPointer = null;
     this.steer = 0;
+    this.steerTarget = 0;
+    this.thumb = 0;
     this.drawKnob();
   }
 
@@ -112,7 +135,8 @@ export class TouchSource implements InputSource {
     this.base.style.left = `${e.clientX}px`;
     this.base.style.top = `${e.clientY}px`;
     this.base.classList.add('active');
-    this.steer = 0;
+    this.steerTarget = 0;
+    this.thumb = 0;
     this.dirty = true;
     this.drawKnob();
   };
@@ -129,7 +153,9 @@ export class TouchSource implements InputSource {
   private onMove = (e: PointerEvent): void => {
     if (e.pointerId !== this.steerPointer) return;
     const dx = e.clientX - this.originX;
-    this.steer = Math.max(-1, Math.min(1, dx / STEER_TRAVEL));
+    const x = Math.max(-1, Math.min(1, dx / STEER_TRAVEL));
+    this.thumb = x;
+    this.steerTarget = Math.sign(x) * Math.abs(x) ** STEER_CURVE;
     this.dirty = true;
     this.drawKnob();
   };
@@ -137,7 +163,8 @@ export class TouchSource implements InputSource {
   private onUp = (e: PointerEvent): void => {
     if (e.pointerId === this.steerPointer) {
       this.steerPointer = null;
-      this.steer = 0;
+      this.steerTarget = 0;
+      this.thumb = 0;
       this.base.classList.remove('active');
       this.drawKnob();
     }
@@ -149,6 +176,6 @@ export class TouchSource implements InputSource {
   };
 
   private drawKnob(): void {
-    this.knob.style.transform = `translate(calc(-50% + ${this.steer * STEER_TRAVEL}px), -50%)`;
+    this.knob.style.transform = `translate(calc(-50% + ${this.thumb * STEER_TRAVEL}px), -50%)`;
   }
 }
