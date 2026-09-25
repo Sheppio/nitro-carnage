@@ -62,7 +62,9 @@ export function autopilot(st, car, track, line, rivals, time, dt, stopAt = null)
         out.steer = st.recoverSteer;
         return out;
     }
-    if (v < 1.5)
+    // Waiting at a level crossing is not being stuck: counted as stuck, a car
+    // held for the train reversed out, wheel on lock, into the wall beside it.
+    if (v < 1.5 && stopAt === null)
         st.stuck += dt;
     else
         st.stuck = 0;
@@ -164,15 +166,19 @@ export function autopilot(st, car, track, line, rivals, time, dt, stopAt = null)
     // short of it, at a deceleration the brakes manage with room to spare.
     if (stopAt !== null) {
         const toStop = track.deltaS(p.s, stopAt);
-        if (toStop > -1 && toStop < 160)
+        // Past the line (shoved over it by the car behind) is still a stop: the
+        // world only asks while the car is short of the rails.
+        if (toStop < 160)
             target = Math.min(target, Math.sqrt(2 * 10 * Math.max(0, toStop - 2)));
     }
     const err = target - v;
     if (target < 0.5 && v < 2) {
-        // Waiting at the line: hold still rather than creep, or back out of it.
+        // Waiting at the line: hold still rather than creep, or back out of it,
+        // wheel straight.
         out.throttle = 0;
         out.brake = 0;
         out.handbrake = true;
+        out.steer = 0;
         return out;
     }
     if (err > 0.3) {

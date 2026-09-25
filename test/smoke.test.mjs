@@ -101,16 +101,21 @@ try {
   const shown = await until(() => page.evaluate(() => Number(document.getElementById('hud-speed').textContent) > 40));
   r.check('the HUD shows the speed', Boolean(shown));
 
-  // Camera lead: at speed the car sits behind screen centre, with the road ahead in view.
+  // Camera lead: at speed the car sits behind screen centre, with the road
+  // ahead in view. Measured along the car's own direction, whichever way the
+  // start straight runs (east on the 1.6 km Downtown, north on the 30 s one).
   const lead = await page.evaluate(() => {
     const s = window.nitro.session;
     const c = s.drawnStates.get('you');
     const p = s.view.toScreen(c.x, c.y, c.z);
     const rect = s.view.renderer.domElement.getBoundingClientRect();
-    return { dx: p.x - rect.width / 2, vx: c.vx, fov: s.view.rig.camera.fov };
+    const v = Math.hypot(c.vx, c.vz) || 1;
+    // North-up camera: screen x is world x, screen y is world z.
+    const along = ((p.x - rect.width / 2) * c.vx + (p.y - rect.height / 2) * c.vz) / v;
+    return { along, fov: s.view.rig.camera.fov };
   });
-  r.check('the camera leads: the car sits behind centre, opposite its velocity', lead.dx * Math.sign(lead.vx) < -8,
-    `car ${lead.dx.toFixed(0)} px from centre, heading ${lead.vx > 0 ? 'east' : 'west'}`);
+  r.check('the camera leads: the car sits behind centre, opposite its velocity', lead.along < -8,
+    `car ${(-lead.along).toFixed(0)} px behind centre along its heading`);
   r.check('speed widens the lens', lead.fov > 50.3, `fov ${lead.fov.toFixed(1)}°`);
 
   // Steering left turns the car left: yaw increases (see car.ts conventions).
@@ -464,7 +469,7 @@ try {
     const u = await import(new URL('util.js', main).href);
     return u.hashString(JSON.stringify(g.generateTrack(g.daySeed(Date.UTC(2026, 8, 25, 12))))).toString(16);
   });
-  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === 'c235dcbc', sameTrack);
+  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === 'db2d691e', sameTrack);
   const label = await hl.evaluate(() => document.getElementById('hud-track').textContent);
   const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: getComputedStyle(document.getElementById('hud-arms')).display === 'none' }));
   r.check('a hotlap on the track of the day: named on the HUD, a record to beat, no position, no weapons',
@@ -472,7 +477,7 @@ try {
   // Two laps on autopilot: the first sets the record, which is saved.
   const saved = await until(() => hl.evaluate(() => {
     const id = window.nitro.session.world.track.def.id;
-    const r = localStorage.getItem(`nitrocarnage.best.${id}`);
+    const r = localStorage.getItem(`nitrocarnage.best2.${id}`);
     return r ? JSON.parse(r) : null;
   }), { timeout: 150000, interval: 500 });
   r.check('a finished lap becomes the record, with its splits, and is kept', saved && saved.time > 20 && saved.splits.length === 3,

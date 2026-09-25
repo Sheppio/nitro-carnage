@@ -130,7 +130,10 @@ export class World {
             return null;
         const line = rail.s - this.track.wallOffset - 3;
         const dist = this.track.deltaS(e.s, line);
-        if (dist < -2 || dist > 160)
+        // Committed only once at the rails. A car shoved a couple of metres past
+        // its line by the one queued behind it used to count as through, and drove
+        // on into the train; short of the rails, it holds where it is.
+        if (this.track.deltaS(e.s, rail.s - 6) < 0 || dist > 160)
             return null;
         const v = Math.max(4, Math.hypot(e.car.vx, e.car.vz));
         const now = this.time - this.goTime;

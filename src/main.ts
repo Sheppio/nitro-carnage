@@ -199,7 +199,10 @@ menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.
 /* ---------------------------------------------------------------- records */
 
 /** Hotlap bests, per track (a generated one by its seed), kept on this device. */
-const recordKey = (def: TrackDef): string => `${SLUG}.best.${def.id}`;
+// "best2": the tracks were shortened to ~30 s laps, and a record (and its
+// ghost) from the old, longer shape of a track would be unbeatable and drive
+// through the new one's walls.
+const recordKey = (def: TrackDef): string => `${SLUG}.best2.${def.id}`;
 function loadRecord(def: TrackDef): LapRecord | null {
   try {
     const r = JSON.parse(store.get(recordKey(def)) || 'null') as LapRecord | null;

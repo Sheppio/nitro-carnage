@@ -3,6 +3,16 @@ import { Surface } from '../surfaces.js';
 import { Track } from './buildTrack.js';
 import type { PropRule, TrackDef } from './TrackDef.js';
 import { validateTrack } from './validate.js';
+import { GRID_RADIUS, gridBend } from './gridStart.js';
+
+/**
+ * A candidate is kept if it validates and its whole grid is on a straight:
+ * shortened to 30 s laps, one seed in 25 put the back rows on a bend.
+ */
+function fits(def: TrackDef): boolean {
+  const t = new Track({ ...def, props: [] });
+  return validateTrack(t) === null && gridBend(t) <= 1 / GRID_RADIUS;
+}
 
 /**
  * Tracks from a seed (PLAN.md M7): the track of the day, and any track a
@@ -72,7 +82,7 @@ export function generateTrack(seed: number): TrackDef {
     const def = candidate(s, int, attempt, style);
     try {
       // Checked bare: scattering a city round a candidate only to throw it away is most of the cost.
-      if (validateTrack(new Track({ ...def, props: [] })) === null) {
+      if (fits(def)) {
         cache.set(s, def);
         return def;
       }
@@ -92,7 +102,7 @@ export function attemptsFor(seed: number): number {
   for (let attempt = 0; attempt < 400; attempt++) {
     const def = candidate(s, int, attempt, style);
     try {
-      if (validateTrack(new Track({ ...def, props: [] })) === null) return attempt + 1;
+      if (fits(def)) return attempt + 1;
     } catch {
       /* next */
     }
@@ -129,6 +139,17 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout }: S
   // Either way round.
   if (int(0, 1)) corners = corners.reverse();
   fit(corners);
+  // Shrunk to about a 30 s lap. The layouts were drawn for 1.2-1.8 km, and
+  // their spacing rules (notches, dents, sweepers) are in those metres, so
+  // they draw as they did and the whole shape scales, in integers so every
+  // client rounds alike, by what a lap of each costs: a city grid, all right
+  // angles, to 3/5 (its points are on a 5 m grid, which 3/5 keeps exact, so
+  // its right angles and diagonals stay true); long straights to 17/20; a
+  // flowing loop, the fastest per metre, to 9/10. A radius keeps room for the
+  // inside wall.
+  const [num, den] = layout === 'grid' ? [3, 5] : layout === 'straights' ? [17, 20] : [9, 10];
+  corners = corners.map(([x, z, r]) => [Math.round((x * num) / den), Math.round((z * num) / den), Math.max(Math.round((r * num) / den), tight)]);
+  fit(corners);
   const n = corners.length;
   // The longest edge is the main straight: the start line goes on it.
   let longest = 0;
@@ -164,7 +185,7 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout }: S
   const [jx1, jz1] = corners[(second + 1) % n]!;
 
   const props: PropRule[] = [];
-  const area = [-420, -420, 420, 420] as const;
+  const area = [-340, -340, 340, 340] as const;
   let water: [number, number, number, number][] | undefined;
   if (theme === 'dusk' || theme === 'day') {
     props.push({ kind: 'city', area, lot: 20, clearance: 0.5, footprint: [12, 18], height: [10, 34], gaps: 0.06, tallness: 0.9 });
@@ -177,7 +198,7 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout }: S
     props.push({ kind: 'herds', count: 4, clearance: 2 });
     props.push({ kind: 'ponds', count: 3, clearance: 3 });
     props.push({ kind: 'flowers', spacing: 36 });
-    props.push({ kind: 'trees', area, count: 3200, clearance: 2.5, height: [7, 17] });
+    props.push({ kind: 'trees', area, count: 2100, clearance: 2.5, height: [7, 17] });
   } else {
     const port = harbour(corners, sx0, sz0, sx1, sz1, seed);
     water = [port.water];
@@ -194,7 +215,8 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout }: S
     theme,
     layout: LAYOUT_NAMES[layout],
     corners,
-    width: theme === 'park' ? 13 : 14,
+    // A quarter wider than the first tracks' 13 and 14 m, from play-testing.
+    width: theme === 'park' ? 16.25 : 17.5,
     verge: theme === 'park' ? { width: 6, surface: Surface.Grass } : { width: theme === 'overcast' ? 2 : 3, surface: Surface.Kerb },
     walls: true,
     start,
@@ -365,7 +387,7 @@ function harbour(corners: Corner[], sx0: number, sz0: number, sx1: number, sz1: 
   const mx = sx0 + sx1, mz = sz0 + sz1;
   const gaps = [mz - 2 * minZ, 2 * maxX - mx, 2 * maxZ - mz, mx - 2 * minX];
   const side = gaps.indexOf(Math.min(...gaps)); // 0 north, 1 east, 2 south, 3 west
-  const Q = 16; // apron between the outermost corner and the water: the wall is at most 9 m out
+  const Q = 18; // apron between the outermost corner and the water: the wall is at most 10.75 m out
   const far = 420;
   // The quay line runs so that the water is on its right (negative `out` puts ships on its left).
   let water: [number, number, number, number];

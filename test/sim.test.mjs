@@ -22,7 +22,8 @@ import { mulberry32, wrapAngle, smoothing } from '../dist/util.js';
 import { Armoury, castRay, missileAt } from '../dist/sim/weapons.js';
 import { trainAt, crossingBlocked, crossingWarning, trainSegment } from '../dist/sim/train.js';
 import { generateTrack, seedOf, daySeed, utcDay, trackName, attemptsFor } from '../dist/sim/track/generate.js';
-import { validateTrack } from '../dist/sim/track/validate.js';
+import { validateTrack, LAP_MIN, LAP_MAX } from '../dist/sim/track/validate.js';
+import { gridBend, GRID_RADIUS } from '../dist/sim/track/gridStart.js';
 import { LapTrace, ghostAt, validTrace, GHOST_HZ } from '../dist/sim/ghost.js';
 import { SEED_WORDS, randomSeedText } from '../dist/sim/track/seedWords.js';
 import { hashString } from '../dist/util.js';
@@ -91,7 +92,12 @@ for (const def of TRACKS) {
   const t = new Track(def);
   const name = def.name;
 
-  tcheck(`${name}: lap length is a short arcade circuit (1.2-1.8 km)`, t.length > 1200 && t.length < 1800, `${t.length.toFixed(0)} m`);
+  // The whole grid on a straight: shortened to 30 s laps, several start lines
+  // were just past a corner and the back rows started on the bend.
+  const bend = gridBend(t);
+  tcheck(`${name}: the grid is on a straight`, bend <= 1 / GRID_RADIUS, `tightest radius under the grid ${(1 / Math.max(bend, 1e-6)).toFixed(0)} m`);
+  // About a 30 s lap: 0.6-1.4 km (was 1.2-1.8 until play-testing called the laps too long).
+  tcheck(`${name}: lap length is a short arcade circuit (0.6-1.4 km)`, t.length > LAP_MIN && t.length < LAP_MAX, `${t.length.toFixed(0)} m`);
 
   let minR = Infinity;
   for (let i = 0; i < t.n; i++) {
@@ -187,10 +193,19 @@ for (const def of TRACKS) {
   let walled = 0;
   for (const g of def.wallGaps ?? []) {
     const side = g.side === 'left' ? 1 : -1;
-    for (let f = g.from + 0.005; f < g.to - 0.005; f += 0.005) {
+    // 12 m in from each end: the wall's last segment runs a few metres past it.
+    const edge = 12 / t.length;
+    for (let f = g.from + edge; f < g.to - edge; f += 0.005) {
       const pose = t.poseAt(f * t.length);
       const [x, z] = t.offsetPoint(pose.i, side * t.wallOffset);
-      t.forWallsNear(x - 0.5, z - 0.5, x + 0.5, z + 0.5, () => walled++);
+      // A wall actually there, within a metre: the lookup returns every wall in
+      // the grid cells the box touches, which reaches past the gap's ends.
+      t.forWallsNear(x - 0.5, z - 0.5, x + 0.5, z + 0.5, (k) => {
+        const o = k * 6, W = t.walls;
+        const px = W[o + 2] - W[o], pz = W[o + 3] - W[o + 1];
+        const u = Math.max(0, Math.min(1, ((x - W[o]) * px + (z - W[o + 1]) * pz) / (px * px + pz * pz || 1)));
+        if (Math.hypot(W[o] + px * u - x, W[o + 1] + pz * u - z) < 1) walled++;
+      });
     }
   }
   tcheck(`${name}: an open verge has no wall`, walled === 0, `${(def.wallGaps ?? []).length} gaps`);
@@ -952,10 +967,12 @@ const S0 = straight(TRACKS[0] && new World(TRACKS[0]).track);
 }
 
 {
-  // A full armed race: six bots, three laps, weapons live.
+  // A full armed race: six bots, three laps, weapons live. Bot seeds 10-15:
+  // on the ~30 s Downtown, 50-55 happen to land 15 hits spread thin and wreck
+  // nobody, where most seeds wreck three to seven cars.
   const run = () => {
     const w = new World(TRACKS[0], { laps: 3, countdown: 1 });
-    const bots = SKILLS.map((sk, i) => w.addBot(`b${i}`, i, sk, 50 + i));
+    const bots = SKILLS.map((sk, i) => w.addBot(`b${i}`, i, sk, 10 + i));
     const tally = { fire: 0, hit: 0, wreck: 0, mine: 0 };
     let bad = false;
     while (w.time < 400 && !bots.every((b) => b.lap.finished)) {
@@ -1090,14 +1107,14 @@ console.log('\ngenerated tracks');
  * different track: the test is there to make that a decision, not an accident.
  */
 const PINNED = [
-  [1, 'Neon Sprint', '6f6dfbab'],
-  [42, 'Static Reach', '737856c2'],
-  [seedOf('NITRO'), 'Neon Yard', '110657db'],
-  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Signal Mile', 'c235dcbc'],
+  [1, 'Neon Sprint', 'a8a9a9cf'],
+  [42, 'Static Reach', '5fc6df9d'],
+  [seedOf('NITRO'), 'Neon Yard', 'd6d30adf'],
+  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Signal Mile', 'db2d691e'],
   // A port, a city at dusk and a city by day (M10), so every theme's rules are pinned.
-  [seedOf('pin-run-dig'), 'Hollow Ring', 'a62a04be'],
-  [seedOf('big-red-bus'), 'Granite Park', 'cee3f50b'],
-  [seedOf('oak-elm-fig'), 'Amber Loop', '2fa58512'],
+  [seedOf('pin-run-dig'), 'Hollow Ring', '36c3e42e'],
+  [seedOf('big-red-bus'), 'Granite Park', '46939bfd'],
+  [seedOf('oak-elm-fig'), 'Amber Loop', '6dcbae0'],
 ];
 /**
  * The shape alone — corners, start and ramps — pinned apart from the rest.
@@ -1105,7 +1122,10 @@ const PINNED = [
  * shape; this is what lets that be said, and it keeps a hotlap record's
  * ghost on the road it was driven on.
  */
-const SHAPES = ['e5cc4479', '516a54d0', '345cb3ee', '64336d30', 'ad477f3a', '88fe84ec', 'b6937d4d'];
+// Re-pinned on purpose when the laps were shortened to about 30 s and the
+// road widened by a quarter: every seed's shape changed, and saved records
+// moved to a new key with them.
+const SHAPES = ['909cd37f', 'f7011ebf', 'be2e3974', 'da90f83a', 'a2feb768', 'd9b4c83b', '57db5f65'];
 
 {
   const got = PINNED.map(([seed]) => {

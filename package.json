@@ -1,6 +1,6 @@
 {
   "name": "nitrocarnage",
-  "version": "0.1.34",
+  "version": "0.1.35",
   "private": true,
   "description": "Serverless top-down 3D combat racer for 1-6 players over MQTT/WebSockets.",
   "type": "module",
@@ -20,7 +20,8 @@
     "test:pad": "node test/gamepad.test.mjs",
     "test:keys": "node test/keyboard.test.mjs",
     "test:mobile": "node test/mobile.test.mjs",
-    "circuits": "npm run build && node scripts/build-circuits.mjs --write && npm run build"
+    "circuits": "npm run build && node scripts/build-circuits.mjs --write && npm run build",
+    "circuits:sheet": "npm run build && node scripts/circuit-sheet.mjs"
   },
   "devDependencies": {
     "@types/three": "0.186.0",

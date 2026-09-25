@@ -2,8 +2,8 @@ import { closestSegSeg } from '../collide.js';
 import type { Track } from './buildTrack.js';
 
 /** Lap length an arcade circuit should have, metres (PLAN.md §3.4). */
-export const LAP_MIN = 1200;
-export const LAP_MAX = 1800;
+export const LAP_MIN = 600;
+export const LAP_MAX = 1400;
 /** Closest two stretches of road that are not neighbours along the lap may come, centre to centre. */
 export const MIN_SEPARATION = 40;
 

@@ -7,6 +7,8 @@ const CURVE_SPAN = 5;
 /** The line's refinement: strides in metres, coarse to fine, and sweeps at each. */
 const STRIDES = [64, 32, 16, 8, 4, 2, 1];
 const SWEEPS = 60;
+/** Most a bot takes a jump at, m/s. */
+const RAMP_SPEED = 32;
 
 export interface RacingLine {
   /** Lateral offset from the centreline per sample, metres, positive left. */
@@ -48,7 +50,7 @@ export interface LineOptions {
  * best bot laps Neon Downtown in 59 s instead of 66.5 with no wall contact;
  * at 18 they start clipping the walls.
  */
-export const DEFAULT_LINE: LineOptions = { lateral: 16, lateralPerMs: 0, braking: 16, accel: 6, topSpeed: 64, carTop: 51 };
+export const DEFAULT_LINE: LineOptions = { lateral: 15, lateralPerMs: 0, braking: 16, accel: 6, topSpeed: 64, carTop: 51 };
 
 const cache = new WeakMap<Track, RacingLine>();
 
@@ -136,6 +138,17 @@ export function racingLine(track: Track, opts: LineOptions = DEFAULT_LINE): Raci
     const b = opts.lateralPerMs;
     speed[i] = Math.min(opts.topSpeed, (b * R + Math.sqrt(b * b * R * R + 4 * opts.lateral * R)) / 2);
   }
+  // Jumps: a car can't steer in the air, and a lap shortened to 30 s puts a
+  // bend soon after most landings. Flat out at 42 m/s Greenbelt's jump flew
+  // 40 m and landed a bot four metres off its line going into a bend; at
+  // RAMP_SPEED the flight is half that. Braked for like a corner.
+  for (const r of track.ramps) {
+    for (let s = r.s0 - 4; s <= r.s1; s += spacing) {
+      const i = Math.floor(track.wrapS(s) / spacing) % n;
+      speed[i] = Math.min(speed[i]!, RAMP_SPEED);
+    }
+  }
+
   // Brake in time: sweep backwards twice round the loop so the wrap is covered.
   for (let pass = 0; pass < 2; pass++) {
     for (let i = n - 1; i >= 0; i--) {

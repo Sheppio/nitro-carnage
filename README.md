@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.34**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.35**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 745 checks: simulation and networking (Node), and real browsers
+npm test           # 771 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -589,10 +589,71 @@ change to the tuning shows up there.
 
 | Track | Lap | Character |
 | --- | --- | --- |
-| **Neon Downtown** | 1.59 km | a walled city grid at dusk; right angles, a chicane, the plaza jump |
-| **Greenbelt** | 1.49 km | fast sweepers through farmland; grass verges, stretches with no wall at all, a duck pond past the open lawn, a gravel section, a jump over the creek |
-| **Tidewater Docks** | 1.62 km | a working port under an overcast sky; container canyons, the open quay, ships and a marina, oil patches, the railway |
-| **Downtown by Day** | 1.59 km | the same streets as Neon Downtown under a high sun (M10), with its own hotlap record |
+| **Neon Downtown** | 0.81 km | a walled city grid at dusk; right angles, a chicane, the plaza jump |
+| **Greenbelt** | 0.99 km | fast sweepers through farmland; grass verges, stretches with no wall at all, a duck pond past the open lawn, a gravel section, a jump over the creek |
+| **Tidewater Docks** | 0.82 km | a working port under an overcast sky; container canyons, the open quay, ships and a marina, oil patches, the railway |
+| **Downtown by Day** | 0.81 km | the same streets as Neon Downtown under a high sun (M10), with its own hotlap record |
+
+### About 30 s a lap
+
+Play-testing found the laps too long: about 50 s on Neon Downtown and up to a
+minute on the real circuits, a long way from Super Cars II's quick, crowded laps. So
+every track was shortened to about a 30 s lap, and every road widened by a quarter.
+The long version is commit `76ff8f2` (v0.1.34), tagged `long-tracks` in the local
+clone, if it's ever wanted back.
+
+- **Aimed by the clock, not the tape measure.** Corners cost time, so a twisty track
+  needs less road than an oval for the same lap. Each track was sized by timing the
+  best bot, which laps about as fast as a good player (38.7 s at Indianapolis against
+  a player's 41 s), and aiming it at about 29 s. The best bot now laps every track in
+  26–31.6 s.
+- **The game's own tracks** were scaled down whole: Downtown and the Docks to 0.52,
+  Greenbelt to 0.66. The start, ramps, oil, ponds, cranes, ships and scenery areas
+  moved with them, and corners kept a radius that leaves room for the inside wall.
+  Downtown's notch now has its two sides 37 m apart, so that track allows 36 m
+  between stretches of road instead of 40. The Docks' quay moved out 2 m, to the
+  wider road's wall.
+- **The real circuits** were rebuilt at a length for each: 0.74 km for Barcelona,
+  1.21 km for the Indianapolis oval (`scripts/circuits/targets.json`).
+- **Generated tracks** are drawn as before, then scaled in whole-number ratios: a city
+  grid to 3/5 (its points are on a 5 m grid, and 3/5 keeps them exact, so its right
+  angles stay true), long straights to 17/20, and a flowing loop to 9/10. The best
+  bot's median lap is 26–28.5 s by layout. Every seed now makes a different track
+  than before, so the pinned seeds in the tests were re-pinned deliberately.
+- **Roads a quarter wider:** 17.5 m in the city (was 14), 16.25 m in the park and at
+  the docks (was 13), and 13.75 m on the real circuits (was 11).
+- **Lap limits** in the validator went from 1.2–1.8 km to 0.6–1.4 km.
+- **Hotlap records start afresh.** They're kept under a new storage key, because a
+  record or ghost from a track's old shape would be unbeatable and drive through the
+  new one's walls.
+
+**What shortening broke, and the fixes.**
+- **Grids on bends.** Several start lines ended up just past a corner, so the back of
+  the grid started on the bend. The start now moves on to the first place with 40 m
+  of straight behind it (`gridStart.ts`). The circuit build and the three hand-made
+  tracks use it, and the generator rejects a candidate without one. Every track has
+  a test for it.
+- **The Docks' level crossing** landed 25 m after a corner, too close for a bot to
+  stop for the train, so the railway moved along the straight. Two older bugs showed
+  up there too. A bot held for the train counted as stuck, reversed and ground into
+  the wall. And one shoved past its stop line by the car behind stopped waiting and
+  drove into the train. Both are fixed.
+- **Jumps.** Greenbelt's jump now lands close to a bend, and a bot flying 40 m at
+  42 m/s landed 4 m off its line and hit the wall. Bots now take a jump at 32 m/s at
+  most. Players can still go flat out.
+- **The racing line plans 15 m/s² of cornering, down from 16.** On the tighter, wider
+  tracks the bots slid less, so this came out the same speed or faster.
+- **A finish could be lost.** Found by a network test: a car sent its finish once, and
+  a public broker may drop it, so the host never counted that car home. It is now said
+  again each second until the room's heartbeat lists it. A test drops every message
+  over a finish and checks the host still counts the car home. The old code failed it.
+
+**The cost: the real circuits lose detail.** At three quarters of a kilometre with a
+wider road, the tightest real corners merge. The ovals, la Sarthe, Road America, the
+Brands Hatch layouts and Watkins Glen still read true. Spa, Monaco, Silverstone, Yas
+Marina and Barcelona are now their outline more than their corners. See the contact
+sheet below. If they matter more than the lap time, the circuits alone could be given
+longer laps.
 
 The track is picked on the track screen for offline races and by the host in the lobby. It
 rides in the heartbeat as an index, so a room always races the same one.
@@ -644,6 +705,8 @@ the track list under *Real circuits*:
 
 ![Each circuit's source outline (grey) beside the track the game drives (black)](docs/circuits.png)
 
+`npm run circuits:sheet` redraws the contact sheet after `npm run circuits`.
+
 **Where the shapes come from.** Thirteen come from the GeoJSON outlines in
 [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT, © Tomislav
 Bacinger; the licence is kept beside the data in `scripts/circuits/`). The other
@@ -661,9 +724,10 @@ Road America are the roughest. Say which to correct.
 must build a byte-identical track, and projecting latitude and longitude needs
 `Math.cos`, which browsers aren't promised to agree on. So the maths runs once and the
 game sees only integers. For each circuit the script:
-1. **Scales it to the full arcade lap**, about 1.76 km, whatever its real length (from
-   1.9 km at Brands Hatch Indy to 13.6 km at la Sarthe). The more room, the more of
-   the real corners survive. The scale is bisected rather than stepped, because
+1. **Scales it to its own lap length**, set in `scripts/circuits/targets.json` for
+   about a 30 s lap: 0.74–1.21 km, whatever its real length (from 1.9 km at Brands
+   Hatch Indy to 13.6 km at la Sarthe). It was 1.76 km for every circuit until the
+   laps were shortened. The more room, the more of the real corners survive. The scale is bisected rather than stepped, because
    merging corners makes the lap length jump as the scale moves.
 2. **Simplifies the outline** to a polygon (Douglas-Peucker).
 3. **Gives each corner the radius the real road takes.** From how far the real line
@@ -678,8 +742,10 @@ game sees only integers. For each circuit the script:
    is pushed apart a few metres at a time, and the fit re-run.
 6. **Validates it like every track.** A circuit that fails stops the build.
 
-**Narrower roads.** The real circuits use an 11 m road with a 3 m verge, against 13–14 m
-and a 3–6 m verge on the game's own tracks. With the road a third of the real
+**Narrower roads.** The real circuits use a 13.75 m road (11 m before every road was
+widened by a quarter) with a 3 m verge, against 16.25–17.5 m and a 2–6 m verge on the
+game's own tracks. The tightest corner allowed is 12 m. The paragraph below is from
+the first build, at 1.76 km and 11 m. With the road a third of the real
 circuit's size but no narrower, the first build swallowed Silverstone's Vale and
 Club and Barcelona's last sector. The tightest corner allowed drops from 17 m to 10 m,
 and the closest two stretches may come drops from 40 m to 28 m, which still leaves
@@ -1035,11 +1101,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-745 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+771 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (545, Node; the per-track checks run on all 25 tracks):
+- **`sim.test.mjs`** (570, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
@@ -1095,7 +1161,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     line-follower lapping cleanly and taking the ramp.
   - **Helpers:** interpolation, deadzones, framerate-independent smoothing, colour
     clash resolution.
-- **`net.test.mjs`** (60, Node, an in-memory broker and a fake clock): the heartbeat
+- **`net.test.mjs`** (61, Node, an in-memory broker and a fake clock): the heartbeat
   carries the seed and the weapons switch, and an older one decodes as a built-in track
   with weapons on; a race-only room on a seed builds the same track everywhere with no
   shots on the wire;

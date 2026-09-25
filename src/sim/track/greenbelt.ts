@@ -19,20 +19,20 @@ export const GREENBELT: TrackDef = {
   theme: 'park',
 
   corners: [
-    [0, 0, 50],
-    [220, -30, 70],
-    [380, 40, 55],
-    [400, 190, 45],
-    [300, 260, 40],
-    [330, 380, 50],
-    [180, 430, 60],
-    [40, 380, 45],
-    [-40, 250, 50],
-    [40, 150, 40],
-    [-30, 80, 40],
+    [0, 0, 33],
+    [145, -20, 46],
+    [251, 26, 36],
+    [264, 125, 30],
+    [198, 172, 26],
+    [218, 251, 33],
+    [119, 284, 40],
+    [26, 251, 30],
+    [-26, 165, 33],
+    [26, 99, 26],
+    [-20, 53, 26],
   ],
 
-  width: 13,
+  width: 16.25,
   verge: { width: 6, surface: Surface.Grass },
   walls: true,
   // Open parkland: no barrier, just the lawn running on into the trees.
@@ -41,16 +41,16 @@ export const GREENBELT: TrackDef = {
     { from: 0.49, to: 0.54, side: 'right' },
   ],
   // The creek, bridged by the road just past the jump.
-  water: [[86, 360, 93, 470]],
+  water: [[57, 238, 61, 310]],
   // The duck pond, just past the open lawn after the first corner: leave the road there and you are in it.
-  ponds: [[304, -25, 12]],
+  ponds: [[201, -20, 9]],
 
-  start: [80, -8],
+  start: [61, -8],
   checkpoints: [0.25, 0.5, 0.75],
 
   surfaces: [{ shape: 'span', from: 0.328, to: 0.365, surface: Surface.Dirt }],
 
-  ramps: [{ at: [108, 404], len: 14, lift: 1.6 }],
+  ramps: [{ at: [71, 267], len: 14, lift: 1.6 }],
 
   // Farmland round the park (M10), placed before the trees so the trees keep off it.
   props: [
@@ -59,6 +59,6 @@ export const GREENBELT: TrackDef = {
     { kind: 'fields', count: 6, clearance: 2 },
     { kind: 'herds', count: 4, clearance: 2 },
     { kind: 'flowers', spacing: 36 },
-    { kind: 'trees', area: [-200, -200, 620, 640], count: 3200, clearance: 2.5, height: [7, 17] },
+    { kind: 'trees', area: [-132, -132, 409, 422], count: 1400, clearance: 2.5, height: [7, 17] },
   ],
 };

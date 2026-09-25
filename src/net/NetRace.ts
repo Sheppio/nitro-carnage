@@ -66,6 +66,8 @@ interface Owned {
   nextAt: number;
   pending: CarEvent[];
   lastFlushAt: number;
+  /** When the finish was last (re)sent, local ms; 0 until the first. */
+  finishSaidAt: number;
 }
 
 export interface NetRaceOptions {
@@ -365,7 +367,7 @@ export class NetRace {
       // Carry on the bot's shot numbering: reusing a number would make its
       // next mine look like one everybody already has.
       e.seq = Math.max(e.seq, this.lastSeq.get(e.id) ?? 0);
-      this.owned.set(e.id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0 });
+      this.owned.set(e.id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0, finishSaidAt: 0 });
       this.remotes.delete(e.id);
     }
   }
@@ -430,12 +432,12 @@ export class NetRace {
       if (id === this.playerId) {
         const e = w.addCar(id, slot, () => this.drive());
         this.me = e;
-        this.owned.set(id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0 });
+        this.owned.set(id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0, finishSaidAt: 0 });
       } else if (/^b\d+$/.test(id) && this.isHost) {
         const pilot = createAutopilot(hashString(`${s.goAt}:${id}`), skillFor(slot, this.botLevel));
         const e = w.addCar(id, slot, () => IDLE_INTENT);
         e.drive = () => autopilot(pilot, e.car, w.track, line, w.rivalsOf(id), w.time, STEP, w.stopLine(e));
-        this.owned.set(id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0 });
+        this.owned.set(id, { entrant: e, last: null, lastSentAt: 0, nextAt: 0, pending: [], lastFlushAt: 0, finishSaidAt: 0 });
       } else {
         const e = w.addRemote(id, slot);
         const rc = this.remotes.get(id) ?? new RemoteCar();
@@ -705,6 +707,14 @@ export class NetRace {
         // Catch up by at most one period after a stall rather than bursting.
         o.nextAt = Math.max(o.nextAt + every, now - every / 2);
         if (o.nextAt <= now) o.nextAt = now + every;
+      }
+      // A finish is sent once, and a public broker may drop it; then the host
+      // never counts the car home. Say it again each second until the room's
+      // heartbeat lists it.
+      if (e.lap.finished && e.lap.finishTime !== null && !this.isHost && now - o.finishSaidAt >= 1000
+        && !this.state.finish.some((f) => this.state.grid[f.slot] === e.id)) {
+        if (o.finishSaidAt > 0 && !o.pending.some((ev) => ev.k === 'finish')) o.pending.push({ k: 'finish', t: Math.round((e.lap.finishTime - w.goTime) * 1000) });
+        o.finishSaidAt = now;
       }
       if (o.pending.length && now - o.lastFlushAt >= NET.eventFlushMs) {
         this.net.publish(Topics.carEvents(this.room.roomId, e.id), encodeEvents(o.pending));

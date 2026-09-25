@@ -27,9 +27,21 @@
 import fs from 'node:fs';
 import { Track } from '../dist/sim/track/buildTrack.js';
 import { validateTrack } from '../dist/sim/track/validate.js';
+import { straightStart } from '../dist/sim/track/gridStart.js';
 import { HAND } from './circuits/hand.mjs';
 import { CIRCUIT_INFO } from './circuits/info.mjs';
 
+/** Lap lengths to aim for, longest first, metres: the first that builds cleanly wins. About 30 s a lap. */
+const TARGETS = (process.env.TARGETS ?? '1250,1150,1050').split(',').map(Number);
+/**
+ * Each circuit's own lap length, from timing the best bot on it: corners cost
+ * time, so a twisty circuit gets less road than an oval for the same ~30 s.
+ */
+const TARGET_FOR = JSON.parse(fs.readFileSync(new URL('./circuits/targets.json', import.meta.url)));
+const targetsFor = (id) => (TARGET_FOR[id] ? [1, 0.93, 0.86].map((f) => Math.round(TARGET_FOR[id] * f)) : TARGETS);
+/** Road width, and the tightest corner that still leaves the inside wall room. */
+const WIDTH = 13.75;
+const RMIN = 12;
 const geo = JSON.parse(fs.readFileSync(new URL('./circuits/f1-circuits.json', import.meta.url)));
 
 /** lon/lat to metres, +X east and +Z south (screen down). */
@@ -207,16 +219,17 @@ function build(id, info, outline) {
   // The full arcade lap if it can be had — the more room, the more of the
   // real corners survive — else a little less. For each size, a few
   // tolerances; for each, scale until the finished lap is on target.
-  const tries = [1760, 1600, 1450].flatMap((target) => [2.5, 3.5, 5, 7].map((eps) => [target, eps]));
+  const targets = targetsFor(id);
+  const tries = targets.flatMap((target) => [2.5, 3.5, 5, 7].map((eps) => [target, eps]));
   for (const [target, eps] of tries) {
-    if (fallback && target < 1760) break;
+    if (fallback && target < targets[0]) break;
     // Bisect the scale: merging makes the lap jump as the scale moves, so a
     // proportional step overshoots; keep a bracket instead.
     let k = target / real, lo = 0, hi = Infinity;
     for (let pass = 0; pass < 10; pass++) {
       const line = outline.map(([x, z]) => [x * k, z * k]);
       const poly = simplify(line, eps);
-      const rmin = 10;
+      const rmin = RMIN;
       let raw;
       try {
         raw = cornersFor(poly, line, rmin, (c) => pushApart(id, info, c, line[0]));
@@ -252,8 +265,8 @@ function build(id, info, outline) {
         closeAt[id] = { def, a: [t.line.px[bi], t.line.pz[bi]], b: [t.line.px[bj], t.line.pz[bj]], d: bd, fa: bi / t.n, fb: bj / t.n };
       }
       if (process.env.TRACE === id) console.log(`  eps ${eps} pass ${pass} k ${k.toFixed(3)} lap ${lap.toFixed(0)} corners ${corners.length}: ${why ?? 'ok'}`);
-      if (!why && Math.abs(lap - target) < 80) return { def, k, eps, real };
-      if (!why) fallback = fallback ?? { def, k, eps, real };
+      if (!why && Math.abs(lap - target) < 80) return { def: gridOnStraight(def), k, eps, real };
+      if (!why) fallback = fallback ?? { def: gridOnStraight(def), k, eps, real };
       best = why ?? best;
       if (!lap) break;
       if (Math.abs(lap - target) < 20) break;
@@ -320,9 +333,10 @@ function defFor(id, info, corners, start) {
     theme: info.theme,
     circuit: info.circuit,
     corners,
-    // Narrower than the originals: at a third of the real size, a 14 m road with a
-    // wide verge swallows the real corners. 11 m is still five cars abreast.
-    width: 11,
+    // Narrower than the game's own tracks: at a fifth of the real size, a wide
+    // road swallows the real corners. 11 m at first; a quarter wider when the
+    // laps came down to about 30 s, because play-testing asked for room.
+    width: WIDTH,
     verge: info.theme === 'park' ? { width: 3, surface: 2 } : { width: 3, surface: 4 },
     walls: true,
     minSeparation: 28,
@@ -346,6 +360,16 @@ function bbox(corners) {
  * city for the street circuits, and water where the real place has it —
  * the harbour at Monaco and Yas Marina, Lake Lloyd inside Daytona.
  */
+/**
+ * The real start line, moved on to the first straight long enough for the
+ * grid: at 30 s a lap some real lines were right after a corner, and the
+ * back of the grid started on the bend.
+ */
+function gridOnStraight(def) {
+  const start = straightStart(new Track({ ...def, props: [] }), (st) => new Track({ ...def, start: st, props: [] }));
+  return start ? { ...def, start } : def;
+}
+
 function dress(def, info) {
   const b = bbox(def.corners);
   const area = [b.minX - 250, b.minZ - 250, b.maxX + 250, b.maxZ + 250];
