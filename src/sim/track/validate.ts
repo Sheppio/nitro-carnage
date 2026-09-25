@@ -18,7 +18,8 @@ export const MIN_SEPARATION = 40;
  *
  * @returns null when the track is fine, or the first reason it is not
  */
-export function validateTrack(t: Track): string | null {
+export function validateTrack(t: Track, opts: { minSeparation?: number } = {}): string | null {
+  const minSeparation = opts.minSeparation ?? t.def.minSeparation ?? MIN_SEPARATION;
   if (t.length < LAP_MIN || t.length > LAP_MAX) return `lap ${t.length.toFixed(0)} m`;
 
   let minR = Infinity;
@@ -35,7 +36,7 @@ export function validateTrack(t: Track): string | null {
       const along = Math.min(j - i, t.n - (j - i));
       if (along < 60) continue;
       const d = Math.hypot(t.line.px[i]! - t.line.px[j]!, t.line.pz[i]! - t.line.pz[j]!);
-      if (d < MIN_SEPARATION) return `road passes itself ${d.toFixed(0)} m apart`;
+      if (d < minSeparation) return `road passes itself ${d.toFixed(0)} m apart`;
     }
   }
 

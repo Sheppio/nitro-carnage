@@ -105,7 +105,16 @@ for (const sel of [$('menu-track'), $('lobby-track')]) {
         o.textContent = text;
         return o;
     };
-    sel.replaceChildren(...TRACKS.map((t, i) => opt(String(i), t.name)), opt('day', 'Track of the day'), opt('seed', 'Custom seed'));
+    // Grouped: the game's own tracks, the real circuits (M9), and the generated ones.
+    const group = (label, options) => {
+        const g = document.createElement('optgroup');
+        g.label = label;
+        g.append(...options);
+        return g;
+    };
+    const own = TRACKS.flatMap((t, i) => (t.circuit ? [] : [opt(String(i), t.name)]));
+    const real = TRACKS.flatMap((t, i) => (t.circuit ? [opt(String(i), t.name)] : []));
+    sel.replaceChildren(group('Nitro Carnage', own), group('Real circuits', real), group('Generated', [opt('day', 'Track of the day'), opt('seed', 'Custom seed')]));
 }
 function trackChoice(value, seedText, index = 0) {
     if (value === 'day') {

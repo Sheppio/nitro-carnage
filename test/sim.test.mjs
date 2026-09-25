@@ -1247,7 +1247,7 @@ console.log('\nscenery (M10)');
   // Downtown by Day is the same streets under another sky.
   const dt = TRACKS.find((x) => x.id === 'downtown'), dd = TRACKS.find((x) => x.id === 'downtown-day');
   check('Downtown by Day is Downtown\'s streets and buildings under the day sky, with its own record', dd && JSON.stringify(dd.corners) === JSON.stringify(dt.corners) && dd.seed === dt.seed && dd.theme === 'day' && dd.id !== dt.id
-    && TRACKS.indexOf(dd) === TRACKS.length - 1);
+    && TRACKS.indexOf(dd) === 3);
 }
 
 {

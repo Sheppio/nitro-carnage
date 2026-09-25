@@ -38,5 +38,5 @@ export function drawTrackPreview(canvas: HTMLCanvasElement, info: HTMLElement, d
   const title = document.createElement('b');
   title.textContent = label;
   info.append(title, document.createElement('br'),
-    `${style.name} · ${def.layout ? `${def.layout} · ` : ""}${(track.length / 1000).toFixed(2)} km · ${corners} corners${extras.length ? ` · ${extras.join(', ')}` : ''}`);
+    `${def.circuit ? `${def.circuit.country}, real lap ${def.circuit.km.toFixed(2)} km · ` : ''}${style.name} · ${def.layout ? `${def.layout} · ` : ""}${(track.length / 1000).toFixed(2)} km · ${corners} corners${extras.length ? ` · ${extras.join(', ')}` : ''}`);
 }

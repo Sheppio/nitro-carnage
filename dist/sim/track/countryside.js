@@ -10,7 +10,7 @@ export function free(ctx, x, z, r) {
  * lap, either side, just past the wall plus `clearance`, turned to run along
  * the road. Null when thirty tries find nowhere.
  */
-function besideRoad(ctx, r, clearance, water = false) {
+function besideRoad(ctx, r, clearance, water = false, rect) {
     const { track, rand } = ctx;
     const keep = track.wallOffset + clearance + r;
     for (let tries = 0; tries < 30; tries++) {
@@ -24,9 +24,23 @@ function besideRoad(ctx, r, clearance, water = false) {
             continue;
         if (!free(ctx, x, z, r))
             continue;
-        return { x, z, rot: Math.atan2(track.line.tx[i], track.line.tz[i]) };
+        const rot = Math.atan2(track.line.tx[i], track.line.tz[i]);
+        // A rectangle is checked by its corners and edges too: on a tight circuit the road can reach round to it.
+        if (rect && !rectClear(ctx, x, z, rot, rect[0], rect[1], track.wallOffset + clearance))
+            continue;
+        return { x, z, rot };
     }
     return null;
+}
+/** Is a w x d rectangle at (x, z), turned `rot`, at least `keep` from the road at its corners, edge midpoints and centre? */
+function rectClear(ctx, x, z, rot, w, d, keep) {
+    const c = Math.cos(rot), s = Math.sin(rot);
+    for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, -1], [1, 0], [0, 1], [-1, 0], [0, 0]]) {
+        const lx = (a * w) / 2, lz = (b * d) / 2;
+        if (ctx.roadDist(x + lx * c + lz * s, z - lx * s + lz * c) < keep)
+            return false;
+    }
+    return true;
 }
 /** Place a part at (lx, lz) in a frame at (x, z) turned `rot`. */
 function part(ctx, kind, at, lx, lz, turn, size, seed) {
@@ -65,7 +79,7 @@ export function placeCountryside(ctx, rule) {
                 const w = 30 + Math.floor(rand() * 40);
                 const d = 24 + Math.floor(rand() * 26);
                 const r = Math.hypot(w, d) / 2;
-                const at = besideRoad(ctx, r, rule.clearance);
+                const at = besideRoad(ctx, r, rule.clearance, false, [w, d]);
                 if (!at)
                     continue;
                 ctx.taken.push([at.x, at.z, r]);
@@ -89,7 +103,7 @@ export function placeCountryside(ctx, rule) {
                 const w = 22 + Math.floor(rand() * 18);
                 const d = 16 + Math.floor(rand() * 14);
                 const r = Math.hypot(w, d) / 2;
-                const at = besideRoad(ctx, r, rule.clearance);
+                const at = besideRoad(ctx, r, rule.clearance, false, [w, d]);
                 if (!at)
                     continue;
                 ctx.taken.push([at.x, at.z, r]);
@@ -132,9 +146,11 @@ export function placeCountryside(ctx, rule) {
                         continue;
                     const len = 6 + Math.floor(rand() * 8);
                     const [x, z] = track.offsetPoint(i, side * (track.wallOffset + 3.4));
-                    if (ctx.roadDist(x, z) < track.wallOffset + 2.6 || ctx.blocked(x, z, len / 2) || !free(ctx, x, z, len / 2))
+                    const rot = Math.atan2(track.line.tx[i], track.line.tz[i]);
+                    // The whole bed, not just its middle: on a bend its ends swing in towards the road.
+                    if (!rectClear(ctx, x, z, rot, 2.4, len, track.wallOffset + 0.8) || ctx.blocked(x, z, len / 2) || !free(ctx, x, z, len / 2))
                         continue;
-                    ctx.props.push({ kind: 'flowers', x, z, rot: Math.atan2(track.line.tx[i], track.line.tz[i]), w: 2.4, d: len, h: 0.6, seed: rand() });
+                    ctx.props.push({ kind: 'flowers', x, z, rot, w: 2.4, d: len, h: 0.6, seed: rand() });
                 }
             }
             return true;
@@ -144,7 +160,7 @@ export function placeCountryside(ctx, rule) {
                 const w = 30 + Math.floor(rand() * 30);
                 const d = 20 + Math.floor(rand() * 12);
                 const r = Math.hypot(w, d) / 2;
-                const at = besideRoad(ctx, r, rule.clearance);
+                const at = besideRoad(ctx, r, rule.clearance, false, [w, d]);
                 if (!at)
                     continue;
                 ctx.taken.push([at.x, at.z, r]);

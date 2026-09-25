@@ -44,6 +44,10 @@ try {
   });
   r.check('nothing invisible covers the menu buttons', clickable);
 
+  // The track list comes in three groups, the real circuits (M9) among them.
+  const groups = await page.evaluate(() => [...document.querySelectorAll('#menu-track optgroup')].map((g) => `${g.label}:${g.children.length}`));
+  r.check('the track list is grouped: the game\'s own tracks, 21 real circuits, and the generated ones', JSON.stringify(groups) === JSON.stringify(['Nitro Carnage:4', 'Real circuits:21', 'Generated:2']), groups.join(', '));
+
   // The menu is the modes and settings; the track, the seed and the controls are a screen of their own.
   const onMenu = await page.evaluate(() => ['menu-track', 'menu-seed', 'menu-keys', 'menu-weapons'].filter((id) => document.getElementById('screen-menu').contains(document.getElementById(id))));
   await page.click('#btn-free-drive');
@@ -486,6 +490,9 @@ try {
     greenbelt: ['tree-crowns', 'water', 'props', 'ground-patches', 'ponds', 'windmill-sails'],
     docks: ['containers', 'cranes', 'railway', 'train', 'water', 'props'],
     'downtown-day': ['towers', 'lamp-heads'],
+    // Two of the real circuits (M9): a street circuit on the harbour, and the one with the most woods round it.
+    monaco: ['towers', 'lamp-heads', 'water', 'props'],
+    spa: ['tree-crowns', 'props', 'windmill-sails'],
   };
   const layers = {};
   for (const id of Object.keys(wantScenery)) {
@@ -531,7 +538,7 @@ try {
     trackNotes.push(`${info?.name}: ${worst} draws at worst${missing.length ? `, missing ${missing.join(' ')}` : ''}`);
     await tp.close();
   }
-  r.check('all four built-in tracks boot from a link, with their scenery, inside 150 draw calls all the way round', tracksOk, trackNotes.join('; '));
+  r.check('the built-in tracks and two real circuits boot from a link, with their scenery, inside 150 draw calls all the way round', tracksOk, trackNotes.join('; '));
   // Tall things must never hide a car: every scenery layer that stands above a car roof takes the cut-away.
   const uncut = [];
   for (const [id, byName] of Object.entries(layers)) {

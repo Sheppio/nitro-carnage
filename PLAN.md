@@ -11,7 +11,7 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status:** M1 to M7 are built (see README). M8 is deferred. Where building changed a decision, this plan has been
+> **Status:** M1 to M7, M9 and M10 are built (see README). M8 is deferred. Where building changed a decision, this plan has been
 > updated to match, and the change is marked with its milestone, as in *(M1)* or *(M4)*.
 
 ---
@@ -1084,7 +1084,7 @@ reverse-order grids, the summary screen, and bot shopping.
 *Done when* the ledger survives host failover in tests and a 3-race championship with
 bots plays through.
 
-**M9 — Built-in tracks shaped like real circuits** *(added after M7; future)*.
+**M9 — Built-in tracks shaped like real circuits** *(added after M7)* *(built, with the real names; see the README's *Twenty-one real circuits*)*.
 Twenty-one more built-in tracks, each a recognisable outline of a real circuit:
 
 | Europe | Americas | Rest of the world |

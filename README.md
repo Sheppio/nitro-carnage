@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.24**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.25**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 353 checks: simulation and networking (Node), and real browsers
+npm test           # 732 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -496,7 +496,7 @@ the browser the player lost 90 health in the first 14 seconds. The numbers are n
 **5–7 wrecks, about one per car per race**. The measurement is a sim test, so a
 change to the tuning shows up there.
 
-## Four tracks, and what is on them
+## The game's own four tracks, and what is on them
 
 | Track | Lap | Character |
 | --- | --- | --- |
@@ -537,6 +537,80 @@ it:
 
 Greenbelt now laps with no contact at all, and Downtown's lap time moved by 0.7 s.
 Seeded tracks (M7) will throw every kind of corner at it, so this was worth doing now.
+
+## Twenty-one real circuits
+
+M9 adds tracks shaped like real circuits, with their real names. They're grouped in
+the track list under *Real circuits*:
+
+| | | |
+| --- | --- | --- |
+| Circuit de Spa-Francorchamps | Autodromo Nazionale Monza | Circuit de Monaco |
+| Silverstone Circuit | Circuit de la Sarthe | Brands Hatch |
+| Brands Hatch (Indy) | Hockenheimring | Indianapolis Motor Speedway |
+| Daytona International Speedway | WeatherTech Raceway Laguna Seca | Sebring International Raceway |
+| Road America | Watkins Glen International | Circuit Gilles Villeneuve |
+| Suzuka Circuit | Mount Panorama Circuit | Autódromo José Carlos Pace (Interlagos) |
+| Yas Marina Circuit | Red Bull Ring | Circuit de Barcelona-Catalunya |
+
+![Each circuit's source outline (grey) beside the track the game drives (black)](docs/circuits.png)
+
+**Where the shapes come from.** Thirteen come from the GeoJSON outlines in
+[bacinger/f1-circuits](https://github.com/bacinger/f1-circuits) (MIT, © Tomislav
+Bacinger; the licence is kept beside the data in `scripts/circuits/`). The other
+eight have no open outline I could reach, so they're drawn by hand as walks round
+the lap: la Sarthe, both Brands Hatch layouts, Laguna Seca, Sebring, Road America,
+Mount Panorama and Indianapolis. Indianapolis is the oval, its best-known shape, rather
+than the F1 road course in the data. Each walk is a list of straights and corners
+(turn and radius) in real metres, from the named corners on the maps. The ovals are
+right by construction. The others are approximations: Le Mans's long thin triangle
+and Mount Panorama's Mountain and Conrod read true, while Laguna Seca, Sebring and
+Road America are the roughest. Say which to correct.
+
+**Built offline, committed as whole metres.** `npm run circuits` runs
+`scripts/build-circuits.mjs`, which writes `src/sim/track/circuits.ts`. Every client
+must build a byte-identical track, and projecting latitude and longitude needs
+`Math.cos`, which browsers aren't promised to agree on. So the maths runs once and the
+game sees only integers. For each circuit the script:
+1. **Scales it to the full arcade lap**, about 1.76 km, whatever its real length (from
+   1.9 km at Brands Hatch Indy to 13.6 km at la Sarthe). The more room, the more of
+   the real corners survive. The scale is bisected rather than stepped, because
+   merging corners makes the lap length jump as the scale moves.
+2. **Simplifies the outline** to a polygon (Douglas-Peucker).
+3. **Gives each corner the radius the real road takes.** From how far the real line
+   cuts inside the corner's point: r = d / (sec(θ/2) − 1).
+4. **Makes the corners fit.** The track builder lets a corner use at most half of each
+   straight beside it. Where a straight is too short for its corners at the tightest
+   radius allowed, the two corners are pushed apart along it. That keeps a hairpin a
+   hairpin and a chicane a chicane. Only if pushing would be absurd are they merged:
+   into one corner if they turn the same way, into a kink if not.
+5. **Pushes apart stretches that come too close.** Real circuits have stretches that
+   run side by side, and at a third of the size they touch. The nearest corner of each
+   is pushed apart a few metres at a time, and the fit re-run.
+6. **Validates it like every track.** A circuit that fails stops the build.
+
+**Narrower roads.** The real circuits use an 11 m road with a 3 m verge, against 13–14 m
+and a 3–6 m verge on the game's own tracks. With the road a third of the real
+circuit's size but no narrower, the first build swallowed Silverstone's Vale and
+Club and Barcelona's last sector. The tightest corner allowed drops from 17 m to 10 m,
+and the closest two stretches may come drops from 40 m to 28 m, which still leaves
+more than 10 m between the walls. An 11 m road is still five cars abreast.
+
+**Suzuka is untangled.** A figure of eight can't be driven in a flat world: the
+crossover would be a crossroads, and this world has no bridges. So one lobe is driven
+the other way round. The outline stays; the crossover becomes two corners that
+nearly meet. A bridge could put it back one day.
+
+**Dressed like the real place.** The parkland circuits get the M10 farmland and woods.
+Monaco and Interlagos are the city by day and Yas Marina the city at dusk. Monaco and
+Yas Marina also get a harbour with a marina beside the start straight, and Daytona
+gets Lake Lloyd in its infield. The world is flat, so Eau Rouge, the Corkscrew and
+the Mountain have no hills.
+
+**Every one is driven.** The simulation suite runs every per-track check on every
+circuit: lap length, corner radii, walls, projection, checkpoints, scenery clear of
+the road. The autopilot must also lap each one cleanly, within 5% of par. The smoke
+test boots Monaco and Spa and measures draw calls round the lap: 63 at worst on both.
 
 ## Places, not backdrops: the day city, the farm and the port
 
@@ -851,11 +925,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-353 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+732 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (163, Node):
+- **`sim.test.mjs`** (541, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
@@ -936,7 +1010,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (48, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (49, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the

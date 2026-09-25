@@ -25,6 +25,14 @@ export interface TrackDef {
   theme: string;
   /** What shape of circuit it is, in words, for the menu (generated tracks only). */
   layout?: string;
+  /** A real circuit this is shaped like (M9): where, and its real lap, for the menu. */
+  circuit?: { country: string; km: number };
+  /**
+   * Closest two stretches of road may come, centre to centre, if not the
+   * usual 40 m (M9): real circuits have stretches that run close, and on an
+   * 11 m road 28 m still leaves more than 10 m between the walls.
+   */
+  minSeparation?: number;
 
   /**
    * The centreline as a closed control polygon: `[x, z, radius]` per corner.
