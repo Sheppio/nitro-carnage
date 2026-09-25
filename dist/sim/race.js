@@ -39,7 +39,7 @@ export function crossing(track, a, b, p) {
  * @param laps     race length; 0 for a free drive that never finishes
  * @param teleport true when the car was just respawned: no crossings count
  */
-export function stepLaps(st, track, s, time, dt, along, laps, teleport = false) {
+export function stepLaps(st, track, s, time, dt, along, laps, teleport = false, flying = false) {
     const prev = st.s;
     const moved = track.deltaS(prev, s);
     st.progress += moved;
@@ -78,8 +78,12 @@ export function stepLaps(st, track, s, time, dt, along, laps, teleport = false) 
         const at = time - dt + frac * dt;
         st.completed++;
         st.nextCp = 0;
-        if (st.completed === 0)
-            return null; // left the grid: lap 1 has begun
+        if (st.completed === 0) {
+            // Left the grid: lap 1 has begun. From a flying start its clock starts here, at the line.
+            if (flying)
+                st.lapStart = at;
+            return null;
+        }
         const lapTime = at - st.lapStart;
         st.lapTimes.push(lapTime);
         st.lastSplits = st.splits;

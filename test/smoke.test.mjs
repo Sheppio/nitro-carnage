@@ -118,6 +118,17 @@ try {
   const turned = await until(async () => ((await car()).w > 0.2 ? await car() : null), { timeout: 5000 });
   await page.keyboard.up('ArrowLeft');
   r.check('← steers left', Boolean(turned), turned ? `yaw rate ${turned.w.toFixed(2)} rad/s` : 'no left yaw');
+  // Turbo: flames out of the exhausts while it burns, and none once it stops.
+  const flames = () => page.evaluate(() => {
+    let n = 0;
+    window.nitro.session.view.scene.traverse((o) => { if (o.name === 'exhaust-flame' && o.visible && o.parent?.visible !== false) n++; });
+    return n;
+  });
+  await page.keyboard.down('Shift');
+  const lit = await until(async () => ((await flames()) > 0 ? await flames() : null), { timeout: 5000 });
+  await page.keyboard.up('Shift');
+  const out = await until(async () => ((await flames()) === 0 ? true : null), { timeout: 5000 });
+  r.check('turbo shoots flames out of the exhausts, and they go out when it stops', Boolean(lit) && Boolean(out), `${lit ?? 0} flame cones while boosting`);
   await page.keyboard.up('ArrowUp');
   r.check('the car actually moved from the grid', Math.hypot((moving?.x ?? 0) - start.x, (moving?.z ?? 0) - start.z) > 5);
 
@@ -316,9 +327,9 @@ try {
   r.check('shot to nothing, the car is wrecked and the HUD says so', wreck.wrecked && /WRECKED/.test(wreck.banner), wreck.banner);
   const back = await until(() => arms.evaluate(() => {
     const p = window.nitro.session.player;
-    return p.wrecked === 0 && p.hp === 35 ? true : null;
+    return p.wrecked === 0 && p.hp === 100 ? true : null;
   }), { timeout: 10000 });
-  r.check('and is back on the road a few seconds later with 35 health', Boolean(back));
+  r.check('and is back on the road a few seconds later with full health', Boolean(back));
   await arms.close();
 
   /* ------------------------------------------------------ draw-call budget */
@@ -350,7 +361,7 @@ try {
     noSelects === 'garage-number' && clickedBody === 'hatch' && clickedStripe[0] === 'jade' && clickedStripe[1] === 1, `${noSelects}; › gave ${clickedBody}; square gave ${clickedStripe[0]}`);
   const bodies = await gp.evaluate(async () => {
     const out = [];
-    for (const body of ['coupe', 'hatch', 'muscle', 'wedge', 'buggy']) {
+    for (const body of ['coupe', 'hatch', 'muscle', 'wedge', 'buggy', 'tractor', 'forklift']) {
       for (const pattern of ['none', 'twin', 'offset', 'flash', 'chequer', 'roundel']) {
         window.nitro.garage.set({ body, pattern });
         const mesh = window.nitro.garage.view.mesh;
@@ -385,8 +396,8 @@ try {
   });
   const outside = bodies.filter((b) => b.x > 1.03 || b.z > 2.25);
   const heavy = bodies.filter((b) => b.tris > 600);
-  r.check('five bodies, six liveries each: all inside the shared footprint and under 600 triangles',
-    bodies.length === 30 && outside.length === 0 && heavy.length === 0,
+  r.check('seven bodies (a tractor and a forklift among them), six liveries each: all inside the shared footprint and under 600 triangles',
+    bodies.length === 42 && outside.length === 0 && heavy.length === 0,
     `widest ${Math.max(...bodies.map((b) => b.x)).toFixed(2)} m half-width, longest ${Math.max(...bodies.map((b) => b.z)).toFixed(2)} m half-length, most ${Math.max(...bodies.map((b) => b.tris))} triangles${outside.length ? `; outside: ${outside.map((b) => b.body).join(' ')}` : ''}`);
   const striped = bodies.filter((b) => ['twin', 'offset', 'flash', 'chequer'].includes(b.pattern));
   r.check('every striped livery draws its stripe colour, and "none" draws none',
@@ -398,7 +409,7 @@ try {
   await gp.reload();
   await gp.waitForSelector('#screen-menu:not([hidden])');
   const kept = await gp.evaluate(() => window.nitro.look);
-  r.check('the chosen look is kept for next time: after a reload it is the last one picked', kept.body === 'buggy' && kept.pattern === 'roundel' && kept.stripe === 'jade',
+  r.check('the chosen look is kept for next time: after a reload it is the last one picked', kept.body === 'forklift' && kept.pattern === 'roundel' && kept.stripe === 'jade',
     `${kept.body} / ${kept.pattern} / ${kept.stripe}`);
   await gp.close();
 
@@ -466,17 +477,19 @@ try {
   r.check('the ghost can be switched off, or run ahead to show the line: a second ahead is metres up the road',
     ahead.off === null && ahead.gap !== null && ahead.gap > 10, ahead.gap === null ? 'no ghost' : `${ahead.gap.toFixed(1)} m ahead at 1 s`);
 
-  // Damage from a lap is gone at the line.
+  // Damage from a lap is gone at the line, and the turbo is full again.
   const lapsBefore = await hl.evaluate(() => {
     const p = window.nitro.session.player;
     p.hp = 40;
+    p.car.turbo = 0;
     return p.lap.completed;
   });
   const healed = await until(() => hl.evaluate((n) => {
     const p = window.nitro.session.player;
-    return p.lap.completed > n ? p.hp : null;
+    return p.lap.completed > n ? { hp: p.hp, turbo: p.car.turbo } : null;
   }, lapsBefore), { timeout: 150000, interval: 200 });
-  r.check('in a hotlap every lap starts with full health', healed === 100, `health ${healed} after the line`);
+  r.check('in a hotlap every lap starts with full health and a full turbo', healed?.hp === 100 && healed.turbo > 3.9,
+    `health ${healed?.hp}, turbo ${healed?.turbo.toFixed(2)} s after the line`);
   await hl.close();
 
   /* ------------------------------------------------------ every track */

@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.25**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.26**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 732 checks: simulation and networking (Node), and real browsers
+npm test           # 734 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -441,8 +441,8 @@ public brokers. A car state packet is at most 54 bytes, and a full heartbeat 168
 | Rear missile (5) | X / K, LB, once the mines are gone | 70 m/s backwards | 20 |
 
 Health is 100. A wall hit faster than 12 m/s costs 1.4 health for every m/s over that.
-At zero the car is **wrecked**: it burns for 2.5 s, then returns to the road with 35
-health, ghosted for two seconds. The kill goes to whoever caused it, and to whoever
+At zero the car is **wrecked**: it burns for 2.5 s, then returns to the road with full
+health, a fresh car, ghosted for two seconds. The kill goes to whoever caused it, and to whoever
 last shot the car if a wall finishes it within 4 s. Nobody can fire for the first
 4 s after GO, because a six-car grid is otherwise a firing range. A wreck costs time,
 not the race, which keeps a six-player race full.
@@ -781,7 +781,8 @@ and no weapons:
 Records are kept on the device, per track, and generated tracks are keyed by their
 seed.
 
-- **Every lap starts with full health.** Damage from the last lap is gone at the line.
+- **Every lap starts with full health and a full turbo.** Damage from the last lap is
+  gone at the line, and the turbo gauge is refilled, so every lap is a clean attempt.
 - **Your ghost.** The record lap's path is recorded ten times a second: about 1,400
   whole numbers, a few kilobytes, saved with the record. A see-through copy of your car
   drives it beside you. It exists only on screen, so nothing can hit it. Played back
@@ -790,8 +791,9 @@ seed.
   ghost to run up to 2 s ahead, so it shows you the line before you reach the corner,
   or switch it off. Near the line, a lead carries the ghost straight into its next
   lap.
-- **The first lap is a standing start**, so a flying lap soon beats it, and the ghost
-  then runs alongside you.
+- **A flying start.** You start a quarter of a lap before the line, and the first lap's
+  clock starts when you cross it. So the first timed lap is already at racing speed,
+  and the ghost runs alongside you from the line.
 
 **Random seed.** The 🎲 at the end of the seed box, in the menu and (for the host) in
 the lobby, deals three words from a list of 290 three-letter words, joined by
@@ -824,6 +826,11 @@ name and style: theme, lap length, corners, and any jump, level crossing, water 
 It redraws as you type. A shared leaderboard would need a server, or the public broker's retained
 messages, so it's left for later.
 
+**Turbo flames.** While the turbo burns, flames shoot out of the exhausts: an orange
+cone round a yellow core at each pipe, flickering in length every frame, big enough to
+read from the race camera. The flag they follow already travels in every car packet,
+so everyone's flames show. The tractor's come straight up its exhaust stack.
+
 **Race only** turns the weapons off for a quick race (in the menu) or a room (the host
 picks it in the lobby). It rides in the heartbeat, so every client agrees. The HUD
 hides the ammo, and a network test checks that not one shot goes on the wire.
@@ -837,7 +844,7 @@ number, with a hundred choices, is still a dropdown:
 
 | | Choices |
 | --- | --- |
-| Body | Coupé, Hatch, Muscle, Wedge, Buggy |
+| Body | Coupé, Hatch, Muscle, Wedge, Buggy, Tractor, Forklift |
 | Livery | none, twin stripes, offset stripe, side flash, chequered bonnet, number roundel |
 | Stripe colour | any of the ten palette colours; it doesn't have to be unique |
 | Wheels | silver, black, gold, body colour |
@@ -845,7 +852,7 @@ number, with a hundred choices, is still a dropdown:
 
 - **Looks only.** Every body shares the same handling and the same collision
   capsule, so choosing one is never a competitive decision. A browser test builds all
-  thirty body and livery combinations and checks each stays inside the capsule's 4.4 ×
+  forty-two body and livery combinations and checks each stays inside the capsule's 4.4 ×
   2.0 m footprint and under 600 triangles.
 - **Your colour is still the room colour.** It's picked in the lobby and unique per
   room, because it's how you tell cars apart on the minimap and in the results. The
@@ -925,11 +932,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-732 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+734 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (541, Node; the per-track checks run on all 25 tracks):
+- **`sim.test.mjs`** (542, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
@@ -978,7 +985,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     once the mines are gone, with cooldowns; an empty rack fires nothing; nobody fires
     before the start grace; shots pass through ghosts and finishers; a mine is
     harmless until armed, then hurts once and is gone (its owner too); a wreck
-    credits the kill, burns, and returns with 35 health, ghosted; walls hurt only past
+    credits the kill, burns, and returns with full health, ghosted; walls hurt only past
     12 m/s, and credit a recent shooter; six armed bots finish three laps with some
     wrecks, and the same armed race twice is identical.
   - **Determinism:** identical worlds; 144 Hz against 24 Hz; stall clamping; a
@@ -1010,7 +1017,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (49, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (50, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
@@ -1028,9 +1035,9 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     one-lap autopilot race ends on a results table with the player marked.
   - **Weapons:** Z fires a missile that is drawn and counted off the HUD; X drops a
     mine; a hit lowers the health bar; a car shot to zero is wrecked, says so, and
-    comes back with 35 health.
+    comes back with full health.
   - **Garage:** no dropdowns but the race number, and a click on an arrow or a colour
-    square changes the car; all thirty body and livery combinations inside the
+    square changes the car; all forty-two body and livery combinations inside the
     footprint and the triangle budget, each striped livery drawing its stripe, and the
     race number on top of it; the look kept across a reload.
   - **Tracks and sound:** all four built-in tracks boot from a link with their

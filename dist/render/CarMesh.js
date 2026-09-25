@@ -9,6 +9,8 @@ const TRACK_HALF = 0.86;
 const AXLE_F = SIM.car.cgToFront;
 const AXLE_R = -SIM.car.cgToRear;
 let wheelGeo = null;
+let flameGeo = null;
+let flameMat = null;
 let rimGeo = null;
 let blobTexture = null;
 function blob() {
@@ -48,7 +50,9 @@ export class CarMesh {
     q = new THREE.Quaternion();
     e = new THREE.Euler(0, 0, 0, 'YXZ');
     v = new THREE.Vector3();
-    one = new THREE.Vector3(1, 1, 1);
+    wheelScale = { front: new THREE.Vector3(1, 1, 1), rear: new THREE.Vector3(1, 1, 1), fr: WHEEL_R, rr: WHEEL_R };
+    /** Exhaust flames, one pair of cones per pipe, shown while the turbo burns. */
+    flames = [];
     wrecked = false;
     /**
      * Show a car's condition. A ghost (just respawned: shots and cars pass
@@ -68,6 +72,14 @@ export class CarMesh {
         hull.name = 'car-body';
         const lights = new THREE.Mesh(built.lights, new THREE.MeshBasicMaterial({ vertexColors: true }));
         this.body.add(hull, lights, ...built.decals);
+        if (built.wheels) {
+            const [fr, fw] = built.wheels.front, [rr, rw] = built.wheels.rear;
+            this.wheelScale.front.set(fw / WHEEL_W, fr / WHEEL_R, fr / WHEEL_R);
+            this.wheelScale.rear.set(rw / WHEEL_W, rr / WHEEL_R, rr / WHEEL_R);
+            this.wheelScale.fr = fr;
+            this.wheelScale.rr = rr;
+        }
+        this.addFlames(built.exhaust);
         this.root.add(this.body);
         wheelGeo ??= new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, WHEEL_W, 10).rotateZ(Math.PI / 2);
         this.wheels = new THREE.InstancedMesh(wheelGeo, new THREE.MeshLambertMaterial({ color: 0x17181c, flatShading: true }), 4);
@@ -87,6 +99,35 @@ export class CarMesh {
         this.shadow.rotation.x = -Math.PI / 2;
         this.shadow.renderOrder = 1;
         this.shadow.name = 'car-blob';
+    }
+    /**
+     * Flames for each exhaust: an orange cone round a yellow core, pointing out
+     * of the pipe, 1 m long before the flicker stretches it. Plain transparent,
+     * not additive, so they show on pale tarmac as well as dark.
+     */
+    addFlames(exhaust) {
+        flameGeo ??= {
+            outer: new THREE.ConeGeometry(0.36, 1, 8, 1, true).translate(0, 0.5, 0),
+            inner: new THREE.ConeGeometry(0.18, 0.75, 8, 1, true).translate(0, 0.375, 0),
+        };
+        flameMat ??= {
+            outer: new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide, fog: false }),
+            inner: new THREE.MeshBasicMaterial({ color: 0xffe89a, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide, fog: false }),
+        };
+        for (const [x, y, z] of exhaust.at) {
+            for (const part of ['outer', 'inner']) {
+                const f = new THREE.Mesh(flameGeo[part], flameMat[part]);
+                f.name = 'exhaust-flame';
+                f.position.set(x, y, z);
+                // Cones point up (+Y); a pipe points back (-Z).
+                if (!exhaust.up)
+                    f.rotation.x = -Math.PI / 2;
+                f.renderOrder = part === 'inner' ? 3 : 2;
+                f.visible = false;
+                this.flames.push(f);
+                this.body.add(f);
+            }
+        }
     }
     /** The blob lives at ground level, outside the car's own transform. */
     get blob() {
@@ -116,17 +157,30 @@ export class CarMesh {
             this.body.rotation.set(this.pitch, 0, this.roll, 'YXZ');
         this.body.position.y = this.wrecked ? -0.18 : 0;
         this.spin += (car.forward * dt) / WHEEL_R;
-        const place = (i, x, z, steer) => {
-            this.e.set(this.spin, steer, 0);
+        const ws = this.wheelScale;
+        const place = (i, x, z, steer, rear) => {
+            // A bigger wheel turns slower for the same road speed.
+            this.e.set((this.spin * WHEEL_R) / (rear ? ws.rr : ws.fr), steer, 0);
             this.q.setFromEuler(this.e);
-            this.m.compose(this.v.set(x, WHEEL_R, z), this.q, this.one);
+            this.m.compose(this.v.set(x, rear ? ws.rr : ws.fr, z), this.q, rear ? ws.rear : ws.front);
             this.wheels.setMatrixAt(i, this.m);
             this.rims.setMatrixAt(i, this.m);
         };
-        place(0, TRACK_HALF, AXLE_F, car.steer);
-        place(1, -TRACK_HALF, AXLE_F, car.steer);
-        place(2, TRACK_HALF, AXLE_R, 0);
-        place(3, -TRACK_HALF, AXLE_R, 0);
+        place(0, TRACK_HALF, AXLE_F, car.steer, false);
+        place(1, -TRACK_HALF, AXLE_F, car.steer, false);
+        place(2, TRACK_HALF, AXLE_R, 0, true);
+        place(3, -TRACK_HALF, AXLE_R, 0, true);
+        // Flames while the turbo burns, flickering in length and girth every frame.
+        const burning = car.boosting && !this.wrecked;
+        for (let k = 0; k < this.flames.length; k++) {
+            const f = this.flames[k];
+            f.visible = burning;
+            if (!burning)
+                continue;
+            const len = 2.0 + Math.random() * 1.2;
+            const girth = 0.85 + Math.random() * 0.3;
+            f.scale.set(girth, len, girth);
+        }
         this.wheels.instanceMatrix.needsUpdate = true;
         this.rims.instanceMatrix.needsUpdate = true;
         const lift = Math.max(0, car.y);

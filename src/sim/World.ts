@@ -112,6 +112,12 @@ export interface WorldOptions {
   elapsed?: number;
   /** Weapons on (the default). Off, nobody can fire: a clean race, for tests of the driving alone. */
   weapons?: boolean;
+  /**
+   * A flying start (hotlap): cars start this fraction of a lap behind the
+   * line rather than on the grid, and lap 1's clock starts at the line, so
+   * the first timed lap is at racing speed.
+   */
+  flyingStart?: number;
 }
 
 /**
@@ -130,6 +136,7 @@ export class World {
   /** Race time at which the lights go green. */
   readonly goTime: number;
   readonly weapons: boolean;
+  readonly flyingStart: number;
   /** Fixed steps taken since the world was created. */
   steps = 0;
   /** Time handed to `advance` after the stall clamp: what the world was asked to simulate. */
@@ -153,6 +160,7 @@ export class World {
     this.laps = opts.laps;
     this.goTime = opts.countdown;
     this.weapons = opts.weapons ?? true;
+    this.flyingStart = opts.flyingStart ?? 0;
     this.steps = Math.round((opts.elapsed ?? 0) / STEP);
     this.armoury = new Armoury(this.track);
   }
@@ -173,7 +181,8 @@ export class World {
 
   /** Put a car on the grid. */
   addCar(id: string, slot: number, drive: () => DriveIntent, stats: CarStats = STOCK): Entrant {
-    const pose = this.track.gridSlot(slot);
+    // On the grid, or for a flying start a stretch of lap back from the line.
+    const pose = this.flyingStart > 0 ? this.track.poseAt(this.track.length * (1 - this.flyingStart)) : this.track.gridSlot(slot);
     const car = createCar(pose.x, pose.z, pose.yaw);
     const p = this.track.project(car.x, car.z);
     car.hint = p.i;
@@ -325,7 +334,7 @@ export class World {
       if (e.remote) continue;
       const tx = track.line.tx[p.i]!, tz = track.line.tz[p.i]!;
       const along = c.vx * tx + c.vz * tz;
-      const ev = stepLaps(e.lap, track, p.s, end, STEP, along, this.laps);
+      const ev = stepLaps(e.lap, track, p.s, end, STEP, along, this.laps, false, this.flyingStart > 0);
       if (ev?.kind === 'lap') {
         this.events.push({ kind: 'lap', id: e.id, lap: ev.lap, time: ev.time, lapTime: e.lap.lapTimes[e.lap.lapTimes.length - 1]! });
       } else if (ev?.kind === 'finish') {

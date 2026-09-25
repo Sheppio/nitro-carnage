@@ -89,7 +89,7 @@ export interface LapEvent {
  * @param teleport true when the car was just respawned: no crossings count
  */
 export function stepLaps(
-  st: LapState, track: Track, s: number, time: number, dt: number, along: number, laps: number, teleport = false,
+  st: LapState, track: Track, s: number, time: number, dt: number, along: number, laps: number, teleport = false, flying = false,
 ): LapEvent | null {
   const prev = st.s;
   const moved = track.deltaS(prev, s);
@@ -129,7 +129,11 @@ export function stepLaps(
     const at = time - dt + frac * dt;
     st.completed++;
     st.nextCp = 0;
-    if (st.completed === 0) return null; // left the grid: lap 1 has begun
+    if (st.completed === 0) {
+      // Left the grid: lap 1 has begun. From a flying start its clock starts here, at the line.
+      if (flying) st.lapStart = at;
+      return null;
+    }
     const lapTime = at - st.lapStart;
     st.lapTimes.push(lapTime);
     st.lastSplits = st.splits;

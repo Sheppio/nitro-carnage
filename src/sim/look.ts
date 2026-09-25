@@ -10,10 +10,11 @@ import { PALETTE } from './palette.js';
  * draw from it too.
  */
 
-export const BODIES = ['coupe', 'hatch', 'muscle', 'wedge', 'buggy'] as const;
+/** New bodies go on the end: a look travels as each list's index. */
+export const BODIES = ['coupe', 'hatch', 'muscle', 'wedge', 'buggy', 'tractor', 'forklift'] as const;
 export type BodyId = (typeof BODIES)[number];
 export const BODY_NAMES: Record<BodyId, string> = {
-  coupe: 'Coupé', hatch: 'Hatch', muscle: 'Muscle', wedge: 'Wedge', buggy: 'Buggy',
+  coupe: 'Coupé', hatch: 'Hatch', muscle: 'Muscle', wedge: 'Wedge', buggy: 'Buggy', tractor: 'Tractor', forklift: 'Forklift',
 };
 
 export const PATTERNS = ['none', 'twin', 'offset', 'flash', 'chequer', 'roundel'] as const;

@@ -323,7 +323,7 @@ Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
   wrecks a car within 4 s of somebody hitting it credits them with the kill.
 - A projectile is **inert everywhere except on the shooter's client** (§5.4).
 - Health is 100 base, reduced by armour. At 0 health the car is **wrecked**: it
-  explodes, respawns after 2.5 s with 35 health, and the killer earns a bounty. The time
+  explodes, respawns after 2.5 s with full health *(was 35 until changed on request: a fresh car)*, and the killer earns a bounty. The time
   lost is the penalty. That keeps a 6-player race from going empty.
 - Missile and mine sims are pure, so a Node test fires the same event into two separate
   `World`s and asserts identical trajectories and wall hits.
@@ -1230,7 +1230,7 @@ otherwise.
    the car. North-up keeps the minimap and multiplayer readable.
 3. **Damage carries between races.** I've assumed it does, with paid repairs, since
    that's the core shop loop. The alternative is resetting to full health each race.
-4. **Wrecked cars respawn.** I've assumed a respawn after 2.5 s with 35 health, plus a
+4. **Wrecked cars respawn.** I've assumed a respawn after 2.5 s with full health (35 until changed on request), plus a
    bounty to the killer, rather than being out of the race.
 5. **Own mines.** I've assumed they're harmless to you for their arming period and
    dangerous after it.

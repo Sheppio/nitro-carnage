@@ -186,6 +186,8 @@ export class RaceSession {
       const race = opts.mode === 'race';
       this.world = new World(opts.track, {
         laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0, weapons: race && opts.weapons !== false,
+        // A hotlap starts a quarter of a lap back, so the first timed lap is a flying one.
+        flyingStart: race ? 0 : 0.25,
       });
       this.playerId = 'you';
       // The player starts mid-grid in a race — there is somebody to catch and
@@ -387,10 +389,11 @@ export class RaceSession {
     if (ev.kind === 'go') this.input.rumble(HAPTIC.go.weak, HAPTIC.go.strong, HAPTIC.go.ms);
     if (this.mode === 'hotlap' && ev.kind === 'lap' && ev.id === this.playerId && this.player) {
       // A new lap: the recording of the last one is handed over, and the car
-      // is made whole — every hotlap starts from full health.
+      // is made whole — every hotlap starts from full health and a full turbo.
       this.lastTrace = this.trace.data;
       this.trace = new LapTrace();
       if (this.player.wrecked <= 0) this.player.hp = SIM.weapons.health;
+      this.player.car.turbo = SIM.car.turboCapacity;
     }
     this.soundFor(ev);
     const focus = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;

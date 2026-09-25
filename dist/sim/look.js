@@ -8,9 +8,10 @@ import { PALETTE } from './palette.js';
  * Pure data, no three: the codec runs in Node, and the lobby's 2D icons
  * draw from it too.
  */
-export const BODIES = ['coupe', 'hatch', 'muscle', 'wedge', 'buggy'];
+/** New bodies go on the end: a look travels as each list's index. */
+export const BODIES = ['coupe', 'hatch', 'muscle', 'wedge', 'buggy', 'tractor', 'forklift'];
 export const BODY_NAMES = {
-    coupe: 'Coupé', hatch: 'Hatch', muscle: 'Muscle', wedge: 'Wedge', buggy: 'Buggy',
+    coupe: 'Coupé', hatch: 'Hatch', muscle: 'Muscle', wedge: 'Wedge', buggy: 'Buggy', tractor: 'Tractor', forklift: 'Forklift',
 };
 export const PATTERNS = ['none', 'twin', 'offset', 'flash', 'chequer', 'roundel'];
 export const PATTERN_NAMES = {

@@ -82,7 +82,60 @@ function buggy(b, c) {
     b.box(0, 1.68, -0.2, 1.1, 0.03, 1.3, c, { sides: dark });
     return { deck: { bonnet: [0.78, 1.1, 1.85, 0.4], roof: [1.7, -0.8, 0.4, 0.5], boot: null, side: [0.6, -0.7, 0.7, 0.78] }, lights: { front: [0.33, 0.62, 2.02], rear: [0.42, 0.78, -1.97] } };
 }
-const BUILDERS = { coupe, hatch, muscle, wedge, buggy };
+/**
+ * A tractor: a long bonnet, the cab over the big back wheels, mudguards, and
+ * the exhaust stack standing up in front of the cab. Drives exactly like the
+ * rest; only the wheels are different sizes.
+ */
+function tractor(b, c) {
+    const dark = tint(c, 0.55);
+    b.box(0, 0.75, 0.9, 0.9, 0.7, 2.2, c, { insetZFront: 0.12, skipBottom: true, sides: dark });
+    b.box(0, 0.5, 2.05, 0.95, 0.45, 0.2, TRIM, { skipBottom: true });
+    b.box(0, 0.6, -1.25, 1.05, 0.55, 1.0, dark, { skipBottom: true });
+    b.box(0, 1.55, -1.0, 1.25, 1.15, 1.35, GLASS, { top: c, skipBottom: true });
+    b.box(0, 2.18, -1.0, 1.45, 0.1, 1.55, c, { top: tint(c, 1.15), sides: dark });
+    for (const side of [1, -1])
+        b.box(side * 0.72, 1.25, -1.3, 0.56, 0.1, 1.55, c, { sides: dark });
+    b.box(0.3, 1.8, 0.45, 0.13, 1.2, 0.13, 0x2a2a2e);
+    return {
+        deck: { bonnet: [1.1, -0.1, 1.85, 0.42], roof: [2.23, -1.7, -0.3, 0.68], boot: null, side: [1.0, -0.1, 1.9, 0.45] },
+        lights: { front: [0.3, 0.9, 2.05], rear: [0.72, 1.25, -2.08] },
+        exhaust: { at: [[0.3, 2.42, 0.45]], up: true },
+        wheels: { front: [0.44, 0.28], rear: [0.78, 0.48] },
+    };
+}
+/**
+ * A forklift: the counterweight at the back, the overhead guard, and the
+ * mast with its forks out in front — bright steel, so they read from above.
+ */
+function forklift(b, c) {
+    const dark = tint(c, 0.55);
+    b.box(0, 0.75, -0.3, 1.5, 0.8, 2.6, c, { skipBottom: true, sides: dark });
+    b.box(0, 0.85, -1.85, 1.5, 1.0, 0.6, 0x3a3c42, { skipBottom: true, top: 0x4a4c52 });
+    b.box(0, 1.35, -0.6, 0.6, 0.4, 0.6, 0x141418, { skipBottom: true });
+    for (const [x, z] of [[0.68, 0.45], [-0.68, 0.45], [0.68, -1.35], [-0.68, -1.35]])
+        b.box(x, 1.75, z, 0.09, 1.2, 0.09, 0x2a2a2e);
+    // The guard: a frame with slats, so it reads as a cage from above.
+    b.box(0.68, 2.38, -0.45, 0.09, 0.09, 1.9, 0x2a2a2e).box(-0.68, 2.38, -0.45, 0.09, 0.09, 1.9, 0x2a2a2e);
+    for (let k = 0; k < 5; k++)
+        b.box(0, 2.4, -1.3 + k * 0.42, 1.36, 0.06, 0.1, 0x2a2a2e);
+    // Mast, carriage and forks.
+    for (const x of [0.48, -0.48])
+        b.box(x, 1.4, 1.2, 0.16, 2.6, 0.2, 0x5a5c62, { skipBottom: true });
+    b.box(0, 2.62, 1.2, 1.12, 0.16, 0.2, 0x5a5c62);
+    b.box(0, 0.6, 1.36, 1.2, 0.75, 0.12, 0x2a2a2e, { skipBottom: true });
+    for (const x of [0.36, -0.36]) {
+        b.box(x, 0.14, 1.82, 0.22, 0.12, 0.8, 0xe4e6ea, { skipBottom: true });
+        b.box(x, 0.45, 1.44, 0.22, 0.6, 0.08, 0xe4e6ea, { skipBottom: true });
+    }
+    return {
+        deck: { bonnet: [1.15, -1.5, 0.9, 0.6], roof: [2.44, -1.3, 0.4, 0.6], boot: null, side: [0.9, -1.4, 0.8, 0.75] },
+        lights: { front: [0.55, 1.1, 1.02], rear: [0.55, 1.05, -2.16] },
+        exhaust: { at: [[-0.5, 0.5, -2.16]] },
+        wheels: { front: [0.42, 0.34], rear: [0.34, 0.28] },
+    };
+}
+const BUILDERS = { coupe, hatch, muscle, wedge, buggy, tractor, forklift };
 /**
  * The stripe colour against the body: if the two are too alike to tell apart,
  * the stripe goes darker, so a pearl stripe on a pearl car still reads.
@@ -165,7 +218,16 @@ function numberTexture(n) {
 /** Build one car's body in its look and colour. */
 export function buildBody(look, colour) {
     const b = new MeshBuilder();
-    const { deck, lights } = BUILDERS[look.body](b, colour);
+    const built = BUILDERS[look.body](b, colour);
+    const { deck, lights } = built;
+    // Exhausts: the body's own, or a pair of pipes under the tail-lights, drawn as short dark tubes.
+    const [erx, , erz] = lights.rear;
+    const exhaust = built.exhaust ?? { at: [[erx * 0.55, 0.36, erz], [-erx * 0.55, 0.36, erz]] };
+    if (!exhaust.up) {
+        // The tube ends flush with the tail, inside the shared footprint.
+        for (const [x, y, z] of exhaust.at)
+            b.at(x, y, z + 0.1, Math.PI / 2, Math.PI / 2, (p) => p.cylinder(0, 0, 0, 0.09, 0.09, 0.2, 8, 0x2a2a2e));
+    }
     const lb = new MeshBuilder();
     for (const side of [1, -1]) {
         const [fx, fy, fz] = lights.front;
@@ -194,6 +256,6 @@ export function buildBody(look, colour) {
             decals.push(d);
         }
     }
-    return { geometry: b.build(), lights: lb.build(), decals };
+    return { geometry: b.build(), lights: lb.build(), decals, exhaust: { at: exhaust.at, up: exhaust.up ?? false }, wheels: built.wheels ?? null };
 }
 //# sourceMappingURL=bodies.js.map

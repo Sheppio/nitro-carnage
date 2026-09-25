@@ -586,7 +586,7 @@ function duel(gap = 30, opts = {}) {
   check('a car shot to zero is wrecked and the kill is credited on every screen', credited && b.net.me.wrecked > 0,
     [a, b].map((c) => `${view(c, aId).kills}/${view(c, bId).wrecks}`).join(' '));
   room.run(SIM.weapons.wreckTime * 1000 + 600);
-  check('and it comes back with 35 health, seen by both', view(b, bId).hp === SIM.weapons.respawnHealth && view(a, bId).hp === SIM.weapons.respawnHealth);
+  check('and it comes back with full health, seen by both', view(b, bId).hp === SIM.weapons.respawnHealth && view(a, bId).hp === SIM.weapons.respawnHealth);
 }
 
 {

@@ -94,9 +94,9 @@ export const SIM = {
         /** What every car starts a race with, until the shop (M8) sells more. */
         loadout: { front: 10, rear: 5, mines: 3 },
         health: 100,
-        /** Seconds a wrecked car burns before it is put back on the road, and with how much health. */
+        /** Seconds a wrecked car burns before it is put back on the road, and with how much health: a fresh car. */
         wreckTime: 2.5,
-        respawnHealth: 35,
+        respawnHealth: 100,
         /** Seconds after GO before anyone may fire: the grid is not a firing range. */
         startGrace: 4,
         /** A wall that wrecks a car this soon after somebody hit it counts as their wreck. */

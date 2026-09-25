@@ -35,6 +35,7 @@ export class World {
     /** Race time at which the lights go green. */
     goTime;
     weapons;
+    flyingStart;
     /** Fixed steps taken since the world was created. */
     steps = 0;
     /** Time handed to `advance` after the stall clamp: what the world was asked to simulate. */
@@ -57,6 +58,7 @@ export class World {
         this.laps = opts.laps;
         this.goTime = opts.countdown;
         this.weapons = opts.weapons ?? true;
+        this.flyingStart = opts.flyingStart ?? 0;
         this.steps = Math.round((opts.elapsed ?? 0) / STEP);
         this.armoury = new Armoury(this.track);
     }
@@ -73,7 +75,8 @@ export class World {
     }
     /** Put a car on the grid. */
     addCar(id, slot, drive, stats = STOCK) {
-        const pose = this.track.gridSlot(slot);
+        // On the grid, or for a flying start a stretch of lap back from the line.
+        const pose = this.flyingStart > 0 ? this.track.poseAt(this.track.length * (1 - this.flyingStart)) : this.track.gridSlot(slot);
         const car = createCar(pose.x, pose.z, pose.yaw);
         const p = this.track.project(car.x, car.z);
         car.hint = p.i;
@@ -220,7 +223,7 @@ export class World {
                 continue;
             const tx = track.line.tx[p.i], tz = track.line.tz[p.i];
             const along = c.vx * tx + c.vz * tz;
-            const ev = stepLaps(e.lap, track, p.s, end, STEP, along, this.laps);
+            const ev = stepLaps(e.lap, track, p.s, end, STEP, along, this.laps, false, this.flyingStart > 0);
             if (ev?.kind === 'lap') {
                 this.events.push({ kind: 'lap', id: e.id, lap: ev.lap, time: ev.time, lapTime: e.lap.lapTimes[e.lap.lapTimes.length - 1] });
             }

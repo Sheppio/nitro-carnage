@@ -6,6 +6,8 @@ const SHAPES = {
     muscle: { w: 0.45, cab: 0.34, cabAt: -0.18 },
     wedge: { w: 0.45, cab: 0.36, cabAt: -0.02 },
     buggy: { w: 0.34, cab: 0.3, cabAt: -0.05 },
+    tractor: { w: 0.4, cab: 0.32, cabAt: -0.22 },
+    forklift: { w: 0.36, cab: 0.42, cabAt: -0.1 },
 };
 /**
  * A little plan-view car for the lobby roster: body shape, colour, stripe

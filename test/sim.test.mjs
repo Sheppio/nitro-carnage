@@ -882,7 +882,7 @@ const S0 = straight(TRACKS[0] && new World(TRACKS[0]).track);
 }
 
 {
-  // Wreck: to zero health, burn, back on the road with 35 health, ghosted,
+  // Wreck: to zero health, burn, back on the road with full health, ghosted,
   // and the kill credited.
   const { w, cars: [a, b] } = armedWorld(2);
   place(w, a, S0);
@@ -1155,6 +1155,25 @@ const SHAPES = ['e5cc4479', '516a54d0', '345cb3ee', '64336d30', 'ad477f3a', '88f
   check('a lap records a split at every checkpoint, in order, inside the lap time',
     sp.length === w.track.checkpoints.length && sp.every((t, i) => t > 0 && (i === 0 || t > sp[i - 1])) && sp[sp.length - 1] < b.lap.lapTimes[1],
     sp.map((t) => t.toFixed(1)).join(' / '));
+}
+
+{
+  // A hotlap's flying start: a quarter of a lap back from the line, and lap 1 timed from the line, not from GO.
+  const w = new World(TRACKS[0], { laps: 0, countdown: 0, weapons: false, flyingStart: 0.25 });
+  const b = w.addBot('b', 0, SKILLS[0], 1);
+  const back = w.track.deltaS(b.lap.s, 0);
+  let crossed = null;
+  while (b.lap.completed < 1 && w.time < 200) {
+    w.step();
+    if (crossed === null && b.lap.completed === 0) crossed = w.time;
+  }
+  const lap1 = b.lap.lapTimes[0];
+  const g = new World(TRACKS[0], { laps: 0, countdown: 0, weapons: false });
+  const gb = g.addBot('b', 0, SKILLS[0], 1);
+  while (gb.lap.completed < 1 && g.time < 200) g.step();
+  check('a hotlap starts a quarter of a lap back, and its first lap is timed from the line: a flying lap, quicker than one from the grid',
+    Math.abs(back - w.track.length * 0.25) < 5 && crossed > 4 && lap1 < gb.lap.lapTimes[0] - 0.5 && Math.abs(lap1 - (w.time - crossed)) < 0.1,
+    `${back.toFixed(0)} m back; flying lap ${lap1.toFixed(1)} s against ${gb.lap.lapTimes[0].toFixed(1)} s from the grid`);
 }
 
 {

@@ -150,8 +150,10 @@ const MODELS = {
             b.box(x, 1.75, z, 0.07, 0.9, 0.07, 0x2a2a2a);
         for (const x of [0.36, -0.36]) {
             b.box(x, 1.45, 1.0, 0.12, 2.7, 0.14, STEEL);
-            b.box(x, 0.12, 1.6, 0.12, 0.06, 1.1, 0x6a6a6a);
+            // Forks in bright steel, wide enough to see from above.
+            b.box(x * 1.05, 0.12, 1.65, 0.22, 0.1, 1.2, 0xe4e6ea);
         }
+        b.box(0, 0.55, 1.12, 1.0, 0.7, 0.1, 0x2a2a2e);
         wheel(b, 0.55, 0.35, 0.6, 0.35, 0.3);
         wheel(b, -0.55, 0.35, 0.6, 0.35, 0.3);
         wheel(b, 0.55, 0.3, -0.9, 0.3, 0.26);
