@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.19**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.20**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 315 checks: simulation and networking (Node), and real browsers
+npm test           # 317 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -623,6 +623,13 @@ seed.
 - **The first lap is a standing start**, so a flying lap soon beats it, and the ghost
   then runs alongside you.
 
+**Random seed.** Under the seed box, in the menu and (for the host) in the lobby,
+**🎲 Random seed** deals three words from a list of 367 three-letter words, joined by
+hyphens: `egg-cup-top`, `pin-run-dig`. That's about 49 million tracks, and each is easy
+to read out to a friend. Five words from the list the player supplied aren't dealt at
+random, because a generator will sooner or later put them beside "gas" or "pig" on
+everybody's screen. They still work if typed.
+
 **The menu previews the track.** Pick a track, the track of the day, or type a seed,
 and a small map of the circuit appears on its theme's ground. Beside it are the track's
 name and style: theme, lap length, corners, and any jump, level crossing, water or oil.
@@ -727,11 +734,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-315 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+317 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (136, Node):
+- **`sim.test.mjs`** (137, Node):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
@@ -843,11 +850,11 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   Xbox and PlayStation prompts; the on-screen keyboard; menu to race; RT drives;
   Menu/Options pauses, A resumes; leaving; every row of Settings by D-pad; the menu,
   lobby and HUD at 1280×800.
-- **`keyboard.test.mjs`** (27, browser, keys and nothing else): on the menu, settings,
+- **`keyboard.test.mjs`** (28, browser, keys and nothing else): on the menu, settings,
   Garage, join, lobby, pause and results screens, a breadth-first search over the arrow
   keys reaches every control. It presses each arrow from every control reached so
   far, so it's exact, not a walk that might be lucky. The race number changes with the
-  arrows; a typed seed shows its track on the menu. Also: the caret keeps left, right and Backspace in text fields; dropdowns
+  arrows; a typed seed shows its track on the menu, and Random seed deals three words. Also: the caret keeps left, right and Backspace in text fields; dropdowns
   change with left and right; Space toggles a switch; Esc goes back everywhere and
   resumes from pause without reopening it; Settings from the pause menu, a volume
   slider by arrows, and Esc back to the paused race; in a race the arrows drive.

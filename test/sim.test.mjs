@@ -24,6 +24,7 @@ import { trainAt, crossingBlocked, crossingWarning, trainSegment } from '../dist
 import { generateTrack, seedOf, daySeed, utcDay, trackName, attemptsFor } from '../dist/sim/track/generate.js';
 import { validateTrack } from '../dist/sim/track/validate.js';
 import { LapTrace, ghostAt, validTrace, GHOST_HZ } from '../dist/sim/ghost.js';
+import { SEED_WORDS, randomSeedText } from '../dist/sim/track/seedWords.js';
 import { hashString } from '../dist/util.js';
 
 let pass = 0;
@@ -1150,6 +1151,19 @@ const PINNED = [
   check('a lap recorded at 10 Hz plays back where the car really was', worst < 1.2 && Math.abs(samples - lapTime * GHOST_HZ) < 2 && ghostAt(trace.data, lapTime + 1) === null,
     `worst ${worst.toFixed(2)} m off over a ${lapTime.toFixed(1)} s lap, ${samples} samples, ${JSON.stringify(trace.data).length} bytes stored`);
   check('a damaged ghost from storage is refused, not played', !validTrace([1, 2]) && !validTrace('x') && !validTrace([1, 2, 3.5, 4, 5, 6]) && validTrace(trace.data));
+}
+
+{
+  // Random seeds: three words from the list, hyphenated, and every one a track.
+  const rand = mulberry32(5);
+  const seeds = Array.from({ length: 200 }, () => randomSeedText(rand));
+  const shaped = seeds.every((t) => /^[a-z]{3}-[a-z]{3}-[a-z]{3}$/.test(t) && t.split('-').every((w) => SEED_WORDS.includes(w)));
+  const unique = new Set(seeds).size;
+  const clean = !['ass', 'sex', 'god', 'jew', 'gay'].some((w) => SEED_WORDS.includes(w));
+  let tracks = 0;
+  for (const t of seeds.slice(0, 20)) if (generateTrack(seedOf(t))) tracks++;
+  check('a random seed is three listed words, hyphenated, and makes a track', shaped && unique > 195 && clean && tracks === 20 && SEED_WORDS.length === 367,
+    `e.g. ${seeds.slice(0, 3).join(', ')}; ${SEED_WORDS.length} words`);
 }
 
 {

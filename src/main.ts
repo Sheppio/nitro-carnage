@@ -14,6 +14,7 @@ import { daySeed, generateTrack, seedOf } from './sim/track/generate.js';
 import type { LapRecord } from './RaceSession.js';
 import { validTrace } from './sim/ghost.js';
 import { drawTrackPreview } from './ui/trackPreview.js';
+import { randomSeedText } from './sim/track/seedWords.js';
 import { decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import type { CarLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
@@ -139,7 +140,7 @@ function trackChoice(value: string, seedText: string, index = 0): TrackChoice {
   if (value === 'seed') {
     const seed = seedOf(seedText || 'NITRO');
     const def = generateTrack(seed);
-    return { def, seed, label: `${def.name} · seed ${seedText.trim().toUpperCase() || 'NITRO'}` };
+    return { def, seed, label: `${def.name} · seed ${seedText.trim().toLowerCase() || 'nitro'}` };
   }
   const def = TRACKS[Number(value)] ?? TRACKS[index] ?? TRACKS[0]!;
   return { def, seed: 0, label: def.name };
@@ -153,9 +154,15 @@ const savedTrack = store.get(TRACK_KEY);
 menuTrack.value = trackParam !== '-1' ? trackParam : [...menuTrack.options].some((o) => o.value === savedTrack) ? savedTrack : '0';
 menuSeed.value = params.get('seed') ?? store.get(SEED_KEY);
 const syncSeedRows = (): void => {
-  $('menu-seed-row').hidden = menuTrack.value !== 'seed';
-  $('lobby-seed-row').hidden = $<HTMLSelectElement>('lobby-track').value !== 'seed';
+  $('menu-seed-row').hidden = $('menu-seed-random').hidden = menuTrack.value !== 'seed';
+  $('lobby-seed-row').hidden = $('lobby-seed-random').hidden = $<HTMLSelectElement>('lobby-track').value !== 'seed';
 };
+// Three words from the list, hyphenated: "egg-cup-top".
+$('menu-seed-random').addEventListener('click', () => {
+  menuSeed.value = randomSeedText();
+  store.set(SEED_KEY, menuSeed.value);
+  previewTrack();
+});
 syncSeedRows();
 menuTrack.addEventListener('change', () => {
   store.set(TRACK_KEY, menuTrack.value);
@@ -485,6 +492,10 @@ $('lobby-laps').addEventListener('change', lobbySettings);
 $('lobby-track').addEventListener('change', lobbySettings);
 $('lobby-weapons').addEventListener('change', lobbySettings);
 $('lobby-seed').addEventListener('change', lobbySettings);
+$('lobby-seed-random').addEventListener('click', () => {
+  $<HTMLInputElement>('lobby-seed').value = randomSeedText();
+  lobbySettings();
+});
 
 const brokerSelect = $<HTMLSelectElement>('set-broker');
 brokerSelect.replaceChildren(

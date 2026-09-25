@@ -134,7 +134,7 @@ try {
   await page.keyboard.type('sheppio');
   const preview = await until(() => page.evaluate(() => {
     const t = document.getElementById('menu-track-info').textContent;
-    return /seed SHEPPIO/.test(t) ? t : null;
+    return /seed sheppio/.test(t) ? t : null;
   }));
   const inked = await page.evaluate(() => {
     const c = document.getElementById('menu-track-map');
@@ -144,6 +144,16 @@ try {
     return n / (c.width * c.height);
   });
   r.check('typing a seed shows its track on the menu: a map, a name and its style', onSeed && Boolean(preview) && inked > 0.03, preview ?? '');
+  // Down from the seed to Random: Enter deals three words, and the preview follows.
+  await goTo(page, 'menu-seed-random');
+  await page.keyboard.press('Enter');
+  const dealt = await until(() => page.evaluate(() => {
+    const v = document.getElementById('menu-seed').value;
+    const t = document.getElementById('menu-track-info').textContent;
+    return /^[a-z]{3}-[a-z]{3}-[a-z]{3}$/.test(v) && t.includes(`seed ${v}`) ? v : null;
+  }));
+  r.check('Random seed deals three hyphenated words, and the preview shows that track', Boolean(dealt), dealt ?? '');
+  await goTo(page, 'menu-track');
   await page.keyboard.press('ArrowUp');
   for (let k = 0; k < 8 && (await page.evaluate(() => document.getElementById('menu-track').value)) !== '0'; k++) await page.keyboard.press('ArrowRight');
 
