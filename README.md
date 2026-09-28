@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.40**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.41**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 776 checks: simulation and networking (Node), and real browsers
+npm test           # 779 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -902,6 +902,24 @@ opens the track screen on the Track of the Day as a hotlap, with Start already f
 one press (Enter, A, or a tap) and you're driving. `?pick=hotlap` or `?pick=race`, with
 `&track=monza` or `&seed=egg-cup-top`, does the same for any track. The day's track is
 the same for everyone on the same date, so a daily link is a daily challenge.
+
+**Any past day, never a future one.** A date typed as the seed, `2026-09-28`, is that
+day's Track of the Day, and so is a link, `?daily=2026-09-28`, so an old daily can be
+raced again. The label shows the date: *Track of the day 2026-09-28 · Ember Yard*.
+- **A future date is locked.** The map stays blank, Start is disabled, and in the lobby
+  the room keeps its last track. The daily challenge only works if nobody gets to
+  practise tomorrow's track. Today and every earlier day are open.
+- **The future track is never generated**, not even for the preview, because its map
+  would give the layout away.
+- **"Today" is the UTC date**, like the day's seed, so the lock opens at the same
+  instant everywhere.
+- **`DAY 2026-09-29` is locked too.** That is the exact string the day's seed is hashed
+  from, so typing it would otherwise have been a way round the lock.
+- **Only a real date counts.** `2026-02-30` and `2026-9-28` are just words, and make a
+  seed of their own.
+
+This is a lock in the page, not in a server. Anyone who reads the source can compute a
+future seed, but nobody can stumble on one.
 
 **Same seed, same track, on every computer.** That rules out anything a different
 JavaScript engine could compute differently, so the generator deals only in integers

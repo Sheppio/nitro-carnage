@@ -8,7 +8,7 @@ import { RoomClient } from './RoomClient.js';
 import { isColourId } from './sim/palette.js';
 import { TRACKS } from './sim/track/index.js';
 import { AudioEngine } from './audio/AudioEngine.js';
-import { daySeed, generateTrack, seedOf } from './sim/track/generate.js';
+import { dateSeed, daySeed, generateTrack, seedOf, utcDay } from './sim/track/generate.js';
 import { validTrace } from './sim/ghost.js';
 import { drawTrackPreview } from './ui/trackPreview.js';
 import { randomSeedText } from './sim/track/seedWords.js';
@@ -122,7 +122,16 @@ function trackChoice(value, seedText, index = 0) {
     if (value === 'day') {
         const seed = daySeed(Date.now());
         const def = generateTrack(seed);
-        return { def, seed, label: `Track of the day · ${def.name}` };
+        return { def, seed, label: `Track of the day ${utcDay(Date.now())} · ${def.name}` };
+    }
+    const dated = value === 'seed' ? dateSeed(seedText, Date.now()) : null;
+    if (dated?.locked) {
+        // Not even generated: the map would give it away.
+        return { def: TRACKS[0], seed: 0, label: dated.day, locked: `${dated.day}'s Track of the Day opens at midnight UTC that day. No practising ahead!` };
+    }
+    if (dated) {
+        const def = generateTrack(dated.seed);
+        return { def, seed: dated.seed, label: `Track of the day ${dated.day} · ${def.name}` };
     }
     if (value === 'seed') {
         const seed = seedOf(seedText || 'NITRO');
@@ -162,10 +171,19 @@ function previewTrack() {
         if ($('screen-track').hidden)
             return;
         const c = chosenTrack();
-        drawTrackPreview($('menu-track-map'), $('menu-track-info'), c.def, c.label);
+        $('btn-track-go').disabled = !!c.locked;
+        if (c.locked)
+            showLocked($('menu-track-map'), $('menu-track-info'), c.locked);
+        else
+            drawTrackPreview($('menu-track-map'), $('menu-track-info'), c.def, c.label);
     }, 60);
 }
 menuTrack.addEventListener('change', previewTrack);
+/** A blank map and the reason, in place of a track that isn't open yet. */
+function showLocked(canvas, info, why) {
+    canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    info.replaceChildren(Object.assign(document.createElement('b'), { textContent: '🔒 Locked' }), document.createElement('br'), why);
+}
 const menuWeapons = $('menu-weapons');
 menuWeapons.value = store.get(WEAPONS_KEY) === '0' ? '0' : '1';
 menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.value));
@@ -302,6 +320,10 @@ function startOffline(mode) {
     lastMode = mode;
     const quality = qualityOverride ?? settings.current.quality;
     const choice = chosenTrack();
+    if (choice.locked) {
+        chooseTrack(mode);
+        return;
+    }
     const track = choice.def;
     const s = new RaceSession(gameRoot, { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || track.laps, look, weapons: menuWeapons.value !== '0' }, input, settings);
     if (mode === 'hotlap')
@@ -523,6 +545,10 @@ $('lobby-colour').addEventListener('change', () => {
 const lobbySettings = () => {
     const pick = $('lobby-track').value;
     const choice = trackChoice(pick, $('lobby-seed').value);
+    lobby?.lock(choice.locked ?? null);
+    // A future day's track never reaches the room: it keeps the last one.
+    if (choice.locked)
+        return;
     room?.net.configure(Number($('lobby-cars').value), Number($('lobby-laps').value), choice.seed ? 0 : Number(pick), choice.seed, Number($('lobby-weapons').value));
 };
 $('lobby-cars').addEventListener('change', lobbySettings);
@@ -646,7 +672,13 @@ show('screen-menu');
  * press drives. (`?hotlap` and `?race` skip even that: for tests.)
  */
 if (params.has('daily') || params.has('pick')) {
-    if (params.has('daily'))
+    // `?daily=2026-09-20` is that day's (a future day shows as locked).
+    const day = params.get('daily');
+    if (day) {
+        menuTrack.value = 'seed';
+        menuSeed.value = day;
+    }
+    else if (params.has('daily'))
         menuTrack.value = 'day';
     chooseTrack(params.get('pick') === 'race' ? 'race' : 'hotlap');
 }

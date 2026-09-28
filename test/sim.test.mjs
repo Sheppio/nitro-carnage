@@ -21,7 +21,7 @@ import { applyDeadzone1, filterAxis } from '../dist/input/sources.js';
 import { mulberry32, wrapAngle, smoothing } from '../dist/util.js';
 import { Armoury, castRay, missileAt } from '../dist/sim/weapons.js';
 import { trainAt, crossingBlocked, crossingWarning, trainSegment } from '../dist/sim/train.js';
-import { generateTrack, seedOf, daySeed, utcDay, trackName, attemptsFor } from '../dist/sim/track/generate.js';
+import { generateTrack, seedOf, daySeed, dateSeed, utcDay, trackName, attemptsFor } from '../dist/sim/track/generate.js';
 import { validateTrack, LAP_MIN, LAP_MAX } from '../dist/sim/track/validate.js';
 import { gridBend, GRID_RADIUS } from '../dist/sim/track/gridStart.js';
 import { LapTrace, ghostAt, validTrace, GHOST_HZ } from '../dist/sim/ghost.js';
@@ -1149,6 +1149,15 @@ const SHAPES = ['909cd37f', 'f7011ebf', 'be2e3974', 'da90f83a', 'a2feb768', 'd9b
   check('the track of the day changes at UTC midnight and not before',
     daySeed(day) === daySeed(day + 86399999) && daySeed(day) !== daySeed(day + 86400000) && daySeed(day - 1) !== daySeed(day)
     && utcDay(day + 86399999) === '2026-09-25', `today is "${trackName(daySeed(day))}"`);
+  // A date typed as a seed is that day's track; a day after today is locked.
+  const noon = day + 43200000;
+  const past = dateSeed(' 2026-09-20 ', noon), today = dateSeed('2026-09-25', noon), soon = dateSeed('day 2026-09-26', noon);
+  check('a date as a seed is that day\'s Track of the Day: past days and today open, a future day locked, a non-date just a word',
+    past?.seed === daySeed(Date.UTC(2026, 8, 20)) && !past.locked
+    && today?.seed === daySeed(noon) && !today.locked
+    && soon?.seed === daySeed(day + 86400000) && soon.locked && dateSeed('2027-01-01', noon)?.locked === true
+    && dateSeed('2026-02-30', noon) === null && dateSeed('2026-9-25', noon) === null && dateSeed('green mile', noon) === null,
+    JSON.stringify([past, today, soon]));
 
   // A thousand seeds: every one yields a track, every one valid.
   let bad = 0;

@@ -76,6 +76,19 @@ try {
     return window.nitro.room.net.state.seed !== 0 && lit > 0 && info.length > 0 ? info : null;
   }));
   r.check('the lobby draws a map of the room\'s track, on the guest\'s screen too', Boolean(mapped), mapped ?? '');
+  // Tomorrow's date as a seed: the host sees it locked, and the room keeps its track.
+  const seedBefore = await a.evaluate(() => window.nitro.room.net.state.seed);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  await a.fill('#lobby-seed', tomorrow);
+  await a.dispatchEvent('#lobby-seed', 'change');
+  const lockedInfo = await until(() => a.evaluate(() => {
+    const info = document.getElementById('lobby-track-info').textContent;
+    return /Locked/.test(info) ? info : null;
+  }));
+  await a.waitForTimeout(300);
+  const seeds = await Promise.all([a, b].map((p) => p.evaluate(() => window.nitro.room.net.state.seed)));
+  r.check('a future day\'s Track of the Day typed in the lobby is locked, and never reaches the room',
+    Boolean(lockedInfo) && seeds.every((s) => s === seedBefore), `${lockedInfo} ${seeds} vs ${seedBefore}`);
   await a.selectOption('#lobby-track', '0');
 
   // Bob's look, set in his Garage, reaches Alice's lobby.

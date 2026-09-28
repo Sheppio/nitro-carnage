@@ -1,6 +1,6 @@
 import { PALETTE } from '../sim/palette.js';
 import { TRACKS } from '../sim/track/index.js';
-import { daySeed, generateTrack } from '../sim/track/generate.js';
+import { daySeed, generateTrack, utcDay } from '../sim/track/generate.js';
 import { carIcon } from './carIcon.js';
 import { Picker } from './Picker.js';
 import { drawTrackPreview } from './trackPreview.js';
@@ -23,6 +23,16 @@ export class Lobby {
     colour;
     /** The track the preview last drew, so a redraw only happens when it changes. */
     drawn = '';
+    /** Why the host's typed seed can't be used: a future day's Track of the Day. */
+    locked = null;
+    /** The host typed a future date (or stopped doing so): shown in place of the map. */
+    lock(why) {
+        if (why === this.locked)
+            return;
+        this.locked = why;
+        this.drawn = '';
+        this.render();
+    }
     /** Redraw from the room as it stands. */
     render() {
         const net = this.net;
@@ -64,10 +74,16 @@ export class Lobby {
         }
         $('lobby-weapons').value = String(st.arms);
         $('lobby-wait').hidden = net.isHost;
-        const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? 'Track of the day · ' : ''}${generateTrack(st.seed).name}`;
+        const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? `Track of the day ${utcDay(Date.now())} · ` : ''}${generateTrack(st.seed).name}`;
         // A map of the room's track, for everyone: a seed is only a word until it's seen.
-        const key = `${st.track}:${st.seed}`;
-        if (key !== this.drawn) {
+        const key = this.locked && net.isHost ? 'locked' : `${st.track}:${st.seed}`;
+        if (key === 'locked' && key !== this.drawn) {
+            this.drawn = key;
+            const canvas = $('lobby-track-map');
+            canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+            $('lobby-track-info').replaceChildren(Object.assign(document.createElement('b'), { textContent: '🔒 Locked' }), document.createElement('br'), this.locked);
+        }
+        else if (key !== this.drawn) {
             this.drawn = key;
             const def = st.seed === 0 ? TRACKS[st.track] ?? TRACKS[0] : generateTrack(st.seed);
             drawTrackPreview($('lobby-track-map'), $('lobby-track-info'), def, track);

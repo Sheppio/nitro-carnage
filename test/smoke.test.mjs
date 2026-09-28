@@ -427,6 +427,40 @@ try {
       `${JSON.stringify(landed)} -> ${JSON.stringify(drove)}`);
     await dp.close();
   }
+  // ?daily=<date>: a past day's track races; a future day's is locked, with
+  // no map and Start disabled, and typing it as a seed is locked the same.
+  {
+    const dayOf = (off) => new Date(Date.now() + off * 86400000).toISOString().slice(0, 10);
+    const dp = await browser.newPage({ viewport: { width: 800, height: 450 } });
+    dp.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    const state = () => until(() => dp.evaluate(() => {
+      const go = document.getElementById('btn-track-go');
+      const info = document.getElementById('menu-track-info').textContent;
+      return !document.getElementById('screen-track').hidden && info ? { info, disabled: go.disabled } : null;
+    }));
+    await dp.goto(`${url}?quality=potato&daily=${dayOf(1)}`);
+    const tomorrow = await state();
+    await dp.evaluate(() => { const s = document.getElementById('menu-seed'); s.value = 'green mile'; s.dispatchEvent(new Event('input')); });
+    await dp.waitForTimeout(200);
+    const word = await state();
+    await dp.evaluate((d) => { const s = document.getElementById('menu-seed'); s.value = d; s.dispatchEvent(new Event('input')); }, dayOf(3));
+    await dp.waitForTimeout(200);
+    const typed = await state();
+    await dp.goto(`${url}?quality=potato&daily=${dayOf(-2)}`);
+    const past = await state();
+    await dp.keyboard.press('Enter');
+    const drove = await until(() => dp.evaluate(() => window.nitro.session?.world.track.def.id ?? null), { timeout: 30000 });
+    const want = await dp.evaluate(async (d) => {
+      const main = document.querySelector('script[type="module"][src]').src;
+      const g = await import(new URL('sim/track/generate.js', main).href);
+      return g.generateTrack(g.daySeed(Date.parse(d))).id;
+    }, dayOf(-2));
+    r.check('?daily=<date> races a past day\'s Track of the Day; tomorrow\'s is locked (no map, Start disabled), typed or linked',
+      /Locked/.test(tomorrow?.info) && tomorrow.disabled && word?.disabled === false && /Locked/.test(typed?.info) && typed.disabled
+      && past?.info.includes(`Track of the day ${dayOf(-2)}`) && !past.disabled && drove === want,
+      JSON.stringify([tomorrow, word, typed, past, drove, want]));
+    await dp.close();
+  }
 
   /* ---------------------------------------------------------------- zoom */
   // The mouse wheel zooms the race camera by changing the field-of-view setting;
@@ -531,7 +565,7 @@ try {
   const label = await hl.evaluate(() => document.getElementById('hud-track').textContent);
   const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: getComputedStyle(document.getElementById('hud-arms')).display === 'none' }));
   r.check('a hotlap on the track of the day: named on the HUD, a record to beat, no position, no weapons',
-    /^Track of the day · /.test(label) && shows.record && shows.pos && shows.arms, label);
+    /^Track of the day \d{4}-\d{2}-\d{2} · /.test(label) && shows.record && shows.pos && shows.arms, label);
   // Two laps on autopilot: the first sets the record, which is saved.
   const saved = await until(() => hl.evaluate(() => {
     const id = window.nitro.session.world.track.def.id;
