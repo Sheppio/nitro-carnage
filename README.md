@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.43**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.44**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 786 checks: simulation and networking (Node), and real browsers
+npm test           # 787 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -550,9 +550,9 @@ public brokers. A car state packet is at most 54 bytes, and a full heartbeat 168
 
 | Weapon | Button | Flight | Damage |
 | --- | --- | --- | --- |
-| Front missile (10 per race) | Z / J, RB | 90 m/s, 1.4 s, stops at walls | 20 |
-| Mine (3) | X / K, LB | dropped behind, armed after 0.6 s, lasts 45 s | 30 |
-| Rear missile (5) | X / K, LB, once the mines are gone | 70 m/s backwards | 20 |
+| Front missile (10 per race) | Z / J, Y or RB | 90 m/s, 1.4 s, stops at walls | 20 |
+| Mine (3) | X / K, X or LB | dropped behind, armed after 0.6 s, lasts 45 s | 30 |
+| Rear missile (5) | X / K, X or LB, once the mines are gone | 70 m/s backwards | 20 |
 
 Health is 100. A wall hit faster than 12 m/s costs 1.4 health for every m/s over that.
 At zero the car is **wrecked**: it burns for 2.5 s, then returns to the road with full
@@ -1159,10 +1159,13 @@ drives a virtual pad in headless Chromium.
 | | Drive | Steer | Handbrake | Front weapon | Rear weapon | Turbo |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Keyboard** | ↑ / W, ↓ / S | ← → / A D | Space | Z / J | X / K | Shift |
-| **Gamepad** | RT / LT (analogue) | left stick | A | RB | LB | B |
+| **Gamepad** | RT / LT (analogue) | left stick | A | Y or RB | X or LB | B |
 | **Touch** | pedals, right thumb | left-thumb slider | button | button | button | button |
 
-Esc, the pad's Menu/Options or the ☰ button opens the pause menu. The rear-weapon
+On a pad the face buttons fire too, so a thumb never leaves them: Y forward (a
+missile), X backward (mines, then rear missiles), beside A for the handbrake and B for
+the turbo. The shoulders do the same, for players who drive with their thumbs on the
+stick. Esc, the pad's Menu/Options or the ☰ button opens the pause menu. The rear-weapon
 button drops mines while you have them, then fires rear missiles. The most recently
 used device drives the car, so picking up a controller mid-race just works.
 

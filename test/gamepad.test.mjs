@@ -14,7 +14,7 @@ const errors = [];
 
 const XBOX = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
 const DUALSENSE = 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)';
-const B = { A: 0, B: 1, LB: 4, RB: 5, LT: 6, RT: 7, MENU: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
+const B = { A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7, MENU: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
 
 /** Installs a controllable virtual pad before the page's scripts run. */
 function padScript(id) {
@@ -174,6 +174,19 @@ try {
   const drove = await until(() => page.evaluate(() => Math.hypot(window.nitro.session.player.car.vx, window.nitro.session.player.car.vz) > 10), { timeout: 20000 });
   await page.evaluate((b) => window.__pad.set(b, false), B.RT);
   r.check('RT drives the car', Boolean(drove));
+
+  // The face buttons fire as well as the shoulders: Y forward, X backward.
+  const faces = await page.evaluate(() => {
+    const read = (b) => {
+      const pad = window.__pad;
+      pad.set(b, true);
+      const d = window.nitro.input.gamepad.poll(0, window.nitro.settings.current);
+      pad.set(b, false);
+      return [d.front, d.rear];
+    };
+    return { y: read(3), x: read(2), rb: read(5), lb: read(4) };
+  });
+  r.check('Y fires forward and X backward, as RB and LB do', JSON.stringify(faces) === JSON.stringify({ y: [true, false], x: [false, true], rb: [true, false], lb: [false, true] }), JSON.stringify(faces));
 
   // A is the handbrake. Held while a menu appears, it is not a press on that
   // menu: that's how the results were clicked through to the lobby unseen.

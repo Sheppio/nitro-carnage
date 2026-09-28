@@ -24,19 +24,19 @@ export type Action = 'confirm' | 'back' | 'menu' | 'move' | 'throttle' | 'brake'
 const LABELS: Record<Exclude<PadFamily, 'none'>, Record<Action, string>> = {
   xbox: {
     confirm: 'A', back: 'B', menu: '☰ Menu', move: 'D-pad', throttle: 'RT', brake: 'LT', handbrake: 'A',
-    turbo: 'B', front: 'RB', rear: 'LB', steer: 'Left stick', prev: 'LB', next: 'RB',
+    turbo: 'B', front: 'Y / RB', rear: 'X / LB', steer: 'Left stick', prev: 'LB', next: 'RB',
   },
   playstation: {
     confirm: '✕', back: '○', menu: 'Options', move: 'D-pad', throttle: 'R2', brake: 'L2', handbrake: '✕',
-    turbo: '○', front: 'R1', rear: 'L1', steer: 'Left stick', prev: 'L1', next: 'R1',
+    turbo: '○', front: '△ / R1', rear: '□ / L1', steer: 'Left stick', prev: 'L1', next: 'R1',
   },
   deck: {
     confirm: 'A', back: 'B', menu: '☰', move: 'D-pad', throttle: 'R2', brake: 'L2', handbrake: 'A',
-    turbo: 'B', front: 'R1', rear: 'L1', steer: 'Left stick', prev: 'L1', next: 'R1',
+    turbo: 'B', front: 'Y / R1', rear: 'X / L1', steer: 'Left stick', prev: 'L1', next: 'R1',
   },
   generic: {
     confirm: 'A', back: 'B', menu: 'Start', move: 'D-pad', throttle: 'RT', brake: 'LT', handbrake: 'A',
-    turbo: 'B', front: 'RB', rear: 'LB', steer: 'Left stick', prev: 'LB', next: 'RB',
+    turbo: 'B', front: 'Y / RB', rear: 'X / LB', steer: 'Left stick', prev: 'LB', next: 'RB',
   },
 };
 

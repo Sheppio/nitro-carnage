@@ -72,7 +72,7 @@ export class GamepadSource {
     }
     /**
      * Driving: RT throttle, LT brake and reverse, left stick steers, A
-     * handbrake, RB front weapon, LB rear weapon, B turbo. Triggers are
+     * handbrake, Y or RB front weapon, X or LB rear weapon, B turbo. Triggers are
      * analogue, so half a trigger is half throttle.
      */
     poll(_dt, settings) {
@@ -86,8 +86,8 @@ export class GamepadSource {
         const throttle = trigger(pad.buttons[BTN.RT]);
         const brake = trigger(pad.buttons[BTN.LT]);
         const handbrake = held(pad.buttons[BTN.A]);
-        const front = held(pad.buttons[BTN.RB]);
-        const rear = held(pad.buttons[BTN.LB]);
+        const front = held(pad.buttons[BTN.RB]) || held(pad.buttons[BTN.Y]);
+        const rear = held(pad.buttons[BTN.LB]) || held(pad.buttons[BTN.X]);
         const turbo = held(pad.buttons[BTN.B]);
         return {
             throttle,
