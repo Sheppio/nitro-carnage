@@ -105,6 +105,8 @@ export class Lobby {
     const seedBox = $<HTMLInputElement>('lobby-seed');
     if (today && document.activeElement !== seedBox) seedBox.value = utcDay(Date.now());
     $<HTMLSelectElement>('lobby-weapons').value = String(st.arms);
+    $<HTMLSelectElement>('lobby-pickups').value = String(st.pick);
+    $<HTMLSelectElement>('lobby-turbo').value = String(st.boost);
     $('lobby-wait').hidden = net.isHost;
     const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? `Track of the day ${utcDay(Date.now())} · ` : ''}${generateTrack(st.seed).name}`;
     // A map of the room's track, for everyone: a seed is only a word until it's seen.
@@ -120,7 +122,7 @@ export class Lobby {
       drawTrackPreview($<HTMLCanvasElement>('lobby-track-map'), $('lobby-track-info'), def, track);
     }
     $('lobby-wait').textContent = room.hostId
-      ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}. Waiting for the host to start it.`
+      ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost ? '' : ', no turbo'}. Waiting for the host to start it.`
       : 'Looking for the room…';
   }
 

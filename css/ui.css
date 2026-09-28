@@ -190,6 +190,7 @@ select {
    pushed the turbo bar and everything after it about as the speed changed. */
 #hud-speed { display: inline-block; width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
 
+.turbo[hidden] { display: none; }
 .turbo {
   width: 140px;
   height: 10px;

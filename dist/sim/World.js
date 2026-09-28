@@ -36,6 +36,7 @@ export class World {
     /** Race time at which the lights go green. */
     goTime;
     weapons;
+    turbo;
     flyingStart;
     /** Fixed steps taken since the world was created. */
     steps = 0;
@@ -61,10 +62,13 @@ export class World {
         this.laps = opts.laps;
         this.goTime = opts.countdown;
         this.weapons = opts.weapons ?? true;
+        this.turbo = opts.turbo ?? true;
         this.flyingStart = opts.flyingStart ?? 0;
         this.steps = Math.round((opts.elapsed ?? 0) / STEP);
         this.armoury = new Armoury(this.track);
-        this.pickups = this.laps > 0 && this.flyingStart === 0 && opts.pickups !== false ? new Pickups(this.track, this.weapons) : null;
+        this.pickups = this.laps > 0 && this.flyingStart === 0 && opts.pickups !== false && (this.weapons || this.turbo)
+            ? new Pickups(this.track, this.weapons, this.turbo)
+            : null;
     }
     /** Simulated seconds since the world began. */
     get time() {
@@ -82,6 +86,8 @@ export class World {
         // On the grid, or for a flying start a stretch of lap back from the line.
         const pose = this.flyingStart > 0 ? this.track.poseAt(this.track.length * (1 - this.flyingStart)) : this.track.gridSlot(slot);
         const car = createCar(pose.x, pose.z, pose.yaw);
+        if (!this.turbo)
+            car.turbo = 0;
         const p = this.track.project(car.x, car.z);
         car.hint = p.i;
         const entrant = {
@@ -220,7 +226,12 @@ export class World {
             }
             // Before GO the cars sit on the grid; nobody's driver is asked anything.
             e.intent = racing ? e.drive() : { ...IDLE_INTENT };
+            // No turbo: the button is ignored, and the meter never trickles back.
+            if (!this.turbo)
+                e.intent = { ...e.intent, turbo: false };
             stepCar(e.car, e.intent, track, STEP, e.stats);
+            if (!this.turbo)
+                e.car.turbo = 0;
             if (e.ghost > 0)
                 e.ghost = Math.max(0, e.ghost - STEP);
             e.cooldown.front = Math.max(0, e.cooldown.front - STEP);

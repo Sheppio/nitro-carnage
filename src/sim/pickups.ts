@@ -29,10 +29,14 @@ const P = SIM.pickups;
 /**
  * Where the boxes stand: `P.rows` rows spread round the lap, each a box per
  * lane. A row goes on the straightest piece of road near its share of the
- * lap, clear of the start line, the ramps and any level crossing. With
- * weapons off every box is turbo: ammo and repairs would do nothing.
+ * lap, clear of the start line, the ramps and any level crossing. Only the
+ * kinds that would do something are laid: with weapons off, ammo and repairs
+ * would not; with the turbo off, a turbo box would not. Their lanes get the
+ * row's other kinds instead, and with nothing left there are no rows at all.
  */
-export function pickupSpots(track: Track, weapons: boolean): PickupSpot[] {
+export function pickupSpots(track: Track, weapons: boolean, turbo = true): PickupSpot[] {
+  const useful = (k: PickupKind): boolean => (k === 'turbo' ? turbo : weapons);
+  if (!weapons && !turbo) return [];
   const L = track.length;
   const spacing = L / track.n;
   const heading = (s: number): number => track.poseAt(s).yaw;
@@ -72,11 +76,20 @@ export function pickupSpots(track: Track, weapons: boolean): PickupSpot[] {
       const frac = best / spacing - pose.i;
       out.push({
         x: x + track.line.tx[pose.i]! * frac, z: z + track.line.tz[pose.i]! * frac, s: best,
-        kind: weapons ? kinds[r % kinds.length]![k]! : 'turbo',
+        kind: kindFor(kinds[r % kinds.length]!, k, useful),
       });
     });
   }
   return out;
+}
+
+/** Lane `k`'s kind in a row, or the next useful one along the row. */
+function kindFor(row: PickupKind[], k: number, useful: (k: PickupKind) => boolean): PickupKind {
+  for (let o = 0; o < row.length; o++) {
+    const kind = row[(k + o) % row.length]!;
+    if (useful(kind)) return kind;
+  }
+  return row[k]!;
 }
 
 /** The boxes in one race, and when each is back. */
@@ -85,8 +98,8 @@ export class Pickups {
   /** World time each box is back on the road; 0 while it is there. */
   readonly back: Float64Array;
 
-  constructor(track: Track, weapons: boolean) {
-    this.spots = pickupSpots(track, weapons);
+  constructor(track: Track, weapons: boolean, turbo = true) {
+    this.spots = pickupSpots(track, weapons, turbo);
     this.back = new Float64Array(this.spots.length);
   }
 

@@ -94,6 +94,7 @@ export class Hud {
   update(hud: HudSnapshot): void {
     const now = performance.now();
     $('hud-turbo').style.transform = `scaleX(${Math.max(0, hud.turbo / SIM.car.turboCapacity)})`;
+    $('hud-turbo').parentElement!.hidden = !hud.turboOn;
     const hp = $('hud-hp');
     hp.style.transform = `scaleX(${Math.max(0, hud.hp / SIM.weapons.health)})`;
     hp.classList.toggle('low', hud.hp < 50 && hud.hp >= 25);

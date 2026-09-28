@@ -137,6 +137,8 @@ interface TrackChoice {
 const TRACK_KEY = `${SLUG}.track`;
 const SEED_KEY = `${SLUG}.seed`;
 const WEAPONS_KEY = `${SLUG}.weapons`;
+const PICKUPS_KEY = `${SLUG}.pickups`;
+const TURBO_KEY = `${SLUG}.turbo`;
 for (const sel of [$<HTMLSelectElement>('menu-track'), $<HTMLSelectElement>('lobby-track')]) {
   const opt = (value: string, text: string): HTMLOptionElement => {
     const o = document.createElement('option');
@@ -243,6 +245,12 @@ menuLaps.addEventListener('change', () => store.set(LAPS_KEY, menuLaps.value));
 const menuWeapons = $<HTMLSelectElement>('menu-weapons');
 menuWeapons.value = store.get(WEAPONS_KEY) === '0' ? '0' : '1';
 menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.value));
+const menuPickups = $<HTMLSelectElement>('menu-pickups');
+menuPickups.value = store.get(PICKUPS_KEY) === '0' ? '0' : '1';
+menuPickups.addEventListener('change', () => store.set(PICKUPS_KEY, menuPickups.value));
+const menuTurbo = $<HTMLSelectElement>('menu-turbo');
+menuTurbo.value = store.get(TURBO_KEY) === '0' ? '0' : '1';
+menuTurbo.addEventListener('change', () => store.set(TURBO_KEY, menuTurbo.value));
 
 /* ---------------------------------------------------------------- records */
 
@@ -398,8 +406,10 @@ function chooseTrack(mode: 'race' | 'hotlap'): void {
   trackMode = mode;
   $('track-mode').textContent = mode === 'race' ? 'Quick race' : 'Hotlap';
   $('btn-track-go').textContent = mode === 'race' ? 'Start race' : 'Start hotlap';
-  // A hotlap never has weapons: the switch only belongs to a race.
+  // A hotlap never has weapons or boxes, and always has its turbo: the switches only belong to a race.
   $('menu-weapons-row').hidden = mode === 'hotlap';
+  $('menu-pickups-row').hidden = mode === 'hotlap';
+  $('menu-turbo-row').hidden = mode === 'hotlap';
   $('menu-laps-row').hidden = mode === 'hotlap';
   show('screen-track');
 }
@@ -417,7 +427,8 @@ function startOffline(mode: 'race' | 'hotlap'): void {
   const track = choice.def;
   const s = new RaceSession(
     gameRoot,
-    { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look, weapons: menuWeapons.value !== '0' },
+    { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look,
+      weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0', turbo: menuTurbo.value !== '0' },
     input,
     settings,
   );
@@ -669,6 +680,8 @@ const lobbySettings = (): void => {
     choice.seed ? 0 : Number(pick),
     choice.seed,
     Number($<HTMLSelectElement>('lobby-weapons').value),
+    Number($<HTMLSelectElement>('lobby-pickups').value),
+    Number($<HTMLSelectElement>('lobby-turbo').value),
   );
 };
 $('lobby-cars').addEventListener('change', lobbySettings);
@@ -678,6 +691,8 @@ $('lobby-track').addEventListener('change', () => {
   lobbySettings();
 });
 $('lobby-weapons').addEventListener('change', lobbySettings);
+$('lobby-pickups').addEventListener('change', lobbySettings);
+$('lobby-turbo').addEventListener('change', lobbySettings);
 $('lobby-seed').addEventListener('change', lobbySettings);
 // As in the menu, typing a seed switches the room to it; the rest of the room hears when the typing is done.
 $('lobby-seed').addEventListener('input', () => {

@@ -135,13 +135,13 @@ export class NetRace {
     }
     /* ------------------------------------------------------------ the lobby */
     /** Host: change the lobby settings (cars on the grid, laps). */
-    configure(cars, laps, track = this.state.track, seed = this.state.seed, arms = this.state.arms) {
+    configure(cars, laps, track = this.state.track, seed = this.state.seed, arms = this.state.arms, pick = this.state.pick, boost = this.state.boost) {
         if (!this.isHost || this.state.phase !== 'L')
             return;
         track = Math.max(0, Math.min(this.tracks.length - 1, Math.round(track) || 0));
         this.state = {
             ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(9, laps)), track,
-            seed: seed >>> 0, arms: arms ? 1 : 0,
+            seed: seed >>> 0, arms: arms ? 1 : 0, pick: pick ? 1 : 0, boost: boost ? 1 : 0,
         };
         this.room.beatNow();
         this.events.emit('state', { state: this.state });
@@ -338,7 +338,7 @@ export class NetRace {
         // A late arrival (a failover, or a spectator) starts its world part-way
         // through, so world time and room time still line up.
         const elapsed = Math.max(0, (now - s.goAt) / 1000);
-        const w = new World(def, { laps: s.laps, countdown, elapsed, weapons: s.arms !== 0 });
+        const w = new World(def, { laps: s.laps, countdown, elapsed, weapons: s.arms !== 0, pickups: s.pick !== 0, turbo: s.boost !== 0 });
         this.worldZero = s.goAt - w.goTime * 1000;
         this.raceGoAt = s.goAt;
         this.resultsSent = false;

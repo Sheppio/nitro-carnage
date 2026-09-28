@@ -39,7 +39,7 @@ export interface RoomEvents extends Record<string, unknown> {
 export type RoomState = Omit<Heartbeat, 'hostId' | 'seq' | 'roomT'>;
 
 export const LOBBY_STATE: RoomState = {
-  phase: 'L', race: 1, of: 1, track: 0, laps: 5, goAt: 0, grid: [], finish: [], cars: 6, seed: 0, arms: 1,
+  phase: 'L', race: 1, of: 1, track: 0, laps: 5, goAt: 0, grid: [], finish: [], cars: 6, seed: 0, arms: 1, pick: 1, boost: 1,
 };
 
 /**

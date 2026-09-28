@@ -1545,6 +1545,12 @@ console.log('\npickups');
   const one = pickupSpots(new Track(TRACKS[0]), true);
   check('each row has one of each: ammo, repair, turbo', ['ammo', 'repair', 'turbo'].every((k) => one.filter((p) => p.kind === k).length === SIM.pickups.rows));
   check('with weapons off every box is turbo', pickupSpots(new Track(TRACKS[0]), false).every((p) => p.kind === 'turbo'));
+  const noTurbo = pickupSpots(new Track(TRACKS[0]), true, false);
+  check('with the turbo off there are no turbo boxes, but the rows stay full',
+    noTurbo.length === one.length && noTurbo.every((p) => p.kind !== 'turbo') && ['ammo', 'repair'].every((k) => noTurbo.some((p) => p.kind === k)));
+  check('with weapons and turbo both off there are no boxes at all',
+    pickupSpots(new Track(TRACKS[0]), false, false).length === 0 && new World(TRACKS[0], { laps: 3, countdown: 0, weapons: false, turbo: false }).pickups === null);
+  check('with power-ups off a race has none', new World(TRACKS[0], { laps: 3, countdown: 0, pickups: false }).pickups === null);
   check('the same track puts them in the same places every time', JSON.stringify(one) === JSON.stringify(pickupSpots(new Track(TRACKS[0]), true)));
   check('a hotlap has none', new World(TRACKS[0], { laps: 0, countdown: 0, flyingStart: 0.25 }).pickups === null);
 }
@@ -1587,6 +1593,23 @@ console.log('\npickups');
     taken += w.drain().filter((x) => x.kind === 'pickup').length;
   }
   check('bots racing a few laps pick boxes up on the way', taken >= 4, `${taken} taken`);
+}
+
+{
+  // Turbo off: the button does nothing, the meter stays empty, and a bot never boosts.
+  const floor = () => ({ throttle: 1, brake: 0, steer: 0, handbrake: false, turbo: true, fireFront: false, fireRear: false });
+  const off = new World(TRACKS[0], { laps: 3, countdown: 0, turbo: false });
+  const on = new World(TRACKS[0], { laps: 3, countdown: 0 });
+  const a = off.addCar('p', 0, floor), b = on.addCar('p', 0, floor);
+  for (let b = 1; b < 4; b++) off.addBot(`b${b}`, b, SKILLS[0], 1000 + b);
+  let boosted = false;
+  for (let k = 0; k < 60 * 20; k++) {
+    off.step();
+    on.step();
+    if (off.entrants.some((e) => e.car.boosting || e.car.turbo > 0)) boosted = true;
+  }
+  check('with the turbo off nobody boosts and every meter stays empty', !boosted && a.car.turbo === 0);
+  check('while the same button with it on does', b.car.boosting || b.car.turbo < SIM.car.turboCapacity);
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);

@@ -233,6 +233,8 @@ export function encodeHeartbeat(h) {
         b36(h.cars),
         b36(h.seed),
         b36(h.arms),
+        b36(h.pick),
+        b36(h.boost),
     ].join(FLD);
 }
 export function decodeHeartbeat(payload) {
@@ -263,6 +265,9 @@ export function decodeHeartbeat(payload) {
         // Older builds send neither: a built-in track, weapons on.
         seed: un36(f[12]),
         arms: f[13] === undefined ? 1 : un36(f[13]),
+        // Nor do they send these: boxes and turbo on.
+        pick: f[14] === undefined ? 1 : un36(f[14]),
+        boost: f[15] === undefined ? 1 : un36(f[15]),
     };
 }
 /** Names go inside a comma-delimited record, so they must not contain one. */

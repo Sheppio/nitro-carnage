@@ -304,6 +304,10 @@ export interface Heartbeat {
   seed: number;
   /** Weapons on (1) or a race-only room (0) (M7). */
   arms: number;
+  /** Boxes on the road (1) or none (0). */
+  pick: number;
+  /** Turbo on (1) or off (0). */
+  boost: number;
 }
 
 export function encodeHeartbeat(h: Heartbeat): string {
@@ -322,6 +326,8 @@ export function encodeHeartbeat(h: Heartbeat): string {
     b36(h.cars),
     b36(h.seed),
     b36(h.arms),
+    b36(h.pick),
+    b36(h.boost),
   ].join(FLD);
 }
 
@@ -351,6 +357,9 @@ export function decodeHeartbeat(payload: string): Heartbeat | null {
     // Older builds send neither: a built-in track, weapons on.
     seed: un36(f[12]),
     arms: f[13] === undefined ? 1 : un36(f[13]),
+    // Nor do they send these: boxes and turbo on.
+    pick: f[14] === undefined ? 1 : un36(f[14]),
+    boost: f[15] === undefined ? 1 : un36(f[15]),
   };
 }
 

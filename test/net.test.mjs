@@ -146,16 +146,21 @@ console.log('\nnet.test\n\ncodecs');
 
   const grid = Array.from({ length: 6 }, (_, i) => 'mfy2k3x9a' + String(i).padStart(4, '0'));
   const hb = { hostId: grid[0], seq: 1295, roomT: 36 ** 6 - 1, phase: 'F', race: 9, of: 9, track: 2, laps: 9, goAt: 36 ** 6 - 1, grid,
-    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1 };
+    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1, pick: 1, boost: 1 };
   const enc2 = encodeHeartbeat(hb);
   const d2 = decodeHeartbeat(enc2);
   const withSeed = decodeHeartbeat(encodeHeartbeat({ ...hb, seed: 0xffffffff, arms: 0 }));
   const legacy = decodeHeartbeat(encodeHeartbeat(hb).split(',').slice(0, 12).join(','));
   check('the heartbeat carries a track seed and the weapons switch; an older one means built-in track, weapons on',
     withSeed.seed === 0xffffffff && withSeed.arms === 0 && legacy.seed === 0 && legacy.arms === 1);
+  const bare = decodeHeartbeat(encodeHeartbeat({ ...hb, pick: 0, boost: 0 }));
+  const oldArms = decodeHeartbeat(encodeHeartbeat(hb).split(',').slice(0, 14).join(','));
+  check('it carries the power-ups and turbo switches too; an older one means both on',
+    bare.pick === 0 && bare.boost === 0 && bare.arms === 1 && oldArms.pick === 1 && oldArms.boost === 1);
   check('a full heartbeat (six humans, all finished) round-trips', d2.grid.length === 6 && d2.finish.length === 6 && d2.finish[5].t === STAMP_WRAP - 1 && d2.phase === 'F');
-  // 184 since M7: a track seed (up to 7 characters) and the weapons switch joined the heartbeat.
-  check('and is at most 184 bytes, as budgeted', enc2.length <= 184, `${enc2.length} bytes`);
+  // 184 since M7: a track seed (up to 7 characters) and the weapons switch joined the heartbeat;
+  // 188 once the power-ups and turbo switches did.
+  check('and is at most 188 bytes, as budgeted', enc2.length <= 188, `${enc2.length} bytes`);
 
   const pres = encodePresence({ name: 'A LONG NAME,WITH,COMMAS', colour: 'vermilion', host: 1, alive: 1, ready: 0, ver: '0.1.99', look: '000000' });
   const dp = decodePresence(pres);

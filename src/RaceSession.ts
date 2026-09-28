@@ -85,6 +85,8 @@ export interface HudSnapshot {
   split: { delta: number; age: number } | null;
   /** Weapons in this race at all (off in a hotlap or a race-only room). */
   weapons: boolean;
+  /** Turbo in this race at all; off, the meter is not shown. */
+  turboOn: boolean;
   /** The followed car's health (0-100), ammo, and whether it is wrecked. */
   hp: number;
   ammo: { front: number; rear: number; mines: number };
@@ -111,6 +113,10 @@ export interface SessionOptions {
   look?: CarLook;
   /** Weapons on; off makes a race-only race (M7). A hotlap never has them. */
   weapons?: boolean;
+  /** Boxes on the road in a race (the default). */
+  pickups?: boolean;
+  /** Turbo on (the default). */
+  turbo?: boolean;
 }
 
 /**
@@ -195,6 +201,8 @@ export class RaceSession {
       const race = opts.mode === 'race';
       this.world = new World(opts.track, {
         laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0, weapons: race && opts.weapons !== false,
+        // The switches belong to a race: a hotlap always has its turbo.
+        pickups: opts.pickups !== false, turbo: !race || opts.turbo !== false,
         // A hotlap starts a quarter of a lap back, so the first timed lap is a flying one.
         flyingStart: race ? 0 : 0.25,
       });
@@ -554,6 +562,7 @@ export class RaceSession {
       record: this.record?.time ?? null,
       split: this.splitAt >= 0 && w.time - this.splitAt < 3 ? { delta: this.splitDelta, age: w.time - this.splitAt } : null,
       weapons: w.weapons,
+      turboOn: w.turbo,
       speedKmh: Math.hypot(car.vx, car.vz) * 3.6,
       turbo: car.turbo,
       fps: this.fps,

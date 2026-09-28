@@ -105,6 +105,8 @@ export class RaceSession {
             const race = opts.mode === 'race';
             this.world = new World(opts.track, {
                 laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0, weapons: race && opts.weapons !== false,
+                // The switches belong to a race: a hotlap always has its turbo.
+                pickups: opts.pickups !== false, turbo: !race || opts.turbo !== false,
                 // A hotlap starts a quarter of a lap back, so the first timed lap is a flying one.
                 flyingStart: race ? 0 : 0.25,
             });
@@ -479,6 +481,7 @@ export class RaceSession {
             record: this.record?.time ?? null,
             split: this.splitAt >= 0 && w.time - this.splitAt < 3 ? { delta: this.splitDelta, age: w.time - this.splitAt } : null,
             weapons: w.weapons,
+            turboOn: w.turbo,
             speedKmh: Math.hypot(car.vx, car.vz) * 3.6,
             turbo: car.turbo,
             fps: this.fps,
