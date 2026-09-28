@@ -51,7 +51,11 @@ export class RoomClient {
     this.net.start();
     this.stopTicker = startTicker(() => {
       this.clock.pump();
-      if (document.hidden) this.net.update();
+      // Hidden, rAF stops; and with no race on screen (the lobby, the results
+      // after Back to lobby) nothing else calls update. The host's director
+      // lives in update: undriven, a host that went back to the lobby early
+      // left the room in its results phase for good, and Start did nothing.
+      if (document.hidden || this.clock.now() - this.net.lastUpdateAt > 100) this.net.update();
     });
   }
 

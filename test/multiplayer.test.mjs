@@ -160,7 +160,10 @@ try {
   r.check('the race reaches the results on both screens, in the same order', norm(orderA, 'ALICE') === norm(orderB, 'BOB'), norm(orderA, 'ALICE'));
   const botName = orderA.split(',').find((n) => n !== 'YOU' && n !== 'BOB');
   r.check('the bot races under a driver\'s name, the same on both screens', Boolean(botName) && !/^BOT/.test(botName) && orderB.includes(botName), botName ?? '');
-  // Back to lobby goes straight there, before the room itself goes back.
+  // Back to lobby goes straight there, before the room itself goes back. The
+  // host too: with its race screen gone nothing drove the room, it stayed in
+  // its results phase for good, and Start did nothing (found in play).
+  await a.click('#btn-again');
   await b.click('#btn-again');
   const early = await b.evaluate(() => [!document.getElementById('screen-lobby').hidden, window.nitro.room.net.phase]);
   r.check('Back to lobby on the results goes straight back to the lobby', early[0] === true, `lobby shown in phase ${early[1]}`);

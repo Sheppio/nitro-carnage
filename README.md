@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.36**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.37**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -476,6 +476,14 @@ to 5 s in one go. A browser test holds each tab within 100 ms of the room clock,
 remote cars jumping on at most one frame in ten. The old code failed it at 1.8 s
 behind, with 88 frames in 138 jumping. The in-memory broker gained a `jitter` setting
 (random extra delay per message) for tests like this.
+
+**The room is driven between races too.** The host's director (lobby, countdown,
+race, results, and back) runs in `NetRace.update`, which the race screen called every
+frame. A host that pressed Back to lobby on the results closed the race screen, so
+nothing called it. The room stayed in its results phase for good, and Start did
+nothing. Now the page's ticker calls `update` whenever nothing else has for 100 ms. A
+browser test has the host go back early and then start the next race; the old code
+fails it.
 
 **The lobby, after play-testing.**
 - **Your name** can be changed in the lobby as well as the menu. It's the same saved

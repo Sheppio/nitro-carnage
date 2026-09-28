@@ -249,6 +249,11 @@ export class NetRace {
    *
    * @returns render interpolation alpha for the world, as `World.advance`
    */
+  /** When `update` last ran, clock ms: the page's ticker drives it when nothing else has. */
+  get lastUpdateAt(): number {
+    return this.lastUpdate;
+  }
+
   update(): number {
     if (!this.started) return 0;
     const now = this.clock.now();
