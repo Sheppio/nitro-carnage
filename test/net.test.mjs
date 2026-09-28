@@ -122,6 +122,10 @@ console.log('\nnet.test\n\ncodecs');
   check('weapon events (fire, mine, hit, mine trigger, wreck) round-trip', wb.length === 5 && wb[0].weapon === 1 && Math.abs(wb[0].yaw - 6.2) < 0.005
     && wb[1].x === 4095.9 && wb[2].slot === 5 && wb[2].dmg === 30 && wb[3].seq === 1295 && wb[4].slot === -1 && wb[4].n === 35);
   // PLAN §5.9 budgets them at 22, 18, 16, 6 and 6 bytes typical; these are the worst cases.
+  const pick = { k: 'pick', i: 8, t: 36 ** 5 - 1 };
+  const pb = decodeEvents(encodeEvents([pick]));
+  check('a pickup taken round-trips, in a few bytes', pb.length === 1 && pb[0].k === 'pick' && pb[0].i === 8 && pb[0].t === pick.t && encodeEvents([pick]).length <= 10,
+    `"${encodeEvents([pick])}"`);
   check('and stay small at their worst', sizes[0] <= 26 && sizes[1] <= 22 && sizes[2] <= 22 && sizes[3] <= 8 && sizes[4] <= 7, sizes.join(' / ') + ' bytes');
 
   // One client's cars in one message: its own (id in the topic) and two bots, one with events.
@@ -727,6 +731,12 @@ function dropFirst(room, ...tags) {
   // Frames where some screen still shows an old health: a packet in flight, not a disagreement.
   const frames = 300000 / 16;
   check('and every screen agrees on every car\'s health, bar a packet in flight', drift / frames < 0.3, `${(100 * drift / frames).toFixed(1)}% of frame-pairs behind`);
+  // Pickups: each box's return time, as every screen has it. A take heard a
+  // packet late may be a step or two out, never a box apart.
+  const backs = room.clients.map((c) => [...c.net.world.pickups.back]);
+  const agree = backs[0].every((b, i) => backs.every((o) => Math.abs(o[i] - b) < 0.5));
+  check('every screen agrees on which pickup boxes were taken, and when they come back', agree && backs[0].some((b) => b > 0),
+    `${backs[0].filter((b) => b > 0).length} of ${backs[0].length} boxes taken at least once`);
   const told = logs.map((l) => JSON.stringify([...l.kills].sort()) + JSON.stringify([...l.wrecked].sort()));
   check('and every screen tells the same story: who wrecked whom, for the awards and the tally', new Set(told).size === 1 && logs[0].feed.length > 0,
     `${logs[0].feed.length} wrecks in the feed`);

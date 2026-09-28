@@ -223,6 +223,9 @@ export class Hud {
             if (info && done === 1)
                 this.banner(`${info.name} WINS`, 2.5);
         }
+        else if (ev.kind === 'pickup' && ev.id === me) {
+            this.banner(ev.pick === 'ammo' ? '+ AMMO' : ev.pick === 'repair' ? '+ REPAIR' : 'TURBO FULL', 1.2);
+        }
         else if (ev.kind === 'respawn' && ev.id === me) {
             this.banner('BACK ON TRACK', 1.5, true);
         }

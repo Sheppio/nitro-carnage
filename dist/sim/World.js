@@ -9,6 +9,7 @@ import { Armoury } from './weapons.js';
 import { closestSegSeg } from './collide.js';
 import { Surface } from './surfaces.js';
 import { crossingBusy, TRAIN_HALF_WIDTH, trainAt, trainSegment } from './train.js';
+import { Pickups } from './pickups.js';
 import { Track } from './track/buildTrack.js';
 /** Seconds a car may crawl while its driver is trying to go before it is put back on the road. */
 export const STUCK_RESPAWN = 3;
@@ -48,6 +49,8 @@ export class World {
     contacts = new Map();
     /** Every missile and mine in the race. */
     armoury;
+    /** The boxes on the road; none in a free drive or a hotlap. */
+    pickups;
     /**
      * Called at the start of every step with the world time the step will end
      * at, after the previous poses are saved: the moment to pose remote cars.
@@ -61,6 +64,7 @@ export class World {
         this.flyingStart = opts.flyingStart ?? 0;
         this.steps = Math.round((opts.elapsed ?? 0) / STEP);
         this.armoury = new Armoury(this.track);
+        this.pickups = this.laps > 0 && this.flyingStart === 0 && opts.pickups !== false ? new Pickups(this.track, this.weapons) : null;
     }
     /** Simulated seconds since the world began. */
     get time() {
@@ -223,6 +227,8 @@ export class World {
             e.cooldown.rear = Math.max(0, e.cooldown.rear - STEP);
             if (armed && !e.lap.finished)
                 this.fire(e, end);
+            if (racing && this.pickups && !e.lap.finished)
+                this.collect(e, end);
             if (e.car.peakImpact > SIM.car.impactDamageSpeed) {
                 const by = end - e.lastAttackAt <= W.creditWindow ? e.lastAttacker : null;
                 this.damage(e, (e.car.peakImpact - SIM.car.impactDamageSpeed) * SIM.car.impactDamage, by, false);
@@ -292,6 +298,29 @@ export class World {
         e.s = p.s;
         e.d = p.d;
         this.events.push({ kind: 'respawn', id: e.id, time: this.time });
+    }
+    /* -------------------------------------------------------------- pickups */
+    /** Take a box this car is touching, if there is one, and have what's in it. */
+    collect(e, t) {
+        const pk = this.pickups;
+        const i = pk.touching(e.car.x, e.car.z, t);
+        if (i < 0)
+            return;
+        pk.take(i, t);
+        const kind = pk.spots[i].kind;
+        const P = SIM.pickups;
+        if (kind === 'ammo') {
+            e.ammo.front = Math.min(P.ammoCap.front, e.ammo.front + P.ammo.front);
+            e.ammo.rear = Math.min(P.ammoCap.rear, e.ammo.rear + P.ammo.rear);
+            e.ammo.mines = Math.min(P.ammoCap.mines, e.ammo.mines + P.ammo.mines);
+        }
+        else if (kind === 'repair') {
+            e.hp = Math.min(W.health, e.hp + P.repair);
+        }
+        else {
+            e.car.turbo = SIM.car.turboCapacity * e.stats.turbo;
+        }
+        this.events.push({ kind: 'pickup', id: e.id, i, pick: kind, time: t });
     }
     /* -------------------------------------------------------------- weapons */
     /** Act on this step's trigger presses, if the car has the ammo and the gun is ready. */

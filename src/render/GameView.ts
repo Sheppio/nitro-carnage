@@ -15,6 +15,8 @@ import { themeFor } from './themes.js';
 import { buildTrackMesh } from './TrackMesh.js';
 import { WeaponView } from './WeaponView.js';
 import { HazardView } from './HazardView.js';
+import { PickupView } from './PickupView.js';
+import type { Pickups } from '../sim/pickups.js';
 import type { Armoury } from '../sim/weapons.js';
 import { missileAt } from '../sim/weapons.js';
 
@@ -170,6 +172,20 @@ export class GameView {
     st.forward = pose.speed;
     this.ghost.root.visible = true;
     this.ghost.update(st, 1 / 60);
+  }
+
+  private pickupView: PickupView | null = null;
+
+  /** Show a race's pickup boxes. */
+  setPickups(pickups: Pickups | null): void {
+    if (this.pickupView) this.scene.remove(this.pickupView.group);
+    this.pickupView = new PickupView(pickups);
+    this.scene.add(this.pickupView.group);
+  }
+
+  /** The pickup boxes, at a world time. */
+  drawPickups(t: number, dt: number): void {
+    this.pickupView?.update(t, dt);
   }
 
   /** The train and the crossing, at a race time (seconds since GO). */

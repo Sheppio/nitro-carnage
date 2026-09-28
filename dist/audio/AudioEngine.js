@@ -255,6 +255,11 @@ export class AudioEngine {
     respawn() {
         this.tone(300, 0.35, 'sine', 0.1, 0, 900);
     }
+    /** Took a pickup box: a quick rising chirp. */
+    pickup() {
+        this.tone(660, 0.12, 'square', 0.07, 0, 1320);
+        this.tone(990, 0.16, 'sine', 0.06, 0.07, 1980);
+    }
     /** The level-crossing bell, while its lights are on. */
     bell(distance) {
         if (!this.gate('bell', 480))

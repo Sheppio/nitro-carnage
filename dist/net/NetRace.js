@@ -433,6 +433,9 @@ export class NetRace {
             if (e)
                 this.publisher.say(ev.id, { k: 'wreck', slot: ev.by ? this.state.grid.indexOf(ev.by) : -1, n: e.wrecks });
         }
+        else if (ev.kind === 'pickup') {
+            this.publisher.say(ev.id, { k: 'pick', i: ev.i, t: toMs(ev.time) });
+        }
         else if (ev.kind === 'bump' && ev.remote) {
             const slot = this.state.grid.indexOf(ev.remote);
             if (slot >= 0)

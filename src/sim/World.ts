@@ -14,6 +14,8 @@ import { closestSegSeg } from './collide.js';
 import { Surface } from './surfaces.js';
 import { crossingBusy, TRAIN_HALF_WIDTH, trainAt, trainSegment } from './train.js';
 import type { MissileKind, Target, WeaponKind } from './weapons.js';
+import { Pickups } from './pickups.js';
+import type { PickupKind } from './pickups.js';
 import { Track } from './track/buildTrack.js';
 import type { TrackDef } from './track/TrackDef.js';
 
@@ -100,7 +102,9 @@ export type RaceEvent =
   | { kind: 'damage'; id: string; amount: number; hp: number; by: string | null }
   | { kind: 'wreck'; id: string; by: string | null; x: number; z: number; time: number }
   /** A car this world drives was hit by the train. */
-  | { kind: 'train'; id: string; closing: number };
+  | { kind: 'train'; id: string; closing: number }
+  /** A car this world drives took a box off the road. */
+  | { kind: 'pickup'; id: string; i: number; pick: PickupKind; time: number };
 
 export interface WorldOptions {
   /** Race length in laps; 0 is a free drive. */
@@ -120,6 +124,8 @@ export interface WorldOptions {
    * the first timed lap is at racing speed.
    */
   flyingStart?: number;
+  /** Boxes on the road in a race (the default). Off for tests that want the driving alone. */
+  pickups?: boolean;
 }
 
 /**
@@ -151,6 +157,8 @@ export class World {
   private contacts = new Map<string, number>();
   /** Every missile and mine in the race. */
   readonly armoury: Armoury;
+  /** The boxes on the road; none in a free drive or a hotlap. */
+  readonly pickups: Pickups | null;
   /**
    * Called at the start of every step with the world time the step will end
    * at, after the previous poses are saved: the moment to pose remote cars.
@@ -165,6 +173,7 @@ export class World {
     this.flyingStart = opts.flyingStart ?? 0;
     this.steps = Math.round((opts.elapsed ?? 0) / STEP);
     this.armoury = new Armoury(this.track);
+    this.pickups = this.laps > 0 && this.flyingStart === 0 && opts.pickups !== false ? new Pickups(this.track, this.weapons) : null;
   }
 
   /** Simulated seconds since the world began. */
@@ -336,6 +345,7 @@ export class World {
       e.cooldown.front = Math.max(0, e.cooldown.front - STEP);
       e.cooldown.rear = Math.max(0, e.cooldown.rear - STEP);
       if (armed && !e.lap.finished) this.fire(e, end);
+      if (racing && this.pickups && !e.lap.finished) this.collect(e, end);
       if (e.car.peakImpact > SIM.car.impactDamageSpeed) {
         const by = end - e.lastAttackAt <= W.creditWindow ? e.lastAttacker : null;
         this.damage(e, (e.car.peakImpact - SIM.car.impactDamageSpeed) * SIM.car.impactDamage, by, false);
@@ -404,6 +414,28 @@ export class World {
     e.s = p.s;
     e.d = p.d;
     this.events.push({ kind: 'respawn', id: e.id, time: this.time });
+  }
+
+  /* -------------------------------------------------------------- pickups */
+
+  /** Take a box this car is touching, if there is one, and have what's in it. */
+  private collect(e: Entrant, t: number): void {
+    const pk = this.pickups!;
+    const i = pk.touching(e.car.x, e.car.z, t);
+    if (i < 0) return;
+    pk.take(i, t);
+    const kind = pk.spots[i]!.kind;
+    const P = SIM.pickups;
+    if (kind === 'ammo') {
+      e.ammo.front = Math.min(P.ammoCap.front, e.ammo.front + P.ammo.front);
+      e.ammo.rear = Math.min(P.ammoCap.rear, e.ammo.rear + P.ammo.rear);
+      e.ammo.mines = Math.min(P.ammoCap.mines, e.ammo.mines + P.ammo.mines);
+    } else if (kind === 'repair') {
+      e.hp = Math.min(W.health, e.hp + P.repair);
+    } else {
+      e.car.turbo = SIM.car.turboCapacity * e.stats.turbo;
+    }
+    this.events.push({ kind: 'pickup', id: e.id, i, pick: kind, time: t });
   }
 
   /* -------------------------------------------------------------- weapons */

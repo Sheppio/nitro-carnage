@@ -104,6 +104,20 @@ export const SIM = {
     /** A wall that wrecks a car this soon after somebody hit it counts as their wreck. */
     creditWindow: 4,
   },
+  /** Boxes on the road (see `sim/pickups.ts`). */
+  pickups: {
+    /** Rows of three across the road, spread round the lap. */
+    rows: 3,
+    /** Seconds a taken box is gone. */
+    respawn: 8,
+    /** How close a car's centre must come to take one, metres. */
+    radius: 2.4,
+    /** What an ammo box adds, and the most a car may carry. */
+    ammo: { front: 4, rear: 2, mines: 1 },
+    ammoCap: { front: 20, rear: 10, mines: 6 },
+    /** Health a repair box gives back. */
+    repair: 40,
+  },
 } as const;
 
 export type QualityId = 'potato' | 'low' | 'medium' | 'high';

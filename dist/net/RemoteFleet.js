@@ -119,6 +119,8 @@ export class RemoteFleet {
                 return `t:${id}:${ev.slot}:${ev.seq}`;
             case 'wreck':
                 return `w:${id}:${ev.n}`;
+            case 'pick':
+                return `p:${id}:${ev.i}:${ev.t}`;
             default:
                 return null;
         }
@@ -152,6 +154,10 @@ export class RemoteFleet {
                     const p = { ...(rc.packet ?? packetOf(e, now)), x: ev.x, z: ev.z, yaw: ev.yaw, vx: 0, vz: 0, w: 0, t: now };
                     rc.receive(p, now, this.clock.now(), true);
                 }
+            }
+            else if (ev.k === 'pick') {
+                // Somebody else's car took a box: gone here too, until it comes back.
+                w.pickups?.take(ev.i, w.goTime + ev.t / 1000);
             }
             else if (ev.k === 'bump') {
                 const target = race.grid[ev.slot];

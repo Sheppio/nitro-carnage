@@ -182,6 +182,8 @@ export const HAPTIC = {
   landing: { weak: 0.15, strong: 0.6, ms: 90 },
   /** Each light of the countdown: a tap, so GO lands harder. */
   count: { weak: 0.25, strong: 0.2, ms: 80 },
+  /** Took a pickup box: a light double tick. */
+  pickup: { weak: 0.4, strong: 0.1, ms: 70 },
   /** The lights go green. */
   go: { weak: 0.6, strong: 0.3, ms: 140 },
   /** Menu focus moved. */

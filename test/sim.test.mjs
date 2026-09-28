@@ -16,6 +16,7 @@ import { STUCK_RESPAWN, GHOST_TIME } from '../dist/sim/World.js';
 import { TRACKS } from '../dist/sim/track/index.js';
 import { World } from '../dist/sim/World.js';
 import { RaceLog, awards, Tally } from '../dist/sim/raceLog.js';
+import { pickupSpots } from '../dist/sim/pickups.js';
 import { interpolateCar } from '../dist/sim/interpolate.js';
 import { resolveColours, PALETTE } from '../dist/sim/palette.js';
 import { applyDeadzone1, filterAxis } from '../dist/input/sources.js';
@@ -1517,6 +1518,75 @@ console.log('\nawards and the room tally');
     st.map((r) => `${r.id}:${r.points}`).join(' '));
   check('and counts races, wrecks and bots', tally.races === 2 && st[0].kills === 6 && st.find((r) => r.id === 'C').bot);
   check('the nemesis is whoever has wrecked you most', tally.nemesis('B')?.id === 'A' && tally.nemesis('B').count === 6 && tally.nemesis('A') === null);
+}
+
+/* ---------------------------------------------------------------- pickups */
+
+console.log('\npickups');
+
+{
+  const tracks = [...TRACKS, ...['alpha', 'mud-pie', 'zebra-fox', 'quay'].map((w) => generateTrack(seedOf(w)))];
+  let placed = true, onRoad = true, clear = true;
+  const notes = [];
+  for (const def of tracks) {
+    const t = new Track(def);
+    const spots = pickupSpots(t, true);
+    if (spots.length !== SIM.pickups.rows * 3) { placed = false; notes.push(`${def.name}: ${spots.length}`); }
+    for (const p of spots) {
+      const pr = t.project(p.x, p.z);
+      if (Math.abs(pr.d) > t.halfWidth - 1) { onRoad = false; notes.push(`${def.name} off road ${pr.d.toFixed(1)}`); }
+      const fromLine = Math.min(pr.s, t.length - pr.s);
+      if (fromLine < 40) { clear = false; notes.push(`${def.name} on the grid`); }
+    }
+  }
+  check('every track, built-in or seeded, gets its rows of pickup boxes', placed, notes.join('; '));
+  check('every box stands on the road, inside the kerbs', onRoad, notes.join('; '));
+  check('and none on the grid', clear, notes.join('; '));
+  const one = pickupSpots(new Track(TRACKS[0]), true);
+  check('each row has one of each: ammo, repair, turbo', ['ammo', 'repair', 'turbo'].every((k) => one.filter((p) => p.kind === k).length === SIM.pickups.rows));
+  check('with weapons off every box is turbo', pickupSpots(new Track(TRACKS[0]), false).every((p) => p.kind === 'turbo'));
+  check('the same track puts them in the same places every time', JSON.stringify(one) === JSON.stringify(pickupSpots(new Track(TRACKS[0]), true)));
+  check('a hotlap has none', new World(TRACKS[0], { laps: 0, countdown: 0, flyingStart: 0.25 }).pickups === null);
+}
+
+{
+  // A car driven onto each kind of box gets what's in it, and the box goes.
+  const w = new World(TRACKS[0], { laps: 3, countdown: 0 });
+  const e = w.addCar('p', 0, () => ({ throttle: 0, brake: 0, steer: 0, handbrake: false, turbo: false, fireFront: false, fireRear: false }));
+  w.step();
+  const pk = w.pickups;
+  const at = (kind) => pk.spots.findIndex((p) => p.kind === kind);
+  const put = (i) => { e.car.x = pk.spots[i].x; e.car.z = pk.spots[i].z; e.car.vx = e.car.vz = 0; };
+  e.ammo = { front: 1, rear: 0, mines: 0 };
+  put(at('ammo')); w.step();
+  const evs = w.drain().filter((x) => x.kind === 'pickup');
+  check('an ammo box adds missiles, rear missiles and a mine', e.ammo.front === 1 + SIM.pickups.ammo.front && e.ammo.rear === SIM.pickups.ammo.rear && e.ammo.mines === SIM.pickups.ammo.mines && evs.length === 1 && evs[0].pick === 'ammo', JSON.stringify(e.ammo));
+  check('and is gone', !pk.here(at('ammo'), w.time));
+  e.ammo = { front: 19, rear: 10, mines: 6 };
+  const ammo2 = pk.spots.findIndex((p, i) => p.kind === 'ammo' && i !== at('ammo'));
+  put(ammo2); w.step();
+  check('but never past what a car can carry', e.ammo.front === SIM.pickups.ammoCap.front && e.ammo.rear === SIM.pickups.ammoCap.rear && e.ammo.mines === SIM.pickups.ammoCap.mines);
+  e.hp = 30;
+  put(at('repair')); w.step();
+  check('a repair box gives health back', e.hp === 30 + SIM.pickups.repair);
+  e.car.turbo = 0;
+  put(at('turbo')); w.step();
+  check('a turbo box fills the turbo', e.car.turbo === SIM.car.turboCapacity);
+  const i = at('ammo');
+  const back = pk.back[i];
+  check('a taken box comes back after its respawn time', !pk.here(i, back - 0.01) && pk.here(i, back) && Math.abs(back - w.time - SIM.pickups.respawn) < 1);
+}
+
+{
+  // Bots on their racing line run through the rows and take boxes.
+  const w = new World(TRACKS[0], { laps: 3, countdown: 0, weapons: true });
+  for (let b = 0; b < 4; b++) w.addBot(`b${b}`, b, SKILLS[0], 1000 + b);
+  let taken = 0;
+  for (let k = 0; k < 60 * 70; k++) {
+    w.step();
+    taken += w.drain().filter((x) => x.kind === 'pickup').length;
+  }
+  check('bots racing a few laps pick boxes up on the way', taken >= 4, `${taken} taken`);
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);

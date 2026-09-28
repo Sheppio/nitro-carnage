@@ -307,7 +307,13 @@ export class AudioEngine {
     this.tone(300, 0.35, 'sine', 0.1, 0, 900);
   }
 
-  /** The level-crossing bell, while its lights are on. */
+  /** Took a pickup box: a quick rising chirp. */
+  pickup(): void {
+    this.tone(660, 0.12, 'square', 0.07, 0, 1320);
+    this.tone(990, 0.16, 'sine', 0.06, 0.07, 1980);
+  }
+
+    /** The level-crossing bell, while its lights are on. */
   bell(distance: number): void {
     if (!this.gate('bell', 480)) return;
     const k = AudioEngine.near(distance);

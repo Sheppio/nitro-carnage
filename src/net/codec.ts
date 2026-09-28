@@ -15,8 +15,9 @@
 /**
  * The wire protocol's version. 1: a topic per car for state and another for
  * events. 2: one message per client carrying all its cars, events inside.
+ * 3: pickups, which an older build would neither see taken nor take.
  */
-export const WIRE = 2;
+export const WIRE = 3;
 
 const FLD = ',';
 const LIST = '.';
@@ -158,7 +159,9 @@ export type CarEvent =
   /** I drove over mine `seq` of the car in grid slot `slot`. */
   | { k: 'trigger'; slot: number; seq: number }
   /** I was wrecked for the `n`th time, by the car in grid slot `slot` (-1: nobody). */
-  | { k: 'wreck'; slot: number; n: number };
+  | { k: 'wreck'; slot: number; n: number }
+  /** I took pickup box `i` at race time `t` ms. */
+  | { k: 'pick'; i: number; t: number };
 
 const yaw36 = (yaw: number): string => b36(((Math.round((yaw / TURN) * 1296) % 1296) + 1296) % 1296);
 
@@ -196,6 +199,9 @@ export function encodeEvents(events: readonly CarEvent[]): string {
       case 'wreck':
         parts.push(`D:${b36(e.slot)},${b36(e.n)}`);
         break;
+      case 'pick':
+        parts.push(`P:${b36(e.i)},${b36(e.t)}`);
+        break;
     }
   }
   return parts.join(REC);
@@ -220,6 +226,7 @@ export function decodeEvents(payload: string): CarEvent[] {
       out.push({ k: 'hit', seq: un36(f[0]), slot: un36(f[1]), weapon: f[2] === '1' ? 1 : 0, dmg: un36(f[3]), x: un36(f[4]) / 10, z: un36(f[5]) / 10 });
     } else if (tag === 'T' && f.length >= 2) out.push({ k: 'trigger', slot: un36(f[0]), seq: un36(f[1]) });
     else if (tag === 'D' && f.length >= 1) out.push({ k: 'wreck', slot: un36(f[0]), n: un36(f[1]) });
+    else if (tag === 'P' && f.length >= 2) out.push({ k: 'pick', i: un36(f[0]), t: un36(f[1]) });
   }
   return out;
 }

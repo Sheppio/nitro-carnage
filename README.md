@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.48**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.49**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -19,6 +19,9 @@ up to six players. Bots fill the empty grid slots.
 > - **Hotlap** has replaced free drive: you, the clock and your record on each track,
 >   with live splits at every checkpoint.
 > - **Race only.** Rooms and quick races can switch the weapons off.
+> - **Game night.** Pickup boxes on the road (ammo, repairs, turbo). A room keeps
+>   score across the evening, hands out awards, shows a kill feed and a podium, and
+>   the host can start a rematch straight from the results. A TV layout for consoles.
 > - **Also in the game:** the Garage's five body styles and liveries (M6); three
 >   hand-built circuits with a train, a quay and synthesised sound (M5); weapons (M4);
 >   and rooms of up to six (M3). Every screen works from the arrow keys, a controller or
@@ -57,7 +60,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 812 checks: simulation and networking (Node), and real browsers
+npm test           # 828 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to

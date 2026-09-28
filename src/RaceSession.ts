@@ -219,6 +219,7 @@ export class RaceSession {
     }
 
     this.view = new GameView(host, this.world.track, opts.quality);
+    this.view.setPickups(this.world.pickups);
     for (const e of this.world.entrants) {
       const info = this.cars.get(e.id)!;
       this.view.addCar(e.id, info.colour, info.look);
@@ -318,6 +319,7 @@ export class RaceSession {
     const drawTime = this.world.time - (1 - alpha) * STEP;
     this.view.drawWeapons(this.world.armoury, drawTime, this.paused && !this.net ? 0 : dt, this.drawn.values());
     this.view.drawHazards(drawTime - this.world.goTime, dt);
+    this.view.drawPickups(drawTime, this.paused && !this.net ? 0 : dt);
     if (this.mode === 'hotlap') this.hotlapFrame(drawTime);
     this.sound(drawTime - this.world.goTime);
     this.startFrame();
@@ -441,6 +443,8 @@ export class RaceSession {
       if (ev.id === this.playerId) this.input.rumble(HAPTIC.wreck.weak, HAPTIC.wreck.strong, HAPTIC.wreck.ms);
     } else if (ev.kind === 'fire' && ev.id === this.playerId) {
       this.input.rumble(HAPTIC.fire.weak, HAPTIC.fire.strong, HAPTIC.fire.ms);
+    } else if (ev.kind === 'pickup' && ev.id === this.playerId) {
+      this.input.rumble(HAPTIC.pickup.weak, HAPTIC.pickup.strong, HAPTIC.pickup.ms);
     }
     this.onEvent?.(ev);
     if (!this.net) this.checkOver();
@@ -483,6 +487,9 @@ export class RaceSession {
         break;
       case 'respawn':
         if (ev.id === this.playerId) a.respawn();
+        break;
+      case 'pickup':
+        if (ev.id === this.playerId) a.pickup();
         break;
     }
   }

@@ -11,6 +11,7 @@ import { themeFor } from './themes.js';
 import { buildTrackMesh } from './TrackMesh.js';
 import { WeaponView } from './WeaponView.js';
 import { HazardView } from './HazardView.js';
+import { PickupView } from './PickupView.js';
 import { missileAt } from '../sim/weapons.js';
 /** How far out the cut-away hole reaches around a car, in metres at the car. */
 const CUT_RADIUS_M = 6.5;
@@ -149,6 +150,18 @@ export class GameView {
         st.forward = pose.speed;
         this.ghost.root.visible = true;
         this.ghost.update(st, 1 / 60);
+    }
+    pickupView = null;
+    /** Show a race's pickup boxes. */
+    setPickups(pickups) {
+        if (this.pickupView)
+            this.scene.remove(this.pickupView.group);
+        this.pickupView = new PickupView(pickups);
+        this.scene.add(this.pickupView.group);
+    }
+    /** The pickup boxes, at a world time. */
+    drawPickups(t, dt) {
+        this.pickupView?.update(t, dt);
     }
     /** The train and the crossing, at a race time (seconds since GO). */
     drawHazards(raceTime, dt) {

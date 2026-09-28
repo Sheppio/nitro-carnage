@@ -47,9 +47,9 @@ interface Owned {
  * the copies. Laps, respawns and bumps are not repeated: a lap rides in the
  * car state anyway, and a respawn or bump applied twice would be wrong.
  */
-const REPEATED = new Set<CarEvent['k']>(['fire', 'mine', 'hit', 'trigger', 'wreck', 'finish', 'cooldown']);
+const REPEATED = new Set<CarEvent['k']>(['fire', 'mine', 'hit', 'trigger', 'wreck', 'finish', 'cooldown', 'pick']);
 /** Events that should not wait out the send schedule: a shot is worth its 50 ms, and so is a shove. */
-const URGENT = new Set<CarEvent['k']>(['fire', 'mine', 'hit', 'trigger', 'bump']);
+const URGENT = new Set<CarEvent['k']>(['fire', 'mine', 'hit', 'trigger', 'bump', 'pick']);
 
 /**
  * Everything this client tells the room about the cars it drives — its own,

@@ -212,6 +212,8 @@ export class Hud {
       const info = this.session.cars.get(ev.id);
       const done = w.entrants.filter((e) => e.lap.finished).length;
       if (info && done === 1) this.banner(`${info.name} WINS`, 2.5);
+    } else if (ev.kind === 'pickup' && ev.id === me) {
+      this.banner(ev.pick === 'ammo' ? '+ AMMO' : ev.pick === 'repair' ? '+ REPAIR' : 'TURBO FULL', 1.2);
     } else if (ev.kind === 'respawn' && ev.id === me) {
       this.banner('BACK ON TRACK', 1.5, true);
     } else if (ev.kind === 'wreck' && ev.by === me && ev.id !== me) {

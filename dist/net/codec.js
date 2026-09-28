@@ -14,8 +14,9 @@
 /**
  * The wire protocol's version. 1: a topic per car for state and another for
  * events. 2: one message per client carrying all its cars, events inside.
+ * 3: pickups, which an older build would neither see taken nor take.
  */
-export const WIRE = 2;
+export const WIRE = 3;
 const FLD = ',';
 const LIST = '.';
 const REC = '|';
@@ -140,6 +141,9 @@ export function encodeEvents(events) {
             case 'wreck':
                 parts.push(`D:${b36(e.slot)},${b36(e.n)}`);
                 break;
+            case 'pick':
+                parts.push(`P:${b36(e.i)},${b36(e.t)}`);
+                break;
         }
     }
     return parts.join(REC);
@@ -174,6 +178,8 @@ export function decodeEvents(payload) {
             out.push({ k: 'trigger', slot: un36(f[0]), seq: un36(f[1]) });
         else if (tag === 'D' && f.length >= 1)
             out.push({ k: 'wreck', slot: un36(f[0]), n: un36(f[1]) });
+        else if (tag === 'P' && f.length >= 2)
+            out.push({ k: 'pick', i: un36(f[0]), t: un36(f[1]) });
     }
     return out;
 }
