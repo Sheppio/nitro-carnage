@@ -11,7 +11,7 @@ glitchburst already solved a problem, we reuse its solution and say so. Where th
 needs something different, mostly because it's PvP and because cars move fast, the plan
 explains why.
 
-> **Status:** M1 to M7, M9 and M10 are built (see README). M8 is deferred. Where building changed a decision, this plan has been
+> **Status:** M1 to M7, M9 and M10 are built (see README). M8 and the super weapon are on the back burner, with no plans to build them soon. Where building changed a decision, this plan has been
 > updated to match, and the change is marked with its milestone, as in *(M1)* or *(M4)*.
 
 ---
@@ -290,7 +290,7 @@ Each lap is about 1.2–1.8 km, so about 35–45 s. A race is 3–5 laps.
 | Rear missile | fired backwards, 70 m/s, 1.2 s | 20 *(M4: was 25)* | packs of 5 |
 | Mine | dropped behind, arms after 0.6 s, lasts 45 s, pulsing light | 30 *(M4: was 35)* | packs of 3 |
 | Turbo | meter, not ammo; capacity and power by upgrade | — | upgrade + pickup refill |
-| Super weapon | one-shot; see the design below *(M5 design pass; not built)* | — | later |
+| Super weapon | one-shot; see the design below *(M5 design pass; on the back burner with M8)* | — | later |
 
 - A projectile is fully determined by `(origin, angle, weapon, t_fire, seed)`. Every
   client simulates it, fast-forwarding from `t_fire` on arrival so late packets catch up.
@@ -1086,9 +1086,9 @@ reloads a best lap, and a race-only room races with no weapon events on the wire
   `TrackDef` bytes, which is what decides the track;*
 - *the autopilot laps a hundred generated seeds cleanly, rather than a thousand, to
   keep CI quick; all thousand are validated;*
-- *the ghost of your best lap stays a stretch goal.)*
+- *the ghost of your best lap was built later (`sim/ghost.ts`), with a setting for how far ahead it runs.)*
 
-**M8 — Shop, upgrades and the championship** *(deferred: moved to the end after M4; it may be dropped to keep the game simple)*.
+**M8 — Shop, upgrades and the championship** *(on the back burner: moved to the end after M4, and not planned for the near future; it may be dropped to keep the game simple)*.
 `economy.ts`, `championship.ts`, the host ledger, shop UI, upgrades feeding physics,
 reverse-order grids, the summary screen, and bot shopping.
 *Done when* the ledger survives host failover in tests and a 3-race championship with
