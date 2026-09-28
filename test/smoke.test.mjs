@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 /**
  * Single-client browser suite: boot, menus, driving, the camera, the
  * occlusion cut-away and the draw-call budget, in real Chromium on
@@ -380,6 +381,28 @@ try {
   const shadows = await hi.evaluate(() => window.nitro.session.view.renderer.shadowMap.enabled);
   r.check('high quality renders with shadows inside 150 draw calls', shadows && calls > 0 && calls < 150, `${calls} draw calls`);
   await hi.close();
+
+  /* ------------------------------------------------------- link preview */
+  // What WhatsApp and friends read when a link is pasted: an absolute
+  // og:image, and that picture really is in the repo at 1200x630 and small.
+  {
+    const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const meta = (p) => html.match(new RegExp(`property="${p}" content="([^"]+)"`))?.[1];
+    const img = meta('og:image') ?? '';
+    const file = new URL('../' + img.replace('https://sheppio.github.io/nitro-carnage/', ''), import.meta.url);
+    const bytes = fs.existsSync(file) ? fs.statSync(file).size : 0;
+    const jpg = bytes ? fs.readFileSync(file) : null;
+    // A JPEG's size, from its first start-of-frame marker.
+    let size = '';
+    for (let i = 2; jpg && i < jpg.length - 9; ) {
+      const m = jpg[i + 1], len = jpg.readUInt16BE(i + 2);
+      if (m >= 0xc0 && m <= 0xc2) { size = `${jpg.readUInt16BE(i + 7)}x${jpg.readUInt16BE(i + 5)}`; break; }
+      i += 2 + len;
+    }
+    r.check('a pasted link previews: og:title, og:description and an absolute og:image, 1200x630 and under 300 KB',
+      Boolean(meta('og:title') && meta('og:description')) && img.startsWith('https://') && size === '1200x630' && bytes < 300 * 1024,
+      `${img} ${size} ${(bytes / 1024).toFixed(0)} KB`);
+  }
 
   /* --------------------------------------------------- the daily link */
   // ?daily: today's Track of the Day as a hotlap, on the track screen with

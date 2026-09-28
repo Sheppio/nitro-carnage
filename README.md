@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.39**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.40**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 775 checks: simulation and networking (Node), and real browsers
+npm test           # 776 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -1132,7 +1132,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-775 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+776 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1217,7 +1217,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (56, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (57, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
@@ -1417,6 +1417,25 @@ The browser suite polls for outcomes and never sleeps for a fixed time. At
 SwiftShader's few frames a second, a sleep tuned on a laptop is a flake.
 
 ---
+
+## Link previews
+
+Paste the game's link into WhatsApp, iMessage, Slack, Discord or X and it unfolds into
+a card: a picture, the title, a line about the game. The app fetches the page once and
+reads the Open Graph `<meta>` tags in its head (`og:title`, `og:description`,
+`og:image`, plus `twitter:card` for X). The crawlers don't run JavaScript, so the
+picture must be a real file at an absolute URL. That file is `docs/share.jpg`: a real
+frame of a six-car race on Neon Downtown, HUD hidden, with the title over it. It is
+1200×630, the size the cards expect, and 70 KB, under WhatsApp's ~300 KB limit. `npm run
+share:image` makes it again. A smoke check reads the tags and the file's size.
+
+- **Every link shows the same card**, `?daily` and room links included. GitHub Pages
+  serves one static `index.html` whatever the query string, and the crawlers never see
+  what the page's script would draw. A card per room, or today's track in the picture,
+  would need a server (or a scheduled job committing a fresh image each day).
+- **WhatsApp caches** a link's card, sometimes for days, so a link pasted before the
+  tags were published may keep showing none. A new query string (`?v=2`) counts as a
+  new link.
 
 ## Deployment
 
