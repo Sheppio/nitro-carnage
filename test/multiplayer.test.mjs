@@ -57,6 +57,27 @@ try {
   });
   r.check('two players asking for the same colour get different ones', new Set(colours).size === 2, colours.join(' / '));
 
+  // Colour by squares: a click on one changes Bob's colour for everyone.
+  const bob = await b.evaluate(() => window.nitro.room.net.playerId);
+  await b.click('#lobby-colour .swatch[title="Jade"]');
+  const jade = await until(() => a.evaluate((id) => (window.nitro.room.net.room.resolvedColours()[id] === 'jade' ? true : null), bob));
+  r.check('a colour square picks your colour, and the room sees it', Boolean(jade));
+
+  // The lobby's map shows the host's track on the guest's screen too.
+  await a.selectOption('#lobby-track', 'seed');
+  await a.fill('#lobby-seed', 'egg-cup-top');
+  await a.dispatchEvent('#lobby-seed', 'change');
+  const mapped = await until(() => b.evaluate(() => {
+    const info = document.getElementById('lobby-track-info').textContent;
+    const c = document.getElementById('lobby-track-map');
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let lit = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) lit++;
+    return window.nitro.room.net.state.seed !== 0 && lit > 0 && info.length > 0 ? info : null;
+  }));
+  r.check('the lobby draws a map of the room\'s track, on the guest\'s screen too', Boolean(mapped), mapped ?? '');
+  await a.selectOption('#lobby-track', '0');
+
   // Bob's look, set in his Garage, reaches Alice's lobby.
   await b.evaluate(() => {
     document.getElementById('btn-lobby-garage').click();

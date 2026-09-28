@@ -514,8 +514,8 @@ lobbyName.addEventListener('input', () => {
     room?.net.room.setIdentity(playerName(), colourId, encodeLook(look));
     lobby?.render();
 });
-$('lobby-colour').addEventListener('change', (e) => {
-    colourId = e.target.value;
+$('lobby-colour').addEventListener('change', () => {
+    colourId = $('lobby-colour').dataset.value ?? colourId;
     store.set(COLOUR_KEY, colourId);
     room?.net.room.setIdentity(playerName(), colourId, encodeLook(look));
     lobby?.render();

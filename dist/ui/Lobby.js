@@ -1,7 +1,9 @@
-import { colourOf, PALETTE } from '../sim/palette.js';
+import { PALETTE } from '../sim/palette.js';
 import { TRACKS } from '../sim/track/index.js';
 import { daySeed, generateTrack } from '../sim/track/generate.js';
 import { carIcon } from './carIcon.js';
+import { Picker } from './Picker.js';
+import { drawTrackPreview } from './trackPreview.js';
 const $ = (id) => document.getElementById(id);
 /**
  * The room's staging area: who is here, in which colour, and — for the host —
@@ -15,14 +17,12 @@ export class Lobby {
         $('lobby-code').textContent = roomId;
         const link = `${location.origin}${location.pathname}?room=${roomId}`;
         $('lobby-link').textContent = link;
-        const colour = $('lobby-colour');
-        colour.replaceChildren(...PALETTE.map((c) => {
-            const o = document.createElement('option');
-            o.value = c.id;
-            o.textContent = c.name;
-            return o;
-        }));
+        // Colour squares, not a dropdown: a colour is better seen than read.
+        this.colour = new Picker($('lobby-colour'), PALETTE.map((c) => ({ value: c.id, label: c.name, swatch: c.cssColour })));
     }
+    colour;
+    /** The track the preview last drew, so a redraw only happens when it changes. */
+    drawn = '';
     /** Redraw from the room as it stands. */
     render() {
         const net = this.net;
@@ -50,13 +50,9 @@ export class Lobby {
         // Colour picker: the colour you actually have (a clash may have moved
         // you off the one you asked for), with other people's marked.
         const mine = colours[net.playerId] ?? room.claimedColour;
-        const select = $('lobby-colour');
-        for (const o of select.options) {
-            const owner = Object.entries(colours).find(([pid, c]) => c === o.value && pid !== net.playerId);
-            o.textContent = colourOf(o.value).name + (owner ? ' (taken)' : '');
-        }
-        if (select.value !== mine)
-            select.value = mine;
+        this.colour.mark(new Set(Object.entries(colours).filter(([pid]) => pid !== net.playerId).map(([, c]) => c)), 'taken');
+        if (this.colour.value !== mine)
+            this.colour.value = mine;
         $('lobby-cars').value = String(net.state.cars);
         $('lobby-laps').value = String(net.state.laps);
         const st = net.state;
@@ -69,6 +65,13 @@ export class Lobby {
         $('lobby-weapons').value = String(st.arms);
         $('lobby-wait').hidden = net.isHost;
         const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? 'Track of the day · ' : ''}${generateTrack(st.seed).name}`;
+        // A map of the room's track, for everyone: a seed is only a word until it's seen.
+        const key = `${st.track}:${st.seed}`;
+        if (key !== this.drawn) {
+            this.drawn = key;
+            const def = st.seed === 0 ? TRACKS[st.track] ?? TRACKS[0] : generateTrack(st.seed);
+            drawTrackPreview($('lobby-track-map'), $('lobby-track-info'), def, track);
+        }
         $('lobby-wait').textContent = room.hostId
             ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}. Waiting for the host to start it.`
             : 'Looking for the room…';

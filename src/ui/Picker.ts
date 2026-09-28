@@ -85,6 +85,13 @@ export class Picker {
     this.index = i;
     this.show();
     this.onChange?.(this.value);
+    // As a <select> would: so page code can listen without holding the picker.
+    this.el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  /** Mark squares (say, colours somebody else has) with a class; the rest lose it. */
+  mark(values: ReadonlySet<string>, cls: string): void {
+    this.squares.forEach((sq, i) => sq.classList.toggle(cls, values.has(this.items[i]!.value)));
   }
 
   private show(): void {

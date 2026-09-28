@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.38**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.39**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 773 checks: simulation and networking (Node), and real browsers
+npm test           # 775 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -489,6 +489,17 @@ fails it.
 and everything after it along whenever the speed crossed 10 or 100 km/h. It is now a
 fixed three-digit box, right-aligned. A smoke check sets it to 0, 8, 88 and 188, and
 the bar doesn't move.
+
+**The lobby shows the track, and picks colours by squares.**
+- **A map of the room's track** sits beside Laps: the same little map and one-line
+  description as the track screen, drawn from the room's heartbeat. The guests see it
+  too, which matters most for a seed: until it's drawn, it's only a word. It is
+  redrawn only when the track changes.
+- **Your colour** is a row of colour squares, like the Garage's, across the lobby's
+  full width. A colour somebody else is wearing is dimmed and struck through. It can
+  still be picked, and the room sorts out clashes as before.
+- **On a Steam Deck** (1280×800) the map and the squares pushed Garage and Leave off
+  the bottom. On wide, short screens the roster now goes into two columns.
 
 **The lobby, after play-testing.**
 - **Your name** can be changed in the lobby as well as the menu. It's the same saved
@@ -1121,7 +1132,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-773 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+775 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1236,7 +1247,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
-- **`multiplayer.test.mjs`** (23, browser, up to four tabs): a room forms from a code
+- **`multiplayer.test.mjs`** (25, browser, up to four tabs): a room forms from a code
   and a share link; one host; colour clashes; a look chosen in one tab's Garage shows
   in the other's lobby; only the host can start; a missile fired
   in one tab flies in the other; a race to the

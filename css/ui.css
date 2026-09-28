@@ -586,6 +586,15 @@ input[type='text'] {
   .menu-card.wide { width: min(860px, 100%); }
 }
 .lobby-grid > * { min-width: 0; }
+/* Wide but short screens (a Steam Deck's 1280x800): the roster in two columns,
+   so the colour squares and the track map leave room for Start on screen. */
+@media (min-width: 720px) and (max-height: 820px) {
+  .roster { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 8px; }
+}
+/* The colour squares get the lobby's whole width: ten of them don't fit half. */
+.lobby-grid .wide-row { grid-column: 1 / -1; }
+/* A colour somebody else has: still pickable (the room sorts clashes out), but marked. */
+.swatch.taken { opacity: 0.35; background-image: linear-gradient(135deg, transparent 45%, rgba(0, 0, 0, 0.7) 45%, rgba(0, 0, 0, 0.7) 55%, transparent 55%); }
 .lobby-grid .field select, .lobby-grid .field input { min-width: 0; max-width: 62%; }
 .lobby-grid .seed-row .field input { max-width: none; flex: 1 1 auto; }
 body:not(.is-host) .host-only { display: none !important; }
