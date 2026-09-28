@@ -51,6 +51,24 @@ try {
   });
   r.check('Create room and Join room share a line on the menu', rooms);
 
+  // The short lists are ‹ arrows › over a hidden dropdown: an arrow steps the
+  // dropdown and fires its change, and code setting the dropdown redraws the arrows.
+  const steppers = await page.evaluate(() => {
+    const sel = document.getElementById('set-bots');
+    const pick = document.getElementById('set-bots-pick');
+    const was = sel.value;
+    let changed = 0;
+    sel.addEventListener('change', () => changed++, { once: true });
+    pick.querySelector('.step:last-child').click();
+    const stepped = sel.value !== was && changed === 1 && pick.textContent.includes(sel.selectedOptions[0].textContent);
+    sel.value = 'easy';
+    const redrawn = pick.querySelector('.picker-value').textContent === 'Easy';
+    sel.value = was;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    return stepped && redrawn;
+  });
+  r.check('arrows in place of the short dropdowns step the dropdown, and redraw when code sets it', steppers);
+
   // Track of the day: one press from the menu into a hotlap on today's track, turbo off.
   {
     const dp = await openPage('quality=potato');
@@ -524,14 +542,14 @@ try {
   await gp.click('#btn-race');
   await gp.click('#btn-garage');
   await gp.waitForSelector('#screen-garage:not([hidden])');
-  // No dropdowns but the number: arrows to click through, colour squares to click on.
-  const noSelects = await gp.evaluate(() => [...document.querySelectorAll('#screen-garage select')].map((s) => s.id).join());
+  // No dropdowns at all: arrows to click through (the race number too), colour squares to click on.
+  const noSelects = await gp.evaluate(() => [...document.querySelectorAll('#screen-garage select:not(.stepped)')].map((s) => s.id).join());
   await gp.click('#garage-body .step:last-child');
   const clickedBody = await gp.evaluate(() => window.nitro.garage.current.body);
   await gp.click('#garage-stripe .swatch[title="Jade"]');
   const clickedStripe = await gp.evaluate(() => [window.nitro.garage.current.stripe, document.querySelectorAll('#garage-stripe .swatch.on').length]);
-  r.check('the Garage picks by arrows and colour squares; only the race number is a dropdown',
-    noSelects === 'garage-number' && clickedBody === 'hatch' && clickedStripe[0] === 'jade' && clickedStripe[1] === 1, `${noSelects}; › gave ${clickedBody}; square gave ${clickedStripe[0]}`);
+  r.check('the Garage picks by arrows and colour squares, the race number included; no dropdowns',
+    noSelects === '' && clickedBody === 'hatch' && clickedStripe[0] === 'jade' && clickedStripe[1] === 1, `${noSelects}; › gave ${clickedBody}; square gave ${clickedStripe[0]}`);
   // A quick race's Garage picks the car's colour too; silver among them.
   const picked = await gp.evaluate(() => !document.getElementById('garage-colour-row').hidden);
   await gp.click('#garage-colour .swatch[title="Silver"]');

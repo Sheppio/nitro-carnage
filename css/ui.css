@@ -824,6 +824,13 @@ body:not(.is-host) .host-only { display: none !important; }
 }
 .picker .step:hover { background: rgba(255, 255, 255, 0.08); }
 .picker-value { flex: 1; text-align: center; padding: 8px 0; white-space: nowrap; }
+/* A dropdown under arrows: kept in the page for its value, out of sight and reach. */
+select.stepped { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.field:has(> select.stepped) { position: relative; }
+.select-stepper { flex: 0 1 auto; min-width: 150px; }
+.select-stepper .picker-value { overflow: hidden; text-overflow: ellipsis; }
+/* In two columns there is half the room: the arrows take what the dropdown had. */
+.lobby-grid .select-stepper { min-width: 0; max-width: 62%; flex-basis: 62%; }
 .picker.swatches { gap: 6px; flex-wrap: wrap; justify-content: flex-end; padding: 3px; }
 .swatch {
   width: 26px;

@@ -63,7 +63,7 @@ try {
   await page.locator('#btn-race').scrollIntoViewIfNeeded();
   await page.tap('#btn-race');
   await page.waitForSelector('#screen-track:not([hidden])');
-  const trackBad = await covered(page, '#screen-track button, #screen-track select, #screen-track input');
+  const trackBad = await covered(page, '#screen-track button, #screen-track select:not(.stepped), #screen-track input, #screen-track .select-stepper .step');
   r.check('Quick race opens the track screen, every control of it tappable', trackBad.length === 0, trackBad.join(', '));
   await page.locator('#btn-track-go').scrollIntoViewIfNeeded();
   await page.tap('#btn-track-go');

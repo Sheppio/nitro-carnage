@@ -256,7 +256,8 @@ try {
   await until(() => page.evaluate(() => !document.getElementById('screen-settings').hidden));
   const visited = new Set();
   for (let k = 0; k < 18; k++) {
-    visited.add(await focused(page));
+    // A dropdown under arrows is visited as its arrows, `<id>-pick`.
+    visited.add((await focused(page)).replace(/-pick$/, ''));
     await tap(page, B.DOWN);
   }
   const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-bots', 'set-fov', 'set-names', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
@@ -276,7 +277,8 @@ try {
   const clipped = async (screen) => deck.evaluate((sel) => {
     const root = document.querySelector(sel);
     const bad = [];
-    for (const el of root.querySelectorAll('button, input, select')) {
+    // A dropdown under arrows is meant to be covered: its arrows are checked instead.
+    for (const el of root.querySelectorAll('button, input, select:not(.stepped), .select-stepper')) {
       if (!el.getClientRects().length) continue;
       const b = el.getBoundingClientRect();
       if (b.left < 0 || b.top < 0 || b.right > innerWidth || b.bottom > innerHeight) bad.push(el.id || el.textContent.trim());

@@ -89,4 +89,90 @@ export class Picker {
         });
     }
 }
+/**
+ * The ‹ Name › arrows in front of an existing `<select>`, which stays in the
+ * page, hidden, as the value everything else reads and writes: page code
+ * setting `.value`, change listeners, and tests picking an option all carry
+ * on as before. Stepping sets the select and fires its `change`; setting the
+ * select from code redraws the arrows.
+ *
+ * Options may be added after (the car-type list is filled in at boot): the
+ * list is read afresh on every step.
+ */
+export function stepperFor(select) {
+    const el = document.createElement('div');
+    el.className = 'picker stepper select-stepper';
+    if (select.id)
+        el.id = `${select.id}-pick`;
+    el.tabIndex = 0;
+    el.dataset.nav = '';
+    el.dataset.navCycle = '';
+    el.setAttribute('role', 'spinbutton');
+    const label = select.closest('label')?.querySelector('span')?.textContent;
+    if (label)
+        el.setAttribute('aria-label', label);
+    const text = document.createElement('span');
+    text.className = 'picker-value';
+    const arrow = (glyph, name, dir) => {
+        const a = document.createElement('span');
+        a.className = 'step';
+        a.textContent = glyph;
+        a.setAttribute('aria-label', name);
+        a.addEventListener('click', (e) => {
+            // Inside a <label>: a click would otherwise also go to the select.
+            e.preventDefault();
+            step(dir);
+        });
+        return a;
+    };
+    const show = () => {
+        const o = select.options[select.selectedIndex];
+        text.textContent = o?.textContent ?? '';
+        el.dataset.value = select.value;
+        el.setAttribute('aria-valuetext', text.textContent);
+    };
+    const step = (dir) => {
+        const n = select.options.length;
+        if (n < 2 || select.disabled)
+            return;
+        select.selectedIndex = (select.selectedIndex + dir + n) % n;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    el.replaceChildren(arrow('‹', 'Previous', -1), text, arrow('›', 'Next', 1));
+    el.addEventListener('nc:cycle', (e) => step(e.detail.dir));
+    el.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented)
+            return;
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            step(e.key === 'ArrowRight' ? 1 : -1);
+        }
+    });
+    select.addEventListener('change', show);
+    // Code sets the select without an event (a room's settings arriving): redraw then too.
+    const proto = HTMLSelectElement.prototype;
+    for (const prop of ['value', 'selectedIndex']) {
+        const d = Object.getOwnPropertyDescriptor(proto, prop);
+        Object.defineProperty(select, prop, {
+            configurable: true,
+            get() {
+                return d.get.call(this);
+            },
+            set(v) {
+                d.set.call(this, v);
+                show();
+            },
+        });
+    }
+    // Kept for the value and for tests, but out of sight and out of the focus ring.
+    select.classList.add('stepped');
+    select.tabIndex = -1;
+    select.dataset.navSkip = '';
+    select.setAttribute('aria-hidden', 'true');
+    select.after(el);
+    show();
+    // Options filled in later (or replaced) change the label under the arrows.
+    new MutationObserver(show).observe(select, { childList: true, subtree: true });
+    return el;
+}
 //# sourceMappingURL=Picker.js.map

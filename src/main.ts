@@ -30,6 +30,7 @@ import { GamepadNavigator } from './ui/GamepadNavigator.js';
 import { formatTime, Hud } from './ui/Hud.js';
 import { Keyboard } from './ui/Keyboard.js';
 import { ChoiceList } from './ui/ChoiceList.js';
+import { stepperFor } from './ui/Picker.js';
 import { Lobby } from './ui/Lobby.js';
 import { awards, Tally } from './sim/raceLog.js';
 import { isBotId } from './sim/bots.js';
@@ -259,6 +260,17 @@ for (const id of ['menu-body', 'lobby-body']) {
     ...BODIES.map((b) => new Option(`All ${BODY_NAMES[b]}`, String(bodyCode(b)))),
   );
 }
+/**
+ * The Garage's ‹ arrows › in place of dropdowns, for the short lists: the
+ * race's switches, the room's, the race number and the settings. The track
+ * lists stay dropdowns: thirty tracks in groups are better seen as a list.
+ */
+for (const id of [
+  'menu-laps', 'menu-weapons', 'menu-pickups', 'menu-turbo', 'menu-body',
+  'lobby-cars', 'lobby-laps', 'lobby-weapons', 'lobby-pickups', 'lobby-turbo', 'lobby-body',
+  'garage-number',
+  'set-quality', 'set-touch', 'set-bots', 'set-ghost', 'set-uisize', 'set-names', 'set-broker',
+]) stepperFor($<HTMLSelectElement>(id));
 const menuBody = $<HTMLSelectElement>('menu-body');
 menuBody.value = store.get(BODY_KEY);
 if (!menuBody.value) menuBody.value = '0';

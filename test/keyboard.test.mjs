@@ -202,7 +202,7 @@ try {
     const x = await reach(page);
     r.check('garage: every control is reachable with the arrow keys', x.ok, x.note);
   }
-  await goTo(page, 'garage-number');
+  await goTo(page, 'garage-number-pick');
   const n0 = await page.evaluate(() => window.nitro.look.number);
   await page.keyboard.press('ArrowRight');
   const n1 = await page.evaluate(() => window.nitro.look.number);
