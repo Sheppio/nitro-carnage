@@ -24,7 +24,7 @@ import { mulberry32, wrapAngle } from '../dist/util.js';
 import { SIM } from '../dist/config.js';
 import { trainAt } from '../dist/sim/train.js';
 import { generateTrack, seedOf } from '../dist/sim/track/generate.js';
-import { encodeLook, decodeLook, botLook, DEFAULT_LOOK, BODIES, PATTERNS } from '../dist/sim/look.js';
+import { encodeLook, decodeLook, botLook, DEFAULT_LOOK, BODIES, PATTERNS, bodyCode, lockedLook } from '../dist/sim/look.js';
 
 let pass = 0;
 let fail = 0;
@@ -146,7 +146,7 @@ console.log('\nnet.test\n\ncodecs');
 
   const grid = Array.from({ length: 6 }, (_, i) => 'mfy2k3x9a' + String(i).padStart(4, '0'));
   const hb = { hostId: grid[0], seq: 1295, roomT: 36 ** 6 - 1, phase: 'F', race: 9, of: 9, track: 2, laps: 9, goAt: 36 ** 6 - 1, grid,
-    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1, pick: 1, boost: 1 };
+    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1, pick: 1, boost: 1, body: 0 };
   const enc2 = encodeHeartbeat(hb);
   const d2 = decodeHeartbeat(enc2);
   const withSeed = decodeHeartbeat(encodeHeartbeat({ ...hb, seed: 0xffffffff, arms: 0 }));
@@ -157,10 +157,17 @@ console.log('\nnet.test\n\ncodecs');
   const oldArms = decodeHeartbeat(encodeHeartbeat(hb).split(',').slice(0, 14).join(','));
   check('it carries the power-ups and turbo switches too; an older one means both on',
     bare.pick === 0 && bare.boost === 0 && bare.arms === 1 && oldArms.pick === 1 && oldArms.boost === 1);
+  const locked = decodeHeartbeat(encodeHeartbeat({ ...hb, body: bodyCode('f1') }));
+  const oldBody = decodeHeartbeat(encodeHeartbeat(hb).split(',').slice(0, 16).join(','));
+  check('it carries the car-type lock; an older one means everybody in their own car',
+    lockedLook(DEFAULT_LOOK, locked.body).body === 'f1' && oldBody.body === 0 && lockedLook(DEFAULT_LOOK, oldBody.body).body === DEFAULT_LOOK.body);
+  const mine = { body: 'buggy', pattern: 'roundel', stripe: 'jade', rims: 'gold', number: 42 };
+  check('a locked car keeps its own livery, rims and number; only the body changes',
+    JSON.stringify(lockedLook(mine, bodyCode('tractor'))) === JSON.stringify({ ...mine, body: 'tractor' }) && lockedLook(mine, 0) === mine && lockedLook(mine, 99) === mine);
   check('a full heartbeat (six humans, all finished) round-trips', d2.grid.length === 6 && d2.finish.length === 6 && d2.finish[5].t === STAMP_WRAP - 1 && d2.phase === 'F');
   // 184 since M7: a track seed (up to 7 characters) and the weapons switch joined the heartbeat;
-  // 188 once the power-ups and turbo switches did.
-  check('and is at most 188 bytes, as budgeted', enc2.length <= 188, `${enc2.length} bytes`);
+  // 190 once the power-ups and turbo switches and the car-type lock did.
+  check('and is at most 190 bytes, as budgeted', enc2.length <= 190, `${enc2.length} bytes`);
 
   const pres = encodePresence({ name: 'A LONG NAME,WITH,COMMAS', colour: 'vermilion', host: 1, alive: 1, ready: 0, ver: '0.1.99', look: '000000' });
   const dp = decodePresence(pres);

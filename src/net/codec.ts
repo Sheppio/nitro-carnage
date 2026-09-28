@@ -308,6 +308,8 @@ export interface Heartbeat {
   pick: number;
   /** Turbo on (1) or off (0). */
   boost: number;
+  /** Every car in one body (`bodyCode`), or 0 for everybody's own. */
+  body: number;
 }
 
 export function encodeHeartbeat(h: Heartbeat): string {
@@ -328,6 +330,7 @@ export function encodeHeartbeat(h: Heartbeat): string {
     b36(h.arms),
     b36(h.pick),
     b36(h.boost),
+    b36(h.body),
   ].join(FLD);
 }
 
@@ -360,6 +363,7 @@ export function decodeHeartbeat(payload: string): Heartbeat | null {
     // Nor do they send these: boxes and turbo on.
     pick: f[14] === undefined ? 1 : un36(f[14]),
     boost: f[15] === undefined ? 1 : un36(f[15]),
+    body: un36(f[16]),
   };
 }
 

@@ -6,7 +6,7 @@ import { botNames, isBotId } from '../sim/bots.js';
 import { COLOUR_ORDER, DEFAULT_COLOUR } from '../sim/palette.js';
 import { standings } from '../sim/race.js';
 import { generateTrack } from '../sim/track/generate.js';
-import { botLook, decodeLook } from '../sim/look.js';
+import { BODIES, botLook, decodeLook, lockedLook } from '../sim/look.js';
 import type { CarLook } from '../sim/look.js';
 import { racingLine } from '../sim/racingLine.js';
 import type { TrackDef } from '../sim/track/TrackDef.js';
@@ -198,13 +198,14 @@ export class NetRace {
   /** Host: change the lobby settings (cars on the grid, laps). */
   configure(
     cars: number, laps: number, track = this.state.track, seed = this.state.seed, arms = this.state.arms,
-    pick = this.state.pick, boost = this.state.boost,
+    pick = this.state.pick, boost = this.state.boost, body = this.state.body,
   ): void {
     if (!this.isHost || this.state.phase !== 'L') return;
     track = Math.max(0, Math.min(this.tracks.length - 1, Math.round(track) || 0));
     this.state = {
       ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(9, laps)), track,
       seed: seed >>> 0, arms: arms ? 1 : 0, pick: pick ? 1 : 0, boost: boost ? 1 : 0,
+      body: BODIES[body - 1] ? body : 0,
     };
     this.room.beatNow();
     this.events.emit('state', { state: this.state });
@@ -246,11 +247,11 @@ export class NetRace {
       const bots = this.state.grid.filter(isBotId);
       const k = Math.max(0, bots.indexOf(id));
       // Dressed from the room and the slot, which every client knows.
-      const look = botLook(hashString(`${this.room.roomId}:${id}`));
+      const look = lockedLook(botLook(hashString(`${this.room.roomId}:${id}`)), this.state.body);
       return { id, name: botNames(hashString(`${this.room.roomId}:names`), slot + 1)[slot]!, colour: free[k % free.length] ?? DEFAULT_COLOUR, bot: true, you: false, look };
     }
     const peer = this.room.peers.get(id);
-    const look = decodeLook(you ? this.room.look : peer?.look);
+    const look = lockedLook(decodeLook(you ? this.room.look : peer?.look), this.state.body);
     return { id, name: you ? this.room.displayName : (peer?.name ?? '—'), colour: colours[id] ?? DEFAULT_COLOUR, bot: false, you, look };
   }
 

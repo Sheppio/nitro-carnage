@@ -14,7 +14,7 @@ import { dateSeed, daySeed, generateTrack, seedOf, utcDay } from './sim/track/ge
 import { validTrace } from './sim/ghost.js';
 import { drawTrackPreview } from './ui/trackPreview.js';
 import { randomSeedText } from './sim/track/seedWords.js';
-import { decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
+import { BODIES, BODY_NAMES, bodyCode, decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
 import { GaragePreview } from './render/GaragePreview.js';
 import { PodiumView } from './render/PodiumView.js';
@@ -114,6 +114,7 @@ const SEED_KEY = `${SLUG}.seed`;
 const WEAPONS_KEY = `${SLUG}.weapons`;
 const PICKUPS_KEY = `${SLUG}.pickups`;
 const TURBO_KEY = `${SLUG}.turbo`;
+const BODY_KEY = `${SLUG}.body`;
 for (const sel of [$('menu-track'), $('lobby-track')]) {
     const opt = (value, text) => {
         const o = document.createElement('option');
@@ -229,6 +230,15 @@ menuPickups.addEventListener('change', () => store.set(PICKUPS_KEY, menuPickups.
 const menuTurbo = $('menu-turbo');
 menuTurbo.value = store.get(TURBO_KEY) === '0' ? '0' : '1';
 menuTurbo.addEventListener('change', () => store.set(TURBO_KEY, menuTurbo.value));
+/** The car-type lock's choices: everybody's own, or one body for the whole grid. Values are `bodyCode`s. */
+for (const id of ['menu-body', 'lobby-body']) {
+    $(id).replaceChildren(new Option('Any: everyone their own', '0'), ...BODIES.map((b) => new Option(`All ${BODY_NAMES[b]}`, String(bodyCode(b)))));
+}
+const menuBody = $('menu-body');
+menuBody.value = store.get(BODY_KEY);
+if (!menuBody.value)
+    menuBody.value = '0';
+menuBody.addEventListener('change', () => store.set(BODY_KEY, menuBody.value));
 /* ---------------------------------------------------------------- records */
 /** Hotlap bests, per track (a generated one by its seed), kept on this device. */
 // "best2": the tracks were shortened to ~30 s laps, and a record (and its
@@ -387,6 +397,7 @@ function chooseTrack(mode) {
     $('menu-weapons-row').hidden = mode === 'hotlap';
     $('menu-pickups-row').hidden = mode === 'hotlap';
     $('menu-turbo-row').hidden = mode === 'hotlap';
+    $('menu-body-row').hidden = mode === 'hotlap';
     $('menu-laps-row').hidden = mode === 'hotlap';
     show('screen-track');
 }
@@ -402,7 +413,8 @@ function startOffline(mode) {
     }
     const track = choice.def;
     const s = new RaceSession(gameRoot, { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look,
-        weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0', turbo: menuTurbo.value !== '0' }, input, settings);
+        weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0', turbo: menuTurbo.value !== '0',
+        body: BODIES[Number(menuBody.value) - 1] }, input, settings);
     if (mode === 'hotlap')
         s.record = loadRecord(track);
     begin(mode, s, track, choice.label);
@@ -649,7 +661,7 @@ const lobbySettings = () => {
     // A future day's track never reaches the room: it keeps the last one.
     if (choice.locked)
         return;
-    room?.net.configure(Number($('lobby-cars').value), Number($('lobby-laps').value), choice.seed ? 0 : Number(pick), choice.seed, Number($('lobby-weapons').value), Number($('lobby-pickups').value), Number($('lobby-turbo').value));
+    room?.net.configure(Number($('lobby-cars').value), Number($('lobby-laps').value), choice.seed ? 0 : Number(pick), choice.seed, Number($('lobby-weapons').value), Number($('lobby-pickups').value), Number($('lobby-turbo').value), Number($('lobby-body').value));
 };
 $('lobby-cars').addEventListener('change', lobbySettings);
 $('lobby-laps').addEventListener('change', lobbySettings);
@@ -661,6 +673,7 @@ $('lobby-track').addEventListener('change', () => {
 $('lobby-weapons').addEventListener('change', lobbySettings);
 $('lobby-pickups').addEventListener('change', lobbySettings);
 $('lobby-turbo').addEventListener('change', lobbySettings);
+$('lobby-body').addEventListener('change', lobbySettings);
 $('lobby-seed').addEventListener('change', lobbySettings);
 // As in the menu, typing a seed switches the room to it; the rest of the room hears when the typing is done.
 $('lobby-seed').addEventListener('input', () => {

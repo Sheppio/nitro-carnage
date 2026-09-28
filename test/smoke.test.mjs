@@ -58,12 +58,12 @@ try {
     const shown = (id) => scr.contains(document.getElementById(id)) && document.getElementById(id).getClientRects().length > 0;
     return {
       has: ['menu-track', 'menu-seed', 'menu-seed-random', 'menu-track-map', 'menu-keys', 'btn-track-go'].every(shown),
-      weapons: shown('menu-weapons') || shown('menu-pickups') || shown('menu-turbo'),
+      weapons: shown('menu-weapons') || shown('menu-pickups') || shown('menu-turbo') || shown('menu-body'),
       title: document.getElementById('track-mode').textContent,
       keys: document.getElementById('menu-keys').textContent,
     };
   });
-  r.check('the menu keeps to the modes and settings; Hotlap opens a track screen with the seed, a map and the controls, and no weapons, power-ups or turbo switch',
+  r.check('the menu keeps to the modes and settings; Hotlap opens a track screen with the seed, a map and the controls, and no weapons, power-ups, turbo or car-type switch',
     onMenu.length === 0 && trackScreen.has && !trackScreen.weapons && trackScreen.title === 'Hotlap' && /Steer/.test(trackScreen.keys),
     `${onMenu.length ? `still on the menu: ${onMenu.join(' ')}; ` : ''}${trackScreen.title}, weapons ${trackScreen.weapons ? 'shown' : 'hidden'}`);
 

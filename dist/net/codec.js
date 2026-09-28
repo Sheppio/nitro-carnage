@@ -235,6 +235,7 @@ export function encodeHeartbeat(h) {
         b36(h.arms),
         b36(h.pick),
         b36(h.boost),
+        b36(h.body),
     ].join(FLD);
 }
 export function decodeHeartbeat(payload) {
@@ -268,6 +269,7 @@ export function decodeHeartbeat(payload) {
         // Nor do they send these: boxes and turbo on.
         pick: f[14] === undefined ? 1 : un36(f[14]),
         boost: f[15] === undefined ? 1 : un36(f[15]),
+        body: un36(f[16]),
     };
 }
 /** Names go inside a comma-delimited record, so they must not contain one. */

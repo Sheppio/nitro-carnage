@@ -19,7 +19,7 @@ import type { LapRecord, ResultRow } from './RaceSession.js';
 import { validTrace } from './sim/ghost.js';
 import { drawTrackPreview } from './ui/trackPreview.js';
 import { randomSeedText } from './sim/track/seedWords.js';
-import { decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
+import { BODIES, BODY_NAMES, bodyCode, decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import type { CarLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
 import { GaragePreview } from './render/GaragePreview.js';
@@ -139,6 +139,7 @@ const SEED_KEY = `${SLUG}.seed`;
 const WEAPONS_KEY = `${SLUG}.weapons`;
 const PICKUPS_KEY = `${SLUG}.pickups`;
 const TURBO_KEY = `${SLUG}.turbo`;
+const BODY_KEY = `${SLUG}.body`;
 for (const sel of [$<HTMLSelectElement>('menu-track'), $<HTMLSelectElement>('lobby-track')]) {
   const opt = (value: string, text: string): HTMLOptionElement => {
     const o = document.createElement('option');
@@ -251,6 +252,17 @@ menuPickups.addEventListener('change', () => store.set(PICKUPS_KEY, menuPickups.
 const menuTurbo = $<HTMLSelectElement>('menu-turbo');
 menuTurbo.value = store.get(TURBO_KEY) === '0' ? '0' : '1';
 menuTurbo.addEventListener('change', () => store.set(TURBO_KEY, menuTurbo.value));
+/** The car-type lock's choices: everybody's own, or one body for the whole grid. Values are `bodyCode`s. */
+for (const id of ['menu-body', 'lobby-body']) {
+  $<HTMLSelectElement>(id).replaceChildren(
+    new Option('Any: everyone their own', '0'),
+    ...BODIES.map((b) => new Option(`All ${BODY_NAMES[b]}`, String(bodyCode(b)))),
+  );
+}
+const menuBody = $<HTMLSelectElement>('menu-body');
+menuBody.value = store.get(BODY_KEY);
+if (!menuBody.value) menuBody.value = '0';
+menuBody.addEventListener('change', () => store.set(BODY_KEY, menuBody.value));
 
 /* ---------------------------------------------------------------- records */
 
@@ -410,6 +422,7 @@ function chooseTrack(mode: 'race' | 'hotlap'): void {
   $('menu-weapons-row').hidden = mode === 'hotlap';
   $('menu-pickups-row').hidden = mode === 'hotlap';
   $('menu-turbo-row').hidden = mode === 'hotlap';
+  $('menu-body-row').hidden = mode === 'hotlap';
   $('menu-laps-row').hidden = mode === 'hotlap';
   show('screen-track');
 }
@@ -428,7 +441,8 @@ function startOffline(mode: 'race' | 'hotlap'): void {
   const s = new RaceSession(
     gameRoot,
     { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look,
-      weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0', turbo: menuTurbo.value !== '0' },
+      weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0', turbo: menuTurbo.value !== '0',
+      body: BODIES[Number(menuBody.value) - 1] },
     input,
     settings,
   );
@@ -682,6 +696,7 @@ const lobbySettings = (): void => {
     Number($<HTMLSelectElement>('lobby-weapons').value),
     Number($<HTMLSelectElement>('lobby-pickups').value),
     Number($<HTMLSelectElement>('lobby-turbo').value),
+    Number($<HTMLSelectElement>('lobby-body').value),
   );
 };
 $('lobby-cars').addEventListener('change', lobbySettings);
@@ -693,6 +708,7 @@ $('lobby-track').addEventListener('change', () => {
 $('lobby-weapons').addEventListener('change', lobbySettings);
 $('lobby-pickups').addEventListener('change', lobbySettings);
 $('lobby-turbo').addEventListener('change', lobbySettings);
+$('lobby-body').addEventListener('change', lobbySettings);
 $('lobby-seed').addEventListener('change', lobbySettings);
 // As in the menu, typing a seed switches the room to it; the rest of the room hears when the typing is done.
 $('lobby-seed').addEventListener('input', () => {

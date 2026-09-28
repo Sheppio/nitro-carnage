@@ -56,6 +56,18 @@ export function decodeLook(s) {
         return { ...DEFAULT_LOOK };
     return { body, pattern, stripe, rims, number };
 }
+/**
+ * A race's car-type lock, as it travels: 0 for any body, else the body's
+ * index in BODIES plus one. `lockedLook` puts every car in that body and
+ * leaves the rest of its look alone.
+ */
+export function bodyCode(body) {
+    return body ? BODIES.indexOf(body) + 1 : 0;
+}
+export function lockedLook(look, code) {
+    const body = BODIES[code - 1];
+    return body ? { ...look, body } : look;
+}
 /** Coerce anything (stored JSON, a URL) into a valid look. */
 export function sanitizeLook(look) {
     const l = look ?? {};

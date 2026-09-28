@@ -3,6 +3,7 @@ import type { NetRace } from '../net/NetRace.js';
 import { PALETTE } from '../sim/palette.js';
 import { TRACKS } from '../sim/track/index.js';
 import { daySeed, generateTrack, utcDay } from '../sim/track/generate.js';
+import { BODIES, BODY_NAMES } from '../sim/look.js';
 import type { CarLook } from '../sim/look.js';
 import type { Tally } from '../sim/raceLog.js';
 import { carIcon } from './carIcon.js';
@@ -107,6 +108,7 @@ export class Lobby {
     $<HTMLSelectElement>('lobby-weapons').value = String(st.arms);
     $<HTMLSelectElement>('lobby-pickups').value = String(st.pick);
     $<HTMLSelectElement>('lobby-turbo').value = String(st.boost);
+    $<HTMLSelectElement>('lobby-body').value = String(st.body);
     $('lobby-wait').hidden = net.isHost;
     const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? `Track of the day ${utcDay(Date.now())} · ` : ''}${generateTrack(st.seed).name}`;
     // A map of the room's track, for everyone: a seed is only a word until it's seen.
@@ -122,7 +124,7 @@ export class Lobby {
       drawTrackPreview($<HTMLCanvasElement>('lobby-track-map'), $('lobby-track-info'), def, track);
     }
     $('lobby-wait').textContent = room.hostId
-      ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost ? '' : ', no turbo'}. Waiting for the host to start it.`
+      ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost ? '' : ', no turbo'}${BODIES[st.body - 1] ? `, everyone in a ${BODY_NAMES[BODIES[st.body - 1]!]}` : ''}. Waiting for the host to start it.`
       : 'Looking for the room…';
   }
 
