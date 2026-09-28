@@ -4,6 +4,9 @@ import { resolveWalls } from './collide.js';
 import type { CapsuleShape, WallSource } from './collide.js';
 import { Surface, SURFACES } from './surfaces.js';
 
+/** Seconds of turbo an empty meter must win back before it fires again. */
+export const TURBO_RESTART = 0.5;
+
 /**
  * Arcade car physics on the XZ plane.
  *
@@ -133,11 +136,16 @@ export function stepCar(car: CarState, intent: DriveIntent, env: CarEnv, dt: num
 
   car.handbrake = intent.handbrake && !car.airborne;
   car.throttle = intent.throttle;
+  // An empty turbo stays off until it has trickled back to TURBO_RESTART.
+  // Without that, a held turbo button spent each step's trickle at once, and
+  // at full force: the car boosted every other step for ever, flames and all.
+  const turboReady = car.boosting ? car.turbo > 0 : car.turbo >= TURBO_RESTART;
   car.boosting = false;
   car.braking = false;
   car.peakImpact = 0;
 
-  for (let k = 0; k < n; k++) substep(car, intent, env, h, stats);
+  const drive = turboReady ? intent : { ...intent, turbo: false };
+  for (let k = 0; k < n; k++) substep(car, drive, env, h, stats);
 
   // Body-frame acceleration over the whole step, for body roll and pitch.
   const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);

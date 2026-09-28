@@ -335,6 +335,10 @@ export class RaceSession {
   private sound(raceTime: number): void {
     const a = this.audio;
     if (!a) return;
+    // Stopped mid-frame: the race ending runs `onOver`, which stops the
+    // session, in the middle of this frame. Voicing engines after that
+    // started ones nothing would ever stop, and they droned under the menus.
+    if (!this.running) return;
     if (this.paused && !this.net) {
       a.silenceEngines();
       return;

@@ -234,6 +234,16 @@ console.log('\ncar physics');
   run(car, new OpenGround(), intent({ throttle: 1, turbo: true }), () => false, 3);
   check('turbo pushes past the normal top speed', speed(car) > top + 3, `${speed(car).toFixed(1)} m/s`);
   check('turbo drains while used', car.turbo < SIM.car.turboCapacity - 2.5, `${car.turbo.toFixed(2)} s left`);
+
+  // Held past empty, the turbo stops: no boost, no flames, back to normal top
+  // speed. It used to spend each step's trickle of recharge at full force,
+  // boosting every other step for ever.
+  run(car, new OpenGround(), intent({ throttle: 1, turbo: true }), () => car.turbo <= 0, 10);
+  let boosted = 0;
+  const atEmpty = speed(car);
+  run(car, new OpenGround(), intent({ throttle: 1, turbo: true }), (c) => { if (c.boosting) boosted++; return false; }, 5);
+  check('an empty turbo stops though held: no boosting and back to normal top speed until it has won back half a second', boosted === 0 && speed(car) < atEmpty - 5 && speed(car) < top + 1.5,
+    `${boosted} boosted steps, ${speed(car).toFixed(1)} m/s against ${top.toFixed(1)}`);
 }
 
 {

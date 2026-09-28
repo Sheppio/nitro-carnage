@@ -425,9 +425,13 @@ function scatter(track) {
             // A 40 ft box is 12.2 x 2.4 x 2.6 m. Lots hold a row of three side by
             // side, so stacks read as blocks with alleys between them.
             const [x0, z0, x1, z1] = rule.area;
+            // Lots repeat every 17 m one way and 13 m the other. A box turned
+            // across the 9 m lot is 12.2 m long, so at 12 m (as it was) the next
+            // lot's boxes overlapped it by 0.2 m end to end: their sides shared a
+            // plane there and flickered (z-fighting). 13 m leaves a 0.8 m gap.
             const LW = 14, LD = 9;
             for (let lx = x0; lx < x1; lx += LW + 3) {
-                for (let lz = z0; lz < z1; lz += LD + 3) {
+                for (let lz = z0; lz < z1; lz += LD + 4) {
                     const gap = rand();
                     const along = rand() < 0.5;
                     const seed = rand();

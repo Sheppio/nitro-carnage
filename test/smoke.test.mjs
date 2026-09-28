@@ -718,6 +718,12 @@ try {
     await snd.waitForTimeout(100);
   }
   r.check('six cars on track, but only the nearest three engines are voiced', most > 0 && most <= 3, `${most} at most`);
+  // The race ends inside a frame, and the menus after it are silent: the
+  // frame used to carry on and voice fresh engines that nothing stopped.
+  await snd.waitForSelector('#screen-results:not([hidden])', { timeout: 150000 });
+  await snd.waitForTimeout(800);
+  const after = await snd.evaluate(() => window.nitro.audio.engineVoices);
+  r.check('when the race ends, the engines stop: none drone on under the results and menus', after === 0, `${after} engines`);
   const muted = await snd.evaluate(async () => {
     const a = window.nitro.audio;
     window.nitro.settings.set('sfxVolume', 0);

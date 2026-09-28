@@ -24,6 +24,19 @@ export class GamepadNavigator {
     constructor(pad, root) {
         this.pad = pad;
         this.root = root;
+        // A field the ring locked is unlocked by a pointer or a real key: then
+        // it's a person with a mouse or a keyboard, who can type into it as usual.
+        const unlock = (el) => {
+            if (el instanceof HTMLInputElement && el.dataset.navLocked) {
+                el.readOnly = false;
+                delete el.dataset.navLocked;
+            }
+        };
+        document.addEventListener('pointerdown', (e) => unlock(e.target), true);
+        document.addEventListener('keydown', (e) => {
+            if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete')
+                unlock(document.activeElement);
+        }, true);
     }
     /** Notified when a pad appears or disappears, so the UI can show hints. */
     set onConnection(fn) {
@@ -39,8 +52,19 @@ export class GamepadNavigator {
         // navigator is stopped while there is a character to drive, and those are
         // gameplay keys then.
         window.addEventListener('keydown', this.onKeyDown, true);
+        // Buttons still held from the race are not presses on the menu.
+        this.pad.settleNav();
         this.tick();
     }
+    /**
+     * Ignore A and B (and Enter, Space, Esc) for a moment: a screen that
+     * appears by itself mid-drive, like the results, must not be dismissed by
+     * a handbrake tap the player made a split second before it appeared.
+     */
+    quiet(ms) {
+        this.quietUntil = performance.now() + ms;
+    }
+    quietUntil = 0;
     stop() {
         this.running = false;
         window.removeEventListener('keydown', this.onKeyDown, true);
@@ -117,6 +141,13 @@ export class GamepadNavigator {
         // A browser shortcut, not a menu press.
         if (event.metaKey || event.ctrlKey || event.altKey)
             return;
+        // A held key's auto-repeat is not a press: Space is the handbrake, and
+        // held across the finish it clicked straight through the results.
+        if (event.repeat && [' ', 'Enter', 'Escape', 'Backspace'].includes(event.key) && !isTextInput(document.activeElement)) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+        }
         const active = document.activeElement;
         const typing = active instanceof HTMLElement && isTextInput(active);
         const direction = event.key === 'ArrowUp' ? 'up'
@@ -300,6 +331,10 @@ export class GamepadNavigator {
         el.dispatchEvent(new Event('change', { bubbles: true }));
         this.pad.triggerRumble(HAPTIC.navigate.weak, HAPTIC.navigate.strong, HAPTIC.navigate.ms);
     }
+    /** Put the ring on an element from outside: a modal opening or closing. */
+    focusOn(el) {
+        this.focus(el);
+    }
     focus(el) {
         // Skip only if it really still has focus. An element that was hidden and
         // shown again (the pause menu's Resume, reopened) lost the browser's focus
@@ -312,12 +347,23 @@ export class GamepadNavigator {
         el.classList.add('nav-focus');
         el.focus({ preventScroll: true });
         // Arriving in a text box, the caret goes to the end: ready to add to it, and one more press right steps past it.
-        if (isTextInput(el))
+        if (isTextInput(el)) {
+            // With a controller, passing over a field must not raise the system
+            // keyboard: Xbox Edge opens its own for any focused, editable field, so
+            // every trip down the menu popped it up. Read-only, the field is only
+            // highlighted; A opens the game's keyboard, which writes to it anyway.
+            if (this.wasConnected && !el.readOnly) {
+                el.readOnly = true;
+                el.dataset.navLocked = '1';
+            }
             el.setSelectionRange(el.value.length, el.value.length);
+        }
         el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
         this.pad.triggerRumble(HAPTIC.navigate.weak, HAPTIC.navigate.strong, HAPTIC.navigate.ms);
     }
     confirm() {
+        if (performance.now() < this.quietUntil)
+            return;
         const el = this.current();
         if (!el) {
             this.focusFirst();
@@ -334,8 +380,9 @@ export class GamepadNavigator {
             return;
         }
         if (el instanceof HTMLSelectElement) {
-            // Never open the native popup — see `cycleSelect`.
-            this.cycleSelect(el, 1);
+            // Never the native popup (see `cycleSelect`): the game's own list of
+            // the options, which a pad can browse (ChoiceList).
+            document.dispatchEvent(new CustomEvent('nc:choose', { detail: { id: el.id } }));
             return;
         }
         el.click();
@@ -355,6 +402,8 @@ export class GamepadNavigator {
         return [...this.navScope().querySelectorAll('[data-nav-back]')].some((el) => !el.hidden && isVisible(el));
     }
     back() {
+        if (performance.now() < this.quietUntil)
+            return;
         for (const el of this.navScope().querySelectorAll('[data-nav-back]')) {
             if (!el.hidden && isVisible(el)) {
                 el.click();

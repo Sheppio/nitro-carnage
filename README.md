@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.42**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.43**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 780 checks: simulation and networking (Node), and real browsers
+npm test           # 786 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -868,6 +868,28 @@ hotlap record's ghost therefore still drives the road it was recorded on.
 Everything is synthesised with Web Audio, and there are no sound files:
 - **Engines.** Two detuned oscillators through a lowpass filter. Pitch climbs through
   six gears and drops at each change, and the throttle opens the filter.
+  - **Bug, found at the Docks (v0.1.43): container ends flickered** where two met.
+    Container lots repeated every 12 m, but a container turned across its lot is
+    12.2 m long, so the next lot's containers overlapped it by 0.2 m. Their sides
+    lay in the same plane there, and the depth buffer flipped between them every
+    frame (z-fighting). The lots now repeat every 13 m, leaving a 0.8 m gap between
+    ends. The container stacks move a little on every port track. Only the scenery
+    moves, not the tracks: containers are placed when the scenery is built, not
+    stored in the track data.
+  - **Bug, found on a hotlap (v0.1.43): an empty turbo never stopped.** The meter
+    trickles back when the turbo isn't in use. Held down, the button spent each
+    step's trickle at once, and at the turbo's full force, so the car boosted every
+    other step for as long as it was held: about half a turbo, for ever. The flames
+    and the sound flickered too fast to see, so they looked constant. Now an empty
+    turbo stays off until it has trickled back to half a second's worth
+    (`TURBO_RESTART`), about 6 s of trickle. A physics check holds the button for
+    5 s past empty and counts the boosted steps: none.
+  - **Bug, found on Xbox (v0.1.43): the engines droned on in the menus** after every
+    race. A race ends in the middle of a frame, and the end stops the session and
+    silences its engines. But the frame then carried on to its sound step and started
+    fresh engine voices, which nothing would ever stop. The sound step now does nothing
+    once the session has stopped, and a smoke check waits for a race to end and
+    counts the engines left: none.
 - **Tyres.** Squeal is band-passed noise, gated by how far the car is sliding.
 - **Weapons.** Missiles are a noise burst over a falling saw wave, and explosions a
   noise sweep over a sine drop.
@@ -1099,8 +1121,30 @@ drives a virtual pad in headless Chromium.
 
 - **Every screen works from the pad** (the ported spatial navigator). Dropdowns cycle
   in place, because a native popup is browser chrome a pad cannot reach.
+- **A on a dropdown lists every option.** Cycling suits Laps. It was no way to browse
+  twenty-odd tracks, and the Track of the day came last, and Xbox Edge shows no popup
+  at all. So A (or Enter) opens the game's own list: every option as a button, two
+  columns where there's room, under the dropdown's own headings (Nitro Carnage, Real
+  circuits, Generated). The current option is focused. Up and down move, A picks, B
+  cancels. Left and right still cycle in place.
+- **Bug, found in a room (v0.1.43): the results were skipped.** A tester went from the
+  finish line straight to the lobby. A is the handbrake, and the menus' navigator is
+  off during a race. The results appear by themselves as the race ends, which starts
+  the navigator, and it saw A already down and took it as a press on the focused
+  button, "Back to lobby". A held keyboard Space (also the handbrake) did the same
+  through auto-repeat. Now:
+  - Buttons already down when the navigator starts count as held, not pressed.
+  - Key repeats of Space, Enter and Esc are ignored.
+  - The results ignore A, B, Enter, Space and Esc for 1.2 s, so a handbrake tap just
+    before the screen appears doesn't dismiss it either.
 - **An on-screen keyboard** for your name and the room code. A text box is the front
   door to a room, and whether a console raises its own keyboard is up to the browser.
+- **Passing over a text box doesn't open a keyboard; A does.** Xbox Edge raises its
+  system keyboard for any focused, editable field, so walking the focus ring down the
+  menu popped it up at every box. With a pad connected, a field the ring lands on is
+  made read-only: highlighted, not editable, so there is nothing for the system to
+  open a keyboard for. A opens the game's keyboard, which writes to the field anyway.
+  A mouse click or a real key unlocks the field, so a keyboard still types straight in.
 - **"Press Menu to lock the controller to this window."** Console browsers only pass
   pad input to a page that holds focus, and that button goes fullscreen and takes it.
 - **Menu/Options in a race** opens a pause menu. Solo, the race stops. Online it

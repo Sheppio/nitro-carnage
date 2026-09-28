@@ -102,6 +102,9 @@ try {
   // Focus starts on Create room; up reaches the name field; A opens the keyboard.
   await until(async () => (await focused(page)) === 'btn-create');
   const onName = await padTo(page, 'input-name', B.UP);
+  // Passing over it is not editing it: read-only, so Xbox Edge raises no keyboard of its own.
+  const passing = await page.evaluate(() => document.getElementById('input-name').readOnly && document.getElementById('keyboard-veil').hidden);
+  r.check('the pad passing over a text field does not open a keyboard: the field is read-only until A', passing);
   await tap(page, B.A);
   const kb = await until(() => page.evaluate(() => !document.getElementById('keyboard-veil').hidden));
   r.check('A on the name field opens the on-screen keyboard', Boolean(onName) && Boolean(kb));
@@ -125,12 +128,42 @@ try {
   await tap(page, B.B);
   const typed = await until(() => page.evaluate(() => (document.getElementById('keyboard-veil').hidden ? document.getElementById('input-name').value : null)));
   r.check('the keyboard types by pad, and B closes it', typed?.endsWith('NOVA'), `name "${typed}"`);
+  // A real keyboard still types straight in: its first key unlocks the field.
+  await page.keyboard.press('X');
+  const real = await page.evaluate(() => { const f = document.getElementById('input-name'); return { value: f.value, readOnly: f.readOnly }; });
+  r.check('a real key typed into a pad-locked field unlocks it and types', real.value.endsWith('NOVAX') && !real.readOnly, JSON.stringify(real));
+  await page.keyboard.press('Backspace');
 
   /* ---------------------------------------------------- race and pause */
   // Down from the name, past Create and Join, to Quick race; A opens the track screen with Start already focused, and A again starts.
   const onRace = await padTo(page, 'btn-race', B.DOWN);
   await tap(page, B.A);
   const onStart = await until(() => page.evaluate(() => (!document.getElementById('screen-track').hidden && document.activeElement?.id === 'btn-track-go') || null));
+  // A on the Track dropdown lists every track under its group; down reaches
+  // the Track of the day, and A picks it. (Xbox Edge shows no native popup.)
+  {
+    const before = await page.evaluate(() => document.getElementById('menu-track').value);
+    const onTrackSel = await padTo(page, 'menu-track', B.UP);
+    await tap(page, B.A);
+    const listed = await until(() => page.evaluate(() => {
+      const v = document.getElementById('choice-veil');
+      return v.hidden ? null : {
+        groups: [...v.querySelectorAll('h3')].map((h) => h.textContent),
+        items: v.querySelectorAll('.choice').length,
+        on: document.activeElement?.classList.contains('current'),
+      };
+    }));
+    const reached = await padTo(page, 'Track of the day', B.DOWN, 40);
+    await tap(page, B.A);
+    const picked = await until(() => page.evaluate(() => (document.getElementById('choice-veil').hidden ? {
+      value: document.getElementById('menu-track').value, focus: document.activeElement?.id,
+    } : null)));
+    r.check('A on a dropdown opens a list of its options by group, on the current one; down and A pick the Track of the day',
+      onTrackSel && listed?.groups.length === 3 && listed.items > 20 && listed.on && reached && picked?.value === 'day' && picked.focus === 'menu-track',
+      JSON.stringify({ listed, reached, picked }));
+    await page.evaluate((v) => { const s = document.getElementById('menu-track'); s.value = v; s.dispatchEvent(new Event('change')); }, before);
+    await padTo(page, 'btn-track-go', B.DOWN);
+  }
   await tap(page, B.A);
   const racing = await until(() => page.evaluate(() => !document.getElementById('screen-hud').hidden), { timeout: 20000 });
   r.check('D-pad and A start a quick race from the menu, by way of the track screen', Boolean(onRace) && Boolean(onStart) && Boolean(racing));
@@ -141,6 +174,20 @@ try {
   const drove = await until(() => page.evaluate(() => Math.hypot(window.nitro.session.player.car.vx, window.nitro.session.player.car.vz) > 10), { timeout: 20000 });
   await page.evaluate((b) => window.__pad.set(b, false), B.RT);
   r.check('RT drives the car', Boolean(drove));
+
+  // A is the handbrake. Held while a menu appears, it is not a press on that
+  // menu: that's how the results were clicked through to the lobby unseen.
+  await page.evaluate((b) => window.__pad.set(b, true), B.A);
+  await frames(page);
+  await tap(page, B.MENU);
+  await frames(page);
+  await frames(page);
+  const heldOpen = await page.evaluate(() => !document.getElementById('pause-veil').hidden);
+  await page.evaluate((b) => window.__pad.set(b, false), B.A);
+  await frames(page);
+  r.check('A held from driving does not click the menu that appears (the results were skipped this way)', heldOpen);
+  await tap(page, B.A);
+  await until(() => page.evaluate(() => document.getElementById('pause-veil').hidden));
 
   await tap(page, B.MENU);
   const pausedUi = await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden), { timeout: 5000 });

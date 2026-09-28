@@ -19,6 +19,7 @@ import { applyGlyphs, padFamily } from './ui/glyphs.js';
 import { GamepadNavigator } from './ui/GamepadNavigator.js';
 import { formatTime, Hud } from './ui/Hud.js';
 import { Keyboard } from './ui/Keyboard.js';
+import { ChoiceList } from './ui/ChoiceList.js';
 import { Lobby } from './ui/Lobby.js';
 import { makePlayerId, makeRoomCode } from './util.js';
 import { VERSION } from './version.js';
@@ -44,6 +45,8 @@ const settings = new SettingsStore();
 const input = new InputManager(document.body, settings);
 const nav = new GamepadNavigator(input.gamepad, $('ui-root'));
 const keyboard = new Keyboard();
+const choices = new ChoiceList();
+choices.focus = (el) => nav.focusOn(el);
 /* ---------------------------------------------------------------- screens */
 const screens = [
     'screen-menu', 'screen-join', 'screen-connecting', 'screen-lobby', 'screen-full', 'screen-settings', 'screen-hud', 'screen-results',
@@ -297,6 +300,8 @@ function begin(mode, s, track, label = track.name) {
         if (!online)
             stopSession();
         closePause();
+        // The results appear mid-drive: a handbrake press (A, Space) must not dismiss them unseen.
+        nav.quiet(1200);
         show('screen-results');
     };
     $('hud-track').textContent = label;
@@ -677,7 +682,7 @@ $('set-motion').addEventListener('change', (e) => settings.set('reduceMotion', e
 $('set-autopilot').addEventListener('change', (e) => settings.set('autopilot', e.target.checked));
 brokerSelect.addEventListener('change', () => settings.set('broker', brokerSelect.value));
 window.addEventListener('keydown', (e) => {
-    if (e.code !== 'Escape' || keyboard.isOpen)
+    if (e.code !== 'Escape' || keyboard.isOpen || choices.isOpen)
         return;
     if (current === 'screen-hud' && session)
         togglePause();

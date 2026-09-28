@@ -305,6 +305,9 @@ try {
     const x = await reach(page);
     r.check('results: every control is reachable with the arrow keys', x.ok, x.note);
   }
+  // The results ignore Enter, Space and Esc for 1.2 s after they appear, so a
+  // handbrake press can't dismiss them unseen.
+  await page.waitForTimeout(1300);
   await page.keyboard.press('Escape');
   const done = await until(() => visible(page, 'screen-track'));
   r.check('the results screen has focus on arrival, and Esc returns to the track screen', Boolean(resultsFocus) && Boolean(done), resultsFocus);

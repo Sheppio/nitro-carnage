@@ -221,6 +221,21 @@ export class GamepadSource implements InputSource {
     };
   }
 
+  /**
+   * Count every button already down as held, not pressed: the menus take
+   * over from a race with the player's thumbs still on the pad. A is the
+   * handbrake, so A held across the finish line read as a press on the
+   * results screen and clicked "Back to lobby" before anyone saw a result.
+   */
+  settleNav(): void {
+    const pad = this.pad();
+    if (!pad) return;
+    const now = performance.now();
+    pad.buttons.forEach((b, i) => {
+      if (b?.pressed) this.navHeld.set(i, now);
+    });
+  }
+
   destroy(): void {
     window.removeEventListener('gamepadconnected', this.onConnect);
     window.removeEventListener('gamepaddisconnected', this.onDisconnect);
