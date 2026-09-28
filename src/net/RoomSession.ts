@@ -16,6 +16,8 @@ export interface PeerRecord {
   claimsHost: boolean;
   ready: boolean;
   ver: string;
+  /** The wire protocol it speaks (`WIRE` in the codec); a mismatch cannot race together. */
+  wire: number;
   /** Encoded look (M6); decode with `decodeLook`, which turns junk into the stock car. */
   look: string;
   lastSeen: number;
@@ -229,6 +231,7 @@ export class RoomSession {
       claimsHost: msg.host === 1,
       ready: msg.ready === 1,
       ver: msg.ver,
+      wire: msg.wire ?? 1,
       look: msg.look ?? '',
       lastSeen: this.clock.now(),
     };

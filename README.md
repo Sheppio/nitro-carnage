@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.44**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.45**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 787 checks: simulation and networking (Node), and real browsers
+npm test           # 796 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -78,7 +78,9 @@ src/
 ├── render/   everything three.js: camera, track mesh, instanced scenery, cars, effects
 ├── ui/       DOM overlay and gamepad menu navigation (ported)
 ├── net/      MQTT transport, room and host election, clock sync, codecs,
-│             dead reckoning, and NetRace (one client's view of a networked race)
+│             dead reckoning, and NetRace (one client's view of a networked race):
+│             CarPublisher sends our cars, RemoteFleet follows everyone else's,
+│             HostDirector runs the race while we are host
 ├── clock.ts        injectable time: real, fake (tests) or worker-pumped (hidden tabs)
 ├── RaceSession.ts  one race on screen: read input, step or follow the room, draw
 ├── RoomClient.ts   one room in the browser: broker, NetRace, background ticker
@@ -431,7 +433,7 @@ What is new is the race:
 
 | Thing | Who decides | How |
 | --- | --- | --- |
-| Your car | **you** | published at 20 Hz, and early whenever peers' prediction of it drifts 0.35 m or 4° |
+| Your car | **you** | published at 20 Hz, and early whenever peers' prediction of it drifts 0.35 m or 4°. Its events ride with it, and shots, hits and wrecks are said three times |
 | Everyone else's car | **its owner** | extrapolated to *now*, not interpolated into the past |
 | A bump | **both** | each client moves only its own car and sends the other's share to its owner, who applies it unless it felt the contact itself |
 | Phase, grid, GO, finish order | **the host** | on the heartbeat; finish order by the finishers' own time stamps |
@@ -542,9 +544,31 @@ still heartbeats at the full 2 Hz.
 ### The budget
 
 With six cars racing (three humans and three bots, all publishing), the Node suite
-measures **20 packets a second per car**, 7.9 KB/s into the broker, and **47 KB/s out**
-at six subscribers. That is about half of what glitchburst already runs on these
-public brokers. A car state packet is at most 54 bytes, and a full heartbeat 168.
+measures **20 states a second per car** in **69 messages a second** for the whole room,
+7.3 KB/s into the broker, and **44 KB/s out** at six subscribers. That is about half of
+what glitchburst already runs on these public brokers. A car state is at most 54 bytes,
+and a full heartbeat 168.
+
+**One message per client, not one per car.** Public brokers throttle by message count
+more than by bytes, every message carries its topic, and the broker copies each one to
+everybody in the room. Each car used to have a state topic and an events topic, so a
+host with three bots published eight streams. Now a client sends everything it drives
+in one message a tick: its own car, the bots as host, and their events after each
+car's state. The room went from 122 messages a second to 69.
+
+**A lost shot is said again.** A lost position is mended by the next packet 50 ms
+later, but a shot, hit, mine or wreck used to be sent once, over QoS 0, through brokers
+that lose a few percent. A missile could hit you on a screen where it never appeared,
+or land on the shooter's screen and never cost the victim anything. Now those events
+go out twice more in the next messages, and receivers act on each one once. Bumps
+don't wait for the next scheduled message any more, and neither do shots. Network
+tests drop the fire, hit and wreck messages and check it all still lands, once. The
+old code failed all three.
+
+**A different build is marked in the lobby.** This changed the wire, so a tab still on
+an older cached build can't race with a newer one. Presence now carries the wire
+protocol's number. The lobby marks a player on another build and says who has to
+reload.
 
 ## Weapons
 
@@ -1198,7 +1222,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-776 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+796 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1258,11 +1282,13 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     line-follower lapping cleanly and taking the ramp.
   - **Helpers:** interpolation, deadzones, framerate-independent smoothing, colour
     clash resolution.
-- **`net.test.mjs`** (61, Node, an in-memory broker and a fake clock): the heartbeat
+- **`net.test.mjs`** (69, Node, an in-memory broker and a fake clock): the heartbeat
   carries the seed and the weapons switch, and an older one decodes as a built-in track
   with weapons on; a race-only room on a seed builds the same track everywhere with no
   shots on the wire;
-  - **Codecs:** round trips; worst-case sizes (car ≤ 54 bytes, heartbeat ≤ 184);
+  - **Codecs:** round trips; worst-case sizes (car ≤ 54 bytes, heartbeat ≤ 184); a
+    client's cars in one message with their events, the publisher's own id left to
+    the topic; the wire protocol on presence;
     truncation; wrapped time stamps; a car look in six characters, every body and
     livery; malformed looks become the stock car; the look on presence, and an older
     build's presence still decoding; bot looks from a seed.
@@ -1281,7 +1307,8 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     flies on the other, as scenery; the victim applies a hit once, seen on both
     screens, and a repeated hit message does nothing; a mine is placed where it was
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
-    credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
+    credits the kill on every screen; a lost fire, hit or wreck message is made good
+    by its repeats, once; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
 - **`smoke.test.mjs`** (57, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
@@ -1313,13 +1340,14 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
-- **`multiplayer.test.mjs`** (25, browser, up to four tabs): a room forms from a code
+- **`multiplayer.test.mjs`** (28, browser, up to four tabs): a room forms from a code
   and a share link; one host; colour clashes; a look chosen in one tab's Garage shows
   in the other's lobby; only the host can start; a missile fired
   in one tab flies in the other; a race to the
   same results on both screens and back to the lobby; the host's tab closed mid-race;
   a late joiner spectating; a hidden host with no frames still heartbeating; a tab
-  frozen for 20 s waking without splitting the room.
+  frozen for 20 s waking without splitting the room; a player on an older build is
+  marked in the lobby with a note to reload.
 - **`gamepad.test.mjs`** (18, browser, a virtual pad and nothing else): the Garage by
   pad (RB changes the body, the D-pad the livery) and at 1280×800; the lock prompt;
   Xbox and PlayStation prompts; the on-screen keyboard; menu to race by way of the

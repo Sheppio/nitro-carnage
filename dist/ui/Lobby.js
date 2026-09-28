@@ -1,3 +1,4 @@
+import { WIRE } from '../net/codec.js';
 import { PALETTE } from '../sim/palette.js';
 import { TRACKS } from '../sim/track/index.js';
 import { daySeed, generateTrack, utcDay } from '../sim/track/generate.js';
@@ -42,12 +43,26 @@ export class Lobby {
         const colours = room.resolvedColours();
         const list = $('lobby-roster');
         list.replaceChildren();
+        // A player on another wire protocol can't race with this one: their cars,
+        // shots and bots would not show. Say who, and who should reload.
+        let older = 0, newer = 0;
         for (const id of ids) {
             const info = net.carInfo(id);
+            const wire = id === net.playerId ? WIRE : (room.peers.get(id)?.wire ?? WIRE);
+            if (wire < WIRE)
+                older++;
+            if (wire > WIRE)
+                newer++;
             list.appendChild(this.row(info.name, colours[id] ?? info.colour, [
                 id === room.hostId ? 'HOST' : '', id === net.playerId ? 'YOU' : '',
+                wire < WIRE ? 'OLD BUILD' : wire > WIRE ? 'NEWER BUILD' : '',
             ], info.look));
         }
+        const builds = $('lobby-builds');
+        builds.hidden = older + newer === 0;
+        builds.textContent = newer
+            ? 'Someone here is on a newer build. Reload this page to race with them.'
+            : `${older === 1 ? 'A player here is' : 'Some players here are'} on an older build and must reload the page to race with you.`;
         // Bots that will fill the grid, shown faintly so nobody is surprised by them.
         const bots = Math.max(0, net.state.cars - ids.length);
         const taken = new Set(Object.values(colours));
@@ -107,7 +122,7 @@ export class Lobby {
         li.append(icon, n);
         for (const b of badges.filter(Boolean)) {
             const tag = document.createElement('span');
-            tag.className = `badge${b === 'HOST' ? ' host' : ''}`;
+            tag.className = `badge${b === 'HOST' ? ' host' : b.endsWith('BUILD') ? ' warn' : ''}`;
             tag.textContent = b;
             li.appendChild(tag);
         }

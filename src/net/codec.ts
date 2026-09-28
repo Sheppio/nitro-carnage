@@ -4,15 +4,29 @@
  * Fields are comma-separated; lists inside a field use `.`; records in an
  * event batch use `|` with a one-letter tag. Numbers are base36, signed with
  * a leading `-`. Decoders tolerate truncation — a malformed message is
- * dropped, never thrown — and new fields only ever go on the end, so a
- * client on an older cached build still decodes what it understands.
+ * dropped, never thrown — and new fields go on the end where they can.
+ *
+ * A change older builds cannot follow bumps `WIRE`, which travels in
+ * presence, so the lobby can tell a player to reload.
  *
  * Byte counts are in PLAN.md §5.9 and asserted by `test/net.test.mjs`.
  */
 
+/**
+ * The wire protocol's version. 1: a topic per car for state and another for
+ * events. 2: one message per client carrying all its cars, events inside.
+ */
+export const WIRE = 2;
+
 const FLD = ',';
 const LIST = '.';
 const REC = '|';
+/** Between a car's state and its events, in a car record. */
+const EVT = ';';
+/** Between the car records of one message. */
+const CARS = '~';
+/** Between a car record's id and its state, when the car is not the publisher's own. */
+const ID = '=';
 
 const i = (n: number): number => (Number.isFinite(n) ? Math.round(n) : 0);
 export const b36 = (n: number): string => i(n).toString(36);
@@ -143,8 +157,8 @@ export type CarEvent =
   | { k: 'hit'; seq: number; slot: number; weapon: 0 | 1; dmg: number; x: number; z: number }
   /** I drove over mine `seq` of the car in grid slot `slot`. */
   | { k: 'trigger'; slot: number; seq: number }
-  /** I was wrecked, by the car in grid slot `slot` (-1: nobody). */
-  | { k: 'wreck'; slot: number };
+  /** I was wrecked for the `n`th time, by the car in grid slot `slot` (-1: nobody). */
+  | { k: 'wreck'; slot: number; n: number };
 
 const yaw36 = (yaw: number): string => b36(((Math.round((yaw / TURN) * 1296) % 1296) + 1296) % 1296);
 
@@ -180,7 +194,7 @@ export function encodeEvents(events: readonly CarEvent[]): string {
         parts.push(`T:${b36(e.slot)},${b36(e.seq)}`);
         break;
       case 'wreck':
-        parts.push(`D:${b36(e.slot)}`);
+        parts.push(`D:${b36(e.slot)},${b36(e.n)}`);
         break;
     }
   }
@@ -205,7 +219,50 @@ export function decodeEvents(payload: string): CarEvent[] {
     else if (tag === 'H' && f.length >= 6) {
       out.push({ k: 'hit', seq: un36(f[0]), slot: un36(f[1]), weapon: f[2] === '1' ? 1 : 0, dmg: un36(f[3]), x: un36(f[4]) / 10, z: un36(f[5]) / 10 });
     } else if (tag === 'T' && f.length >= 2) out.push({ k: 'trigger', slot: un36(f[0]), seq: un36(f[1]) });
-    else if (tag === 'D' && f.length >= 1) out.push({ k: 'wreck', slot: un36(f[0]) });
+    else if (tag === 'D' && f.length >= 1) out.push({ k: 'wreck', slot: un36(f[0]), n: un36(f[1]) });
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------ car batch */
+
+/** One car in a car message: its state and any events riding with it. */
+export interface CarRecord {
+  id: string;
+  car: CarPacket;
+  events: CarEvent[];
+}
+
+/**
+ * `[id=]state[;events]`, records joined by `~` — everything one client
+ * publishes in a tick, in one message: its own car and, as host, the bots.
+ *
+ * Public brokers throttle by message count more than by bytes, every message
+ * carries its topic, and the broker copies each one to every client in the
+ * room. So a host with three bots sends one message where it used to send
+ * four state packets and their events. The publisher's own car leaves its id
+ * out: it is in the topic.
+ */
+export function encodeCars(publisher: string, records: readonly CarRecord[]): string {
+  return records
+    .map((r) => {
+      const head = r.id === publisher ? '' : `${r.id}${ID}`;
+      const tail = r.events.length ? `${EVT}${encodeEvents(r.events)}` : '';
+      return `${head}${encodeCar(r.car)}${tail}`;
+    })
+    .join(CARS);
+}
+
+export function decodeCars(publisher: string, payload: string, nowRoomMs: number): CarRecord[] {
+  const out: CarRecord[] = [];
+  for (const raw of payload.split(CARS)) {
+    const eq = raw.indexOf(ID);
+    const id = eq < 0 ? publisher : raw.slice(0, eq);
+    const body = eq < 0 ? raw : raw.slice(eq + 1);
+    const semi = body.indexOf(EVT);
+    const car = decodeCar(semi < 0 ? body : body.slice(0, semi), nowRoomMs);
+    if (!id || !car) continue;
+    out.push({ id, car, events: semi < 0 ? [] : decodeEvents(body.slice(semi + 1)) });
   }
   return out;
 }
@@ -305,6 +362,8 @@ export interface Presence {
   ver: string;
   /** The car's look (M6), six base-36 characters; see `sim/look.ts`. Empty from older builds. */
   look?: string;
+  /** The sender's `WIRE`; 1 from builds that predate it. */
+  wire?: number;
 }
 
 /** Names go inside a comma-delimited record, so they must not contain one. */
@@ -313,7 +372,7 @@ export function sanitizeName(name: string): string {
 }
 
 export function encodePresence(p: Presence): string {
-  return [sanitizeName(p.name), p.colour, p.host, p.alive, p.ready, p.ver, p.look ?? ''].join(FLD);
+  return [sanitizeName(p.name), p.colour, p.host, p.alive, p.ready, p.ver, p.look ?? '', b36(p.wire ?? WIRE)].join(FLD);
 }
 
 export function decodePresence(payload: string): Presence | null {
@@ -327,6 +386,7 @@ export function decodePresence(payload: string): Presence | null {
     ready: un36(f[4]),
     ver: f[5] ?? '',
     look: f[6] ?? '',
+    wire: f[7] ? un36(f[7]) : 1,
   };
 }
 

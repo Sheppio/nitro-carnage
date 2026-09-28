@@ -136,8 +136,9 @@ export function buildTrackMesh(track: Track, theme: Theme): THREE.Group {
         const r0 = z.r * (0.8 + 0.2 * Math.sin(a * 2.3 + cx));
         const r1 = z.r * (0.8 + 0.2 * Math.sin((a + 1) * 2.3 + cx));
         const a0 = (a / k) * Math.PI * 2, a1 = ((a + 1) / k) * Math.PI * 2;
-        ob.tri({ x: cx, y: Y_MARK + 0.01, z: cz }, { x: cx + Math.sin(a1) * r1, y: Y_MARK + 0.01, z: cz + Math.cos(a1) * r1 },
-          { x: cx + Math.sin(a0) * r0, y: Y_MARK + 0.01, z: cz + Math.cos(a0) * r0 }, a % 3 === 0 ? 0x1c1a2a : 0x101014);
+        // Centre, then a0, then a1: counter-clockwise from above, so the face points up.
+        ob.tri({ x: cx, y: Y_MARK + 0.01, z: cz }, { x: cx + Math.sin(a0) * r0, y: Y_MARK + 0.01, z: cz + Math.cos(a0) * r0 },
+          { x: cx + Math.sin(a1) * r1, y: Y_MARK + 0.01, z: cz + Math.cos(a1) * r1 }, a % 3 === 0 ? 0x1c1a2a : 0x101014);
       }
     }
     const oilMesh = new THREE.Mesh(ob.build(), new THREE.MeshPhongMaterial({ vertexColors: true, shininess: 90, specular: 0x6a5a8a }));

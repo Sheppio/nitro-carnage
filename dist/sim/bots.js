@@ -1,4 +1,6 @@
 import { mulberry32 } from '../util.js';
+/** A bot's car id in a room: `b` and its grid slot. Players' ids are longer. */
+export const isBotId = (id) => /^b\d+$/.test(id);
 /**
  * Bot drivers' names: made-up racing drivers, a first name and a surname,
  * distinct at a glance. Up to 18 characters: the name tags size to their

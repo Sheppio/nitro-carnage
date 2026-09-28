@@ -29,7 +29,7 @@ explains why.
 | Colours | Colours are unique per room, and clashes resolve by seniority, then the next free colour (`resolveColours`, ported). The palette grows from 8 to 10 colours so a 6-player room always has room to move. |
 | Unified input | Keyboard, gamepad and touch produce one `Intent`, and the most recent device wins. We port `GamepadNavigator` and the on-screen keyboard. The Intent becomes a driving intent. |
 | Layering | `net/`, `sim/` and `input/` never import `three` or touch the DOM renderer, so the whole race runs headless in Node. |
-| Wire | Compact delimited base36 strings, never JSON. Decoders tolerate truncation. New fields are added at the end, so older builds still decode. |
+| Wire | Compact delimited base36 strings, never JSON. Decoders tolerate truncation. New fields are added at the end where they can be, so older builds still decode. A change they can't follow bumps `WIRE` (in `codec.ts`), which rides on presence, and the lobby tells players on another build to reload. |
 | Time | All wall-clock timing uses `performance.now()`, and all smoothing is framerate-independent: `1 - (1-base)^(dt/16.67)`. |
 | Tests | Node sim suite, plus browser suites under Playwright with a loopback MQTT stub over `BroadcastChannel`. Assertions poll for outcomes and never sleep for a fixed time. |
 | Audio | Web Audio synthesis only, with the lookahead music scheduler. The repo contains no binary assets. |
@@ -721,21 +721,28 @@ long, descriptive names live in `topics.ts` as function names, not on the wire.
 | `hb` | host | 2 Hz | heartbeat: room + race state |
 | `hx` | host | on event, batched per 50 ms | race events: countdown, finish, grants, shop replies |
 | `ch` | host | on change + every 2 s | championship ledger |
-| `c/<carId>` | car owner (host for bots) | **20 Hz**, plus DR bursts (cap 30 Hz), racing only | car state |
-| `e/<carId>` | car owner | on event, batched per 50 ms, only when non-empty | car events |
+| `c/<pid>` | each client, for every car it drives (the host's bots too) | **20 Hz**, plus DR bursts (cap 30 Hz) and at once for shots, hits and bumps; racing only | car states, each with its events |
 | `kq/<pid>` | client | 2 Hz for 4 s, then 0.2 Hz | clock ping |
 | `ka/<pid>` | host | reply to each ping | clock pong |
 
 Car IDs are player IDs (13 characters, time-prefixed as in glitchburst) or `b0`–`b5` for
-bots. Bot IDs are keyed to the grid slot, so a promoted host republishes on the same
-topics.
+bots. Bot IDs are keyed to the grid slot, so a promoted host carries on publishing them
+under the same IDs, now on its own topic.
+
+Until wire protocol 2, each car had its own `c/<carId>` state topic and `e/<carId>`
+events topic. A host with three bots published eight streams, and the room ran at
+122 messages a second. It now runs at 69.
 
 ### 5.9 Codecs and byte counts
 
 Fields are comma-separated and records `;`- or `|`-separated. Numbers are base36 and
 signed with a leading `-`. Decoders tolerate truncation, and new fields go at the end.
 
-**Car state** (`c/<carId>`, the ID is in the topic):
+**Car message** (`c/<pid>`): one record per car the client drives, joined by `~`. A
+record is `[carId=]state[;events]`. The publisher's own car leaves out its ID, since
+it is in the topic, and a bot's record starts `b3=`.
+
+**Car state** (a record's `state`):
 
 ```
 t,x,z,yaw,vx,vz,w,steer,y,vy,flags,hp,lap,s
@@ -761,7 +768,10 @@ reverse drift). For comparison, JSON would be about 190. On the wire, one publis
 2 (fixed header) + 2 (topic length) + 28 (topic) + 43 = **75 bytes**, plus 2–6 bytes of
 WebSocket framing.
 
-**Car events** (`e/<carId>`), as `tag:fields` records joined by `|`:
+**Car events** (a record's `events`), as `tag:fields` records joined by `|`. Fire,
+mine, hit, trigger, wreck, finish and cool-down are sent twice more in the next
+messages after the first, and receivers act on each only once. Laps (already in the
+state), respawns and bumps (wrong if applied twice) are sent once.
 
 | Tag | Meaning | Fields | Typical bytes |
 | --- | --- | --- | --- |
@@ -772,7 +782,7 @@ WebSocket framing.
 | `B` | bump impulse | otherSlot, jx, jz (cm/s) | 11 |
 | `K` | lap done | lap, tLap | 8 |
 | `X` | finished | tFinish, hp, ammoF, ammoR, mines | 14 |
-| `D` | wrecked | killerSlot or `-` | 4 |
+| `D` | wrecked | killerSlot or `-1`, wreck count (for dedup) | 6 |
 | `R` | respawned (teleport: remotes snap) | x, z, yaw | 13 |
 | `P` | pickup claim | idx | 4 |
 | `Q` | shop request (lobby/shop only) | item, qty | 6 |

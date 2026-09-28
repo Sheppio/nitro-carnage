@@ -16,12 +16,9 @@ export const Topics = {
     heartbeat: (r) => `${base(r)}/hb`,
     /** Host race events (finish confirmations). */
     hostEvents: (r) => `${base(r)}/hx`,
-    /** One car's state, published by its owner (the host, for bots). */
-    carState: (r, car) => `${base(r)}/c/${car}`,
-    carStateAll: (r) => `${base(r)}/c/+`,
-    /** One car's events: laps, finish, respawn, bumps. */
-    carEvents: (r, car) => `${base(r)}/e/${car}`,
-    carEventsAll: (r) => `${base(r)}/e/+`,
+    /** Every car one client drives (its own; the bots, as host), with their events. */
+    cars: (r, p) => `${base(r)}/c/${p}`,
+    carsAll: (r) => `${base(r)}/c/+`,
     /** Clock sync: a client's ping, and the host's answer to it. */
     clockPing: (r, p) => `${base(r)}/kq/${p}`,
     clockPingAll: (r) => `${base(r)}/kq/+`,

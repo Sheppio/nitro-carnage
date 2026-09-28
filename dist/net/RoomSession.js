@@ -181,6 +181,7 @@ export class RoomSession {
             claimsHost: msg.host === 1,
             ready: msg.ready === 1,
             ver: msg.ver,
+            wire: msg.wire ?? 1,
             look: msg.look ?? '',
             lastSeen: this.clock.now(),
         };

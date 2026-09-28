@@ -47,6 +47,21 @@ try {
     return n === 2 && m === 2 ? n : null;
   });
   r.check('a room forms from a code and a share link, and both see both', roster === 2, `room ${code}`);
+  // A tab on an older build (presence without a wire protocol) is marked,
+  // and everyone else is told it has to reload; it goes when it leaves.
+  const oldPresence = (alive) => a.evaluate(([c, alive]) => {
+    window.nitro.room.mqtt.publish(`nc/room/${c}/pr/zzzzzzzzz0099`, `OLDTIMER,cyan,0,${alive},0,0.1.40,000000`);
+  }, [code, alive]);
+  await oldPresence(1);
+  const warned = await until(() => b.evaluate(() => {
+    const row = [...document.querySelectorAll('#lobby-roster li')].find((li) => li.textContent.includes('OLDTIMER'));
+    const note = document.getElementById('lobby-builds');
+    return row?.textContent.includes('OLD BUILD') && !note.hidden && note.textContent.includes('reload') ? true : null;
+  }));
+  await oldPresence(0);
+  const cleared = await until(() => b.evaluate(() => (document.getElementById('lobby-builds').hidden ? true : null)));
+  r.check('a player on an older build is marked in the lobby, with a note to reload, gone when they leave', warned === true && cleared === true);
+
   const hosts = [await isHost(a), await isHost(b)];
   r.check('exactly one host: the first to arrive', hosts[0] === true && hosts[1] === false);
 
@@ -220,7 +235,10 @@ try {
   const c = await open('CAROL', `&room=${code}`);
   await c.waitForSelector('#screen-lobby:not([hidden])', { timeout: 20000 });
   await until(() => a.evaluate(() => window.nitro.room.net.room.peers.size === 2));
-  await a.selectOption('#lobby-laps', '1');
+  // Two laps, not one: a late joiner arrives after the failover, and a one-lap
+  // race (results at about GO+35 s, the lobby 12 s later) sometimes ended
+  // before a slow page had loaded, leaving nothing to spectate.
+  await a.selectOption('#lobby-laps', '2');
   await a.click('#btn-start-race');
   await Promise.all([a, b, c].map((p) => p.waitForSelector('#screen-hud:not([hidden])', { timeout: 20000 })));
   await until(() => b.evaluate(() => window.nitro.session.world.time > window.nitro.session.world.goTime + 8), { timeout: 60000 });

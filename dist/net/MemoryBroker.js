@@ -19,6 +19,8 @@ export class MemoryBroker {
     /** Fraction of messages dropped, 0..1, drawn from `rand`. */
     loss = 0;
     rand = Math.random;
+    /** Lose this message on the way to every client, when it returns true: a test's targeted drop. */
+    lose = null;
     /** Every publish, for byte-budget assertions. */
     log = [];
     constructor(clock) {
@@ -32,6 +34,8 @@ export class MemoryBroker {
     /** @internal */
     route(from, topic, payload) {
         this.log.push({ topic, payload, at: this.clock.now() });
+        if (this.lose?.(topic, payload))
+            return;
         for (const c of this.clients) {
             if (!c.connected || c.deaf)
                 continue;

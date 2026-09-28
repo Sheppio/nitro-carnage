@@ -11,8 +11,8 @@ import { MemoryBroker } from '../dist/net/MemoryBroker.js';
 import { NetRace } from '../dist/net/NetRace.js';
 import { RoomSession } from '../dist/net/RoomSession.js';
 import {
-  encodeCar, decodeCar, encodeEvents, decodeEvents, encodeHeartbeat, decodeHeartbeat,
-  encodePresence, decodePresence, encodeStamp, decodeStamp, STAMP_WRAP,
+  encodeCar, decodeCar, encodeEvents, decodeEvents, encodeCars, decodeCars, encodeHeartbeat, decodeHeartbeat,
+  encodePresence, decodePresence, encodeStamp, decodeStamp, STAMP_WRAP, WIRE,
 } from '../dist/net/codec.js';
 import { predict, RemoteCar } from '../dist/net/deadReckoning.js';
 import { TRACKS } from '../dist/sim/track/index.js';
@@ -114,14 +114,30 @@ console.log('\nnet.test\n\ncodecs');
     { k: 'mine', seq: 1295, x: 4095.9, z: 4095.9, t: 36 ** 5 - 1 },
     { k: 'hit', seq: 1295, slot: 5, weapon: 0, dmg: 30, x: 4095.9, z: 4095.9 },
     { k: 'trigger', slot: 5, seq: 1295 },
-    { k: 'wreck', slot: -1 },
+    { k: 'wreck', slot: -1, n: 35 },
   ];
   const wb = decodeEvents(encodeEvents(weapons));
   const sizes = weapons.map((e) => encodeEvents([e]).length);
   check('weapon events (fire, mine, hit, mine trigger, wreck) round-trip', wb.length === 5 && wb[0].weapon === 1 && Math.abs(wb[0].yaw - 6.2) < 0.005
-    && wb[1].x === 4095.9 && wb[2].slot === 5 && wb[2].dmg === 30 && wb[3].seq === 1295 && wb[4].slot === -1);
-  // PLAN §5.9 budgets them at 22, 18, 16, 6 and 4 bytes typical; these are the worst cases.
-  check('and stay small at their worst', sizes[0] <= 26 && sizes[1] <= 22 && sizes[2] <= 22 && sizes[3] <= 8 && sizes[4] <= 5, sizes.join(' / ') + ' bytes');
+    && wb[1].x === 4095.9 && wb[2].slot === 5 && wb[2].dmg === 30 && wb[3].seq === 1295 && wb[4].slot === -1 && wb[4].n === 35);
+  // PLAN §5.9 budgets them at 22, 18, 16, 6 and 6 bytes typical; these are the worst cases.
+  check('and stay small at their worst', sizes[0] <= 26 && sizes[1] <= 22 && sizes[2] <= 22 && sizes[3] <= 8 && sizes[4] <= 7, sizes.join(' / ') + ' bytes');
+
+  // One client's cars in one message: its own (id in the topic) and two bots, one with events.
+  const pid = 'mfy2k3x9a0001';
+  const car = (x) => ({ t: 1000, x, z: 5, yaw: 1, vx: 3, vz: -2, w: 0.5, steer: 0.1, y: 0, vy: 0, flags: 1, hp: 90, lap: 1, s: 120 });
+  const recs = [
+    { id: pid, car: car(10), events: [] },
+    { id: 'b3', car: car(20), events: [{ k: 'fire', seq: 4, weapon: 0, x: 20, z: 5, yaw: 1, t: 900 }, { k: 'wreck', slot: 2, n: 1 }] },
+    { id: 'b4', car: car(30), events: [] },
+  ];
+  const msg = encodeCars(pid, recs);
+  const got = decodeCars(pid, msg, 1000);
+  check('a client\'s cars travel in one message, events riding with their car', got.length === 3 && got[0].id === pid && got[1].id === 'b3'
+    && got[1].car.x === 20 && got[1].events.length === 2 && got[1].events[0].k === 'fire' && got[1].events[1].n === 1 && got[2].events.length === 0,
+    `"${msg}" (${msg.length} bytes)`);
+  check('and the publisher\'s own car leaves its id to the topic', !msg.startsWith(pid) && msg.includes('~b3=') && msg.length < 3 * 50 + 50);
+  check('a malformed record is dropped, the rest kept', decodeCars(pid, `junk~b3=${encodeCar(car(1))}`, 1000).map((r) => r.id).join() === 'b3');
 
   const grid = Array.from({ length: 6 }, (_, i) => 'mfy2k3x9a' + String(i).padStart(4, '0'));
   const hb = { hostId: grid[0], seq: 1295, roomT: 36 ** 6 - 1, phase: 'F', race: 9, of: 9, track: 2, laps: 9, goAt: 36 ** 6 - 1, grid,
@@ -155,6 +171,7 @@ console.log('\nnet.test\n\ncodecs');
   const old = decodePresence('OLDTIMER,cyan,0,1,0,0.1.3');
   check('the look rides on presence, and a presence from an older build still decodes', decodePresence(withLook).look === lk && old.name === 'OLDTIMER' && decodeLook(old.look).body === DEFAULT_LOOK.body,
     `presence ${withLook.length} bytes`);
+  check('presence says which wire protocol the sender speaks; an older build\'s counts as 1', decodePresence(withLook).wire === WIRE && WIRE > 1 && old.wire === 1);
   check('a bot\'s look is the same from the same seed, and varies between seeds',
     JSON.stringify(botLook(123)) === JSON.stringify(botLook(123)) && new Set([1, 2, 3, 4, 5, 6, 7, 8].map((k) => encodeLook(botLook(k)))).size >= 6);
 
@@ -478,10 +495,14 @@ const toResults = (room, ms = 200000) => room.run(ms, () => room.clients.filter(
   const secs = (room.base.now() - t0) / 1000;
   const bytes = log.reduce((s, m) => s + m.topic.length + m.payload.length + 4, 0);
   const car = log.filter((m) => m.topic.includes('/c/'));
-  const perCar = car.length / 6 / secs;
+  const perCar = car.reduce((n, m) => n + m.payload.split('~').length, 0) / 6 / secs;
   // Every message fans out to every client in the room (6 at most).
   const egress = (bytes * 6) / secs / 1024;
-  check('six racing cars publish 20-30 packets a second each', perCar >= 19 && perCar <= 30, `${perCar.toFixed(1)} per car per second`);
+  check('six racing cars publish 20-30 states a second each', perCar >= 19 && perCar <= 30, `${perCar.toFixed(1)} per car per second`);
+  // One message per client per tick, bots included: three clients, not six cars.
+  // Each car had its own state and event topics, 122 messages a second in all.
+  const msgs = log.length / secs;
+  check('in about 70 messages a second, not one stream per car', msgs < 75, `${msgs.toFixed(1)} messages a second`);
   check('and the whole room stays inside the budget (under 90 KB/s out of the broker)', egress < 90,
     `${(bytes / secs / 1024).toFixed(1)} KB/s in, ${egress.toFixed(1)} KB/s out at six subscribers`);
 }
@@ -519,7 +540,7 @@ const toResults = (room, ms = 200000) => room.run(ms, () => room.clients.filter(
   const from = room.broker.log.length;
   room.run(NET.countdownMs + 20000);
   const ids = room.clients.map((c) => c.net.world?.track.def.id);
-  const shots = room.broker.log.slice(from).filter((m) => m.topic.includes('/e/') && /(^|\|)[FM]:/.test(m.payload)).length;
+  const shots = room.broker.log.slice(from).filter((m) => m.topic.includes('/c/') && /(^|[|;])[FM]:/.test(m.payload)).length;
   check('a race-only room on a seed: every client on the generated track, no shots on the wire',
     ids.every((id) => id === generateTrack(seed).id) && room.clients.every((c) => c.net.world?.weapons === false) && shots === 0,
     `${generateTrack(seed).name}, ${shots} shots`);
@@ -586,8 +607,8 @@ function duel(gap = 30, opts = {}) {
   check('and the missile is gone everywhere', a.net.world.armoury.missiles.length === 0 && b.net.world.armoury.missiles.length === 0);
 
   // The same hit delivered again (a duplicate on the wire) changes nothing.
-  const dup = encodeEvents([{ k: 'hit', seq: copy.seq, slot: b.net.state.grid.indexOf(bId), weapon: 0, dmg: 20, x: 0, z: 0 }]);
-  b.net['onCarEvents'](aId, dup);
+  const dup = [{ k: 'hit', seq: copy.seq, slot: b.net.state.grid.indexOf(bId), weapon: 0, dmg: 20, x: 0, z: 0 }];
+  b.net['fleet']['onEvents'](aId, dup);
   room.run(300);
   check('a repeated hit message is not a second hit', view(b, bId).hp === 80);
 }
@@ -623,6 +644,51 @@ function duel(gap = 30, opts = {}) {
     [a, b].map((c) => `${view(c, aId).kills}/${view(c, bId).wrecks}`).join(' '));
   room.run(SIM.weapons.wreckTime * 1000 + 600);
   check('and it comes back with full health, seen by both', view(b, bId).hp === SIM.weapons.respawnHealth && view(a, bId).hp === SIM.weapons.respawnHealth);
+}
+
+/** For each tag, lose the first message carrying an event with it, and only that one. */
+function dropFirst(room, ...tags) {
+  const left = new Set(tags);
+  room.broker.lose = (topic, payload) => {
+    const hit = [...left].filter((t) => new RegExp(`(^|[|;])${t}:`).test(payload));
+    for (const t of hit) left.delete(t);
+    return hit.length > 0;
+  };
+}
+
+{
+  // A shot's fire and hit messages both lost on the way: the repeats that
+  // follow them still put the missile on the other screen and the damage on
+  // the victim, once.
+  const { room, a, b, once, view } = duel(30);
+  const aId = a.net.playerId, bId = b.net.playerId;
+  dropFirst(room, 'F', 'H');
+  once(a, 'fireFront');
+  let seen = false;
+  room.run(700, () => {
+    seen ||= b.net.world.armoury.missiles.some((m) => m.owner === aId);
+    return false;
+  });
+  room.run(1200);
+  room.broker.lose = null;
+  check('a lost fire message still puts the shot on the other screen', seen);
+  check('and a lost hit message still costs the victim 20, once', view(b, bId).hp === 80 && view(a, bId).hp === 80,
+    `victim sees ${view(b, bId).hp}, shooter sees ${view(a, bId).hp}`);
+}
+
+{
+  // The victim's wreck report lost once: the kill is still credited, and only once.
+  const { room, a, b, once, view } = duel(25);
+  const aId = a.net.playerId, bId = b.net.playerId;
+  b.net.me.hp = 10;
+  room.run(200);
+  dropFirst(room, 'D');
+  once(a, 'fireFront');
+  room.run(1500);
+  room.broker.lose = null;
+  check('a lost wreck message still credits the kill on every screen, once',
+    [a, b].every((c) => view(c, aId).kills === 1 && view(c, bId).wrecks === 1),
+    [a, b].map((c) => `${view(c, aId).kills}/${view(c, bId).wrecks}`).join(' '));
 }
 
 {

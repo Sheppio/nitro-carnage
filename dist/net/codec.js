@@ -4,14 +4,27 @@
  * Fields are comma-separated; lists inside a field use `.`; records in an
  * event batch use `|` with a one-letter tag. Numbers are base36, signed with
  * a leading `-`. Decoders tolerate truncation — a malformed message is
- * dropped, never thrown — and new fields only ever go on the end, so a
- * client on an older cached build still decodes what it understands.
+ * dropped, never thrown — and new fields go on the end where they can.
+ *
+ * A change older builds cannot follow bumps `WIRE`, which travels in
+ * presence, so the lobby can tell a player to reload.
  *
  * Byte counts are in PLAN.md §5.9 and asserted by `test/net.test.mjs`.
  */
+/**
+ * The wire protocol's version. 1: a topic per car for state and another for
+ * events. 2: one message per client carrying all its cars, events inside.
+ */
+export const WIRE = 2;
 const FLD = ',';
 const LIST = '.';
 const REC = '|';
+/** Between a car's state and its events, in a car record. */
+const EVT = ';';
+/** Between the car records of one message. */
+const CARS = '~';
+/** Between a car record's id and its state, when the car is not the publisher's own. */
+const ID = '=';
 const i = (n) => (Number.isFinite(n) ? Math.round(n) : 0);
 export const b36 = (n) => i(n).toString(36);
 export const un36 = (s) => {
@@ -125,7 +138,7 @@ export function encodeEvents(events) {
                 parts.push(`T:${b36(e.slot)},${b36(e.seq)}`);
                 break;
             case 'wreck':
-                parts.push(`D:${b36(e.slot)}`);
+                parts.push(`D:${b36(e.slot)},${b36(e.n)}`);
                 break;
         }
     }
@@ -160,7 +173,40 @@ export function decodeEvents(payload) {
         else if (tag === 'T' && f.length >= 2)
             out.push({ k: 'trigger', slot: un36(f[0]), seq: un36(f[1]) });
         else if (tag === 'D' && f.length >= 1)
-            out.push({ k: 'wreck', slot: un36(f[0]) });
+            out.push({ k: 'wreck', slot: un36(f[0]), n: un36(f[1]) });
+    }
+    return out;
+}
+/**
+ * `[id=]state[;events]`, records joined by `~` — everything one client
+ * publishes in a tick, in one message: its own car and, as host, the bots.
+ *
+ * Public brokers throttle by message count more than by bytes, every message
+ * carries its topic, and the broker copies each one to every client in the
+ * room. So a host with three bots sends one message where it used to send
+ * four state packets and their events. The publisher's own car leaves its id
+ * out: it is in the topic.
+ */
+export function encodeCars(publisher, records) {
+    return records
+        .map((r) => {
+        const head = r.id === publisher ? '' : `${r.id}${ID}`;
+        const tail = r.events.length ? `${EVT}${encodeEvents(r.events)}` : '';
+        return `${head}${encodeCar(r.car)}${tail}`;
+    })
+        .join(CARS);
+}
+export function decodeCars(publisher, payload, nowRoomMs) {
+    const out = [];
+    for (const raw of payload.split(CARS)) {
+        const eq = raw.indexOf(ID);
+        const id = eq < 0 ? publisher : raw.slice(0, eq);
+        const body = eq < 0 ? raw : raw.slice(eq + 1);
+        const semi = body.indexOf(EVT);
+        const car = decodeCar(semi < 0 ? body : body.slice(0, semi), nowRoomMs);
+        if (!id || !car)
+            continue;
+        out.push({ id, car, events: semi < 0 ? [] : decodeEvents(body.slice(semi + 1)) });
     }
     return out;
 }
@@ -218,7 +264,7 @@ export function sanitizeName(name) {
     return (name || 'DRIVER').toUpperCase().replace(/[^A-Z0-9_\- ]/g, '').slice(0, 12).trim() || 'DRIVER';
 }
 export function encodePresence(p) {
-    return [sanitizeName(p.name), p.colour, p.host, p.alive, p.ready, p.ver, p.look ?? ''].join(FLD);
+    return [sanitizeName(p.name), p.colour, p.host, p.alive, p.ready, p.ver, p.look ?? '', b36(p.wire ?? WIRE)].join(FLD);
 }
 export function decodePresence(payload) {
     const f = payload.split(FLD);
@@ -232,6 +278,7 @@ export function decodePresence(payload) {
         ready: un36(f[4]),
         ver: f[5] ?? '',
         look: f[6] ?? '',
+        wire: f[7] ? un36(f[7]) : 1,
     };
 }
 /* ---------------------------------------------------------------- clock */

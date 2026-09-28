@@ -191,8 +191,10 @@ export const NET = {
   /** Sender re-publishes early once its own prediction is this far off. */
   drPositionError: 0.35,
   drYawError: (4 * Math.PI) / 180,
-  /** Car events are batched and flushed this often. */
+  /** Car events wait at most this long for the next car message (shots and bumps do not wait). */
   eventFlushMs: 50,
+  /** Shots, hits, wrecks and finishes go out this many more times after the first. */
+  eventRepeats: 2,
   /** Host proves it is alive this often. */
   heartbeatHz: 2,
   /** No heartbeat for this long => the host is presumed dead and an election runs. */
