@@ -9,9 +9,9 @@ import { PALETTE } from './palette.js';
  * draw from it too.
  */
 /** New bodies go on the end: a look travels as each list's index. */
-export const BODIES = ['coupe', 'hatch', 'muscle', 'wedge', 'buggy', 'tractor', 'forklift'];
+export const BODIES = ['coupe', 'hatch', 'muscle', 'wedge', 'buggy', 'tractor', 'forklift', 'f1'];
 export const BODY_NAMES = {
-    coupe: 'Coupé', hatch: 'Hatch', muscle: 'Muscle', wedge: 'Wedge', buggy: 'Buggy', tractor: 'Tractor', forklift: 'Forklift',
+    coupe: 'Coupé', hatch: 'Hatch', muscle: 'Muscle', wedge: 'Wedge', buggy: 'Buggy', tractor: 'Tractor', forklift: 'Forklift', f1: 'Formula 1',
 };
 export const PATTERNS = ['none', 'twin', 'offset', 'flash', 'chequer', 'roundel'];
 export const PATTERN_NAMES = {

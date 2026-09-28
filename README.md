@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.51**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.52**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -1112,7 +1112,7 @@ number, with a hundred choices, is still a dropdown:
 
 | | Choices |
 | --- | --- |
-| Body | Coupé, Hatch, Muscle, Wedge, Buggy, Tractor, Forklift |
+| Body | Coupé, Hatch, Muscle, Wedge, Buggy, Tractor, Forklift, Formula 1 |
 | Livery | none, twin stripes, offset stripe, side flash, chequered bonnet, number roundel |
 | Stripe colour | any of the ten palette colours; it doesn't have to be unique |
 | Wheels | silver, black, gold, body colour |

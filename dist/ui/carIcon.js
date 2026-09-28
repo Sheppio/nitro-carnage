@@ -8,6 +8,7 @@ const SHAPES = {
     buggy: { w: 0.34, cab: 0.3, cabAt: -0.05 },
     tractor: { w: 0.4, cab: 0.32, cabAt: -0.22 },
     forklift: { w: 0.36, cab: 0.42, cabAt: -0.1 },
+    f1: { w: 0.45, cab: 0.14, cabAt: 0.02 },
 };
 /**
  * A little plan-view car for the lobby roster: body shape, colour, stripe
@@ -32,9 +33,21 @@ export function carIcon(look, colourId, width = 44, height = 22) {
     const L = width - 4, W = height * (shape.w / 0.45) - 4;
     const x0 = 2, y0 = (height - W) / 2;
     g.fillStyle = colourOf(colourId).cssColour;
-    g.beginPath();
-    g.roundRect(x0, y0, L, W, look.body === 'wedge' ? [2, 7, 7, 2] : 4);
-    g.fill();
+    if (look.body === 'f1') {
+        // A narrow body with a wing across each end, and the wheels out in the open.
+        g.fillRect(x0 + L * 0.08, y0 + W * 0.36, L * 0.86, W * 0.28);
+        g.fillRect(x0 + L * 0.2, y0 + W * 0.24, L * 0.4, W * 0.52);
+        g.fillRect(x0 + L * 0.93, y0 + W * 0.05, L * 0.07, W * 0.9);
+        g.fillRect(x0, y0 + W * 0.18, L * 0.07, W * 0.64);
+        g.fillStyle = '#16171b';
+        for (const [fx, fy] of [[0.2, 0], [0.2, 1], [0.78, 0], [0.78, 1]])
+            g.fillRect(x0 + L * fx - 3, y0 + (W - 4) * fy, 6, 4);
+    }
+    else {
+        g.beginPath();
+        g.roundRect(x0, y0, L, W, look.body === 'wedge' ? [2, 7, 7, 2] : 4);
+        g.fill();
+    }
     if (look.body === 'buggy') {
         g.fillStyle = '#16171b';
         for (const [fx, fy] of [[0.18, 0], [0.18, 1], [0.8, 0], [0.8, 1]])

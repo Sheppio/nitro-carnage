@@ -513,7 +513,7 @@ try {
     noSelects === 'garage-number' && clickedBody === 'hatch' && clickedStripe[0] === 'jade' && clickedStripe[1] === 1, `${noSelects}; › gave ${clickedBody}; square gave ${clickedStripe[0]}`);
   const bodies = await gp.evaluate(async () => {
     const out = [];
-    for (const body of ['coupe', 'hatch', 'muscle', 'wedge', 'buggy', 'tractor', 'forklift']) {
+    for (const body of ['coupe', 'hatch', 'muscle', 'wedge', 'buggy', 'tractor', 'forklift', 'f1']) {
       for (const pattern of ['none', 'twin', 'offset', 'flash', 'chequer', 'roundel']) {
         window.nitro.garage.set({ body, pattern });
         const mesh = window.nitro.garage.view.mesh;
@@ -548,8 +548,8 @@ try {
   });
   const outside = bodies.filter((b) => b.x > 1.03 || b.z > 2.25);
   const heavy = bodies.filter((b) => b.tris > 600);
-  r.check('seven bodies (a tractor and a forklift among them), six liveries each: all inside the shared footprint and under 600 triangles',
-    bodies.length === 42 && outside.length === 0 && heavy.length === 0,
+  r.check('eight bodies (a tractor, a forklift and a Formula 1 car among them), six liveries each: all inside the shared footprint and under 600 triangles',
+    bodies.length === 48 && outside.length === 0 && heavy.length === 0,
     `widest ${Math.max(...bodies.map((b) => b.x)).toFixed(2)} m half-width, longest ${Math.max(...bodies.map((b) => b.z)).toFixed(2)} m half-length, most ${Math.max(...bodies.map((b) => b.tris))} triangles${outside.length ? `; outside: ${outside.map((b) => b.body).join(' ')}` : ''}`);
   const striped = bodies.filter((b) => ['twin', 'offset', 'flash', 'chequer'].includes(b.pattern));
   r.check('every striped livery draws its stripe colour, and "none" draws none',
@@ -561,7 +561,7 @@ try {
   await gp.reload();
   await gp.waitForSelector('#screen-menu:not([hidden])');
   const kept = await gp.evaluate(() => window.nitro.look);
-  r.check('the chosen look is kept for next time: after a reload it is the last one picked', kept.body === 'forklift' && kept.pattern === 'roundel' && kept.stripe === 'jade',
+  r.check('the chosen look is kept for next time: after a reload it is the last one picked', kept.body === 'f1' && kept.pattern === 'roundel' && kept.stripe === 'jade',
     `${kept.body} / ${kept.pattern} / ${kept.stripe}`);
   await gp.close();
 

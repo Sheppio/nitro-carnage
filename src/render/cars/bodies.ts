@@ -4,7 +4,7 @@ import type { BodyId, CarLook } from '../../sim/look.js';
 import { MeshBuilder } from '../geometry.js';
 
 /**
- * The five body styles (PLAN.md §4.5b), as procedural geometry. Each is a
+ * The body styles (PLAN.md §4.5b), as procedural geometry. Each is a
  * handful of chamfered boxes, a few hundred triangles, built in code like
  * everything else — no model files.
  *
@@ -161,7 +161,51 @@ function forklift(b: MeshBuilder, c: number): BodyBuild {
   };
 }
 
-const BUILDERS: Record<BodyId, (b: MeshBuilder, c: number) => BodyBuild> = { coupe, hatch, muscle, wedge, buggy, tractor, forklift };
+/**
+ * A Formula 1 car: a narrow tub with the driver in the open under the halo,
+ * a low nose between the front wheels, sidepods, the engine cover and its
+ * airbox, and a wing at each end. The wheels stand out in the open, wide at
+ * the back. The number goes on the engine cover, the stripes on the nose
+ * and along the rear wing.
+ */
+function f1(b: MeshBuilder, c: number): BodyBuild {
+  const dark = tint(c, 0.5);
+  const carbon = 0x1a1b20;
+  // Tub, nose and front wing, with its endplates and a second element.
+  b.box(0, 0.42, 0.35, 0.72, 0.42, 1.9, c, { insetX: 0.06, skipBottom: true, sides: dark });
+  b.box(0, 0.36, 1.75, 0.6, 0.26, 0.9, c, { insetZFront: 0.3, skipBottom: true, sides: dark });
+  b.box(0, 0.16, 2.05, 1.96, 0.06, 0.34, c, { top: tint(c, 1.1), sides: dark });
+  b.box(0, 0.23, 1.93, 1.7, 0.04, 0.12, carbon);
+  for (const side of [1, -1]) b.box(side * 0.96, 0.24, 2.05, 0.04, 0.2, 0.36, dark, { skipBottom: true });
+  // Floor and sidepods between the axles.
+  b.box(0, 0.12, -0.1, 1.5, 0.04, 1.5, carbon);
+  for (const side of [1, -1]) b.box(side * 0.55, 0.36, -0.1, 0.4, 0.36, 1.5, c, { insetZFront: 0.1, insetZBack: 0.3, skipBottom: true, sides: dark });
+  // The cockpit: its opening, the driver's helmet and visor, and the halo over them.
+  b.box(0, 0.645, 0.25, 0.46, 0.03, 0.7, 0x141418);
+  b.box(0, 0.76, 0.12, 0.26, 0.24, 0.3, 0xf4f2ec, { skipBottom: true });
+  b.box(0, 0.8, 0.28, 0.22, 0.08, 0.03, GLASS);
+  b.box(0, 0.8, 0.58, 0.06, 0.34, 0.06, carbon, { skipBottom: true });
+  for (const side of [1, -1]) b.box(side * 0.21, 0.95, 0.2, 0.05, 0.05, 0.7, carbon);
+  b.box(0, 0.95, -0.15, 0.47, 0.05, 0.05, carbon);
+  // Engine cover, the airbox over the driver's head, and the diffuser under the tail.
+  b.box(0, 0.62, -0.95, 0.62, 0.5, 1.3, c, { insetX: 0.06, insetZBack: 0.4, skipBottom: true, sides: dark });
+  b.box(0, 0.98, -0.3, 0.3, 0.24, 0.3, dark, { insetZBack: 0.1, skipBottom: true });
+  b.box(0, 1.0, -0.14, 0.2, 0.14, 0.02, 0x141418);
+  b.box(0, 0.3, -1.75, 0.9, 0.2, 0.3, carbon, { skipBottom: true });
+  // Rear wing on its pylon, between tall endplates.
+  b.box(0, 0.8, -2.0, 0.06, 0.5, 0.2, carbon, { skipBottom: true });
+  b.box(0, 1.08, -2.05, 1.3, 0.06, 0.36, c, { top: tint(c, 1.15), sides: dark });
+  for (const side of [1, -1]) b.box(side * 0.67, 0.95, -2.05, 0.04, 0.4, 0.38, dark, { skipBottom: true });
+  return {
+    deck: { bonnet: [0.495, 1.3, 1.9, 0.3], roof: [0.875, -1.2, -0.35, 0.25], boot: [1.115, -2.2, -1.9, 0.6], side: [0.34, -0.75, 0.45, 0.75] },
+    // No headlights to speak of: the front pair is tucked inside the nose. The rain light sits on the diffuser.
+    lights: { front: [0.05, 0.32, 1.8], rear: [0.12, 0.3, -1.92] },
+    exhaust: { at: [[0, 0.55, -1.8]] },
+    wheels: { front: [0.34, 0.34], rear: [0.38, 0.44] },
+  };
+}
+
+const BUILDERS: Record<BodyId, (b: MeshBuilder, c: number) => BodyBuild> = { coupe, hatch, muscle, wedge, buggy, tractor, forklift, f1 };
 
 /**
  * The stripe colour against the body: if the two are too alike to tell apart,
