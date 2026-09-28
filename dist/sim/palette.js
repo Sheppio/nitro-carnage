@@ -1,7 +1,7 @@
 /**
  * Player colours — ported from glitchburst, where colour is *who*.
  *
- * A room holds six and the palette holds ten, so a clash always has somewhere
+ * A room holds six and the palette holds eleven, so a clash always has somewhere
  * to go, with room to spare for bots.
  *
  * Engine-agnostic and pure — no three, no DOM, no network. The resolver below
@@ -23,6 +23,8 @@ export const PALETTE = [
     { id: 'white', name: 'Pearl', colour: 0xf2f0ea, cssColour: '#f2f0ea' },
     { id: 'jade', name: 'Jade', colour: 0x00c07a, cssColour: '#00c07a' },
     { id: 'black', name: 'Onyx', colour: 0x2a2a30, cssColour: '#2a2a30' },
+    // Added by request. On the end: a look carries its stripe as a palette index.
+    { id: 'silver', name: 'Silver', colour: 0xb4bcc8, cssColour: '#b4bcc8' },
 ];
 export const COLOUR_ORDER = PALETTE.map((c) => c.id);
 export const DEFAULT_COLOUR = PALETTE[0].id;
@@ -74,7 +76,7 @@ export function resolveColours(claims) {
                 }
             }
             // More players than colours cannot happen — the room holds six and the
-            // palette holds ten — but if it ever did, a duplicate is a far better
+            // palette holds eleven — but if it ever did, a duplicate is a far better
             // outcome than an undefined colour.
         }
         taken.add(pick);

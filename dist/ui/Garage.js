@@ -8,8 +8,9 @@ const $ = (id) => document.getElementById(id);
  * tap changes any of them; only the race number, a hundred of them, is still
  * a dropdown. LB/RB cycle the body from anywhere on the screen.
  *
- * The body colour is shown but not chosen here: it is the room colour,
- * picked in the lobby, because it is how cars are told apart.
+ * The body colour is chosen here for a quick race or a hotlap. From a room
+ * it is only shown: there it is the room colour, picked in the lobby, which
+ * must be unique because it is how cars are told apart.
  */
 export class Garage {
     preview;
@@ -18,8 +19,11 @@ export class Garage {
     pattern;
     stripe;
     rims;
+    colour;
     colourId = 'vermilion';
     onChange = null;
+    /** The body colour was picked. */
+    onColour = null;
     constructor(preview, look) {
         this.preview = preview;
         this.look = sanitizeLook(look);
@@ -27,8 +31,14 @@ export class Garage {
         this.pattern = new Picker($('garage-pattern'), PATTERNS.map((p) => ({ value: p, label: PATTERN_NAMES[p] })));
         this.stripe = new Picker($('garage-stripe'), PALETTE.map((c) => ({ value: c.id, label: c.name, swatch: c.cssColour })));
         this.rims = new Picker($('garage-rims'), RIMS.map((r) => ({ value: r, label: RIM_NAMES[r] })));
+        this.colour = new Picker($('garage-colour'), PALETTE.map((c) => ({ value: c.id, label: c.name, swatch: c.cssColour })));
         for (const p of [this.body, this.pattern, this.stripe, this.rims])
             p.onChange = () => this.read();
+        this.colour.onChange = () => {
+            this.colourId = this.colour.value;
+            this.onColour?.(this.colourId);
+            this.changed();
+        };
         $('garage-number').replaceChildren(...Array.from({ length: 100 }, (_, n) => {
             const o = document.createElement('option');
             o.value = o.textContent = String(n);
@@ -58,9 +68,11 @@ export class Garage {
         this.write();
         this.changed();
     }
-    /** Open with the colour the car will wear. */
-    open(colourId) {
+    /** Open with the colour the car will wear, and whether it can be changed here. */
+    open(colourId, pickColour = false) {
         this.colourId = colourId;
+        this.colour.value = colourId;
+        $('garage-colour-row').hidden = !pickColour;
         this.write();
         this.preview.show(this.look, colourOf(colourId).colour);
         this.preview.start();

@@ -255,7 +255,7 @@ menuTurbo.addEventListener('change', () => store.set(TURBO_KEY, menuTurbo.value)
 /** The car-type lock's choices: everybody's own, or one body for the whole grid. Values are `bodyCode`s. */
 for (const id of ['menu-body', 'lobby-body']) {
   $<HTMLSelectElement>(id).replaceChildren(
-    new Option('Any: everyone their own', '0'),
+    new Option('Own cars', '0'),
     ...BODIES.map((b) => new Option(`All ${BODY_NAMES[b]}`, String(bodyCode(b)))),
   );
 }
@@ -302,11 +302,16 @@ function openGarage(fromLobby: boolean): void {
       store.set(LOOK_KEY, encodeLook(l));
       room?.net.room.setIdentity(playerName(), colourId, encodeLook(l));
     };
+    // Only offline: a room's colour is picked in its lobby.
+    g.onColour = (c) => {
+      colourId = c;
+      store.set(COLOUR_KEY, c);
+    };
     return g;
   })();
   const colour = fromLobby && room ? (room.net.room.resolvedColours()[room.net.playerId] ?? colourId) : colourId;
   show('screen-garage');
-  garage.open(colour);
+  garage.open(colour, !(fromLobby && room));
 }
 $('btn-garage').addEventListener('click', () => openGarage(false));
 $('btn-lobby-garage').addEventListener('click', () => openGarage(true));
@@ -872,10 +877,11 @@ declare global {
       audio: AudioEngine;
       readonly garage: Garage | null;
       readonly look: CarLook;
+      readonly colour: string;
       input: InputManager;
       readonly session: RaceSession | null;
       readonly room: RoomClient | null;
-      start: (mode: 'race' | 'hotlap') => void;
+      start: (mode: 'race' | 'hotlap' | 'daily') => void;
       openRoom: (code: string) => Promise<void>;
       leave: () => void;
     };
@@ -889,6 +895,9 @@ window.nitro = {
   },
   get look() {
     return look;
+  },
+  get colour() {
+    return colourId;
   },
   input,
   get session() {

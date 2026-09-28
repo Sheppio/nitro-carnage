@@ -73,53 +73,59 @@
       <!-- ------------------------------------------------ CHOOSE A TRACK -->
       <!-- Between the menu and an offline race: which track, and how. -->
       <section class="screen menu" id="screen-track" hidden>
-        <div class="menu-card">
+        <!-- Wide on a landscape screen, the settings in two columns, so the whole
+             screen fits a TV without scrolling. -->
+        <div class="menu-card wide">
           <h2 id="track-mode">Quick race</h2>
           <nav class="menu-actions">
-            <label class="field">
-              <span>Track</span>
-              <select id="menu-track"></select>
-            </label>
-            <div class="seed-row" id="menu-seed-row">
+            <div class="lobby-grid">
               <label class="field">
-                <span>Seed</span>
-                <input type="text" id="menu-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
+                <span>Track</span>
+                <select id="menu-track"></select>
               </label>
-              <button class="btn dice" id="menu-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
+              <div class="seed-row" id="menu-seed-row">
+                <label class="field">
+                  <span>Seed</span>
+                  <input type="text" id="menu-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
+                </label>
+                <button class="btn dice" id="menu-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
+              </div>
             </div>
             <div class="track-preview" id="menu-track-preview" aria-live="polite">
               <canvas class="track-map" id="menu-track-map" aria-hidden="true"></canvas>
               <p class="track-info" id="menu-track-info"></p>
             </div>
-            <label class="field" id="menu-laps-row">
-              <span>Laps</span>
-              <select id="menu-laps">
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="5">5</option>
-                <option value="7">7</option>
-                <option value="9">9</option>
-              </select>
-            </label>
-            <label class="field" id="menu-weapons-row">
-              <span>Weapons</span>
-              <select id="menu-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
-            </label>
-            <label class="field" id="menu-pickups-row">
-              <span>Power-ups</span>
-              <select id="menu-pickups"><option value="1">On</option><option value="0">Off</option></select>
-            </label>
-            <label class="field" id="menu-turbo-row">
-              <span>Turbo</span>
-              <select id="menu-turbo"><option value="1">On</option><option value="0">Off</option></select>
-            </label>
-            <label class="field" id="menu-body-row">
-              <span>Car type</span>
-              <select id="menu-body"></select>
-            </label>
-            <button class="btn" id="btn-garage">Garage</button>
+            <div class="lobby-grid">
+              <label class="field" id="menu-laps-row">
+                <span>Laps</span>
+                <select id="menu-laps">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="5">5</option>
+                  <option value="7">7</option>
+                  <option value="9">9</option>
+                </select>
+              </label>
+              <label class="field" id="menu-weapons-row">
+                <span>Weapons</span>
+                <select id="menu-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
+              </label>
+              <label class="field" id="menu-pickups-row">
+                <span>Power-ups</span>
+                <select id="menu-pickups"><option value="1">On</option><option value="0">Off</option></select>
+              </label>
+              <label class="field" id="menu-turbo-row">
+                <span>Turbo</span>
+                <select id="menu-turbo"><option value="1">On</option><option value="0">Off</option></select>
+              </label>
+              <label class="field" id="menu-body-row">
+                <span>Car type</span>
+                <select id="menu-body"></select>
+              </label>
+            </div>
             <div class="btn-row">
+              <button class="btn" id="btn-garage">Garage</button>
               <button class="btn" id="btn-track-back" data-nav-back>Back</button>
               <button class="btn primary" id="btn-track-go" data-nav-default>Start</button>
             </div>
@@ -256,6 +262,7 @@
           <!-- One column on purpose: each picker keeps left/right for itself, so a
                second column of them could not be reached from keys or a pad. -->
           <div class="lobby-grid one-column">
+            <div class="field" id="garage-colour-row"><span id="garage-colour-label">Car colour</span><div id="garage-colour" aria-labelledby="garage-colour-label"></div></div>
             <div class="field"><span id="garage-body-label">Body</span><div id="garage-body" aria-labelledby="garage-body-label"></div></div>
             <div class="field"><span id="garage-pattern-label">Livery</span><div id="garage-pattern" aria-labelledby="garage-pattern-label"></div></div>
             <div class="field"><span id="garage-stripe-label">Stripe colour</span><div id="garage-stripe" aria-labelledby="garage-stripe-label"></div></div>

@@ -113,11 +113,14 @@ try {
   await a.selectOption('#lobby-track', '0');
 
   // Bob's look, set in his Garage, reaches Alice's lobby.
-  await b.evaluate(() => {
+  const colourHidden = await b.evaluate(() => {
     document.getElementById('btn-lobby-garage').click();
     window.nitro.garage.set({ body: 'buggy', pattern: 'roundel', number: 42 });
+    const hidden = document.getElementById('garage-colour-row').hidden;
     document.getElementById('btn-garage-back').click();
+    return hidden;
   });
+  r.check('from a room, the Garage leaves the colour to the lobby', colourHidden);
   const bobId = await b.evaluate(() => window.nitro.room.net.playerId);
   const seen = await until(() => a.evaluate((id) => {
     const l = window.nitro.room.net.carInfo(id).look;

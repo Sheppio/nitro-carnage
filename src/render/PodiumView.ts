@@ -9,12 +9,18 @@ export interface PodiumCar {
   colour: number;
 }
 
-/** Where each place stands: x, and the plinth's height. First in the middle and highest. */
+/**
+ * Where each place stands: which side (times the spread), and the plinth's
+ * height. First in the middle and highest.
+ */
 const PLACES = [
-  { x: 0, h: 1.3, colour: 0xffc233 },
-  { x: -4.8, h: 0.85, colour: 0xc9ccd6 },
-  { x: 4.8, h: 0.5, colour: 0xcd7f45 },
+  { side: 0, h: 1.3, colour: 0xffc233 },
+  { side: -1, h: 0.85, colour: 0xc9ccd6 },
+  { side: 1, h: 0.5, colour: 0xcd7f45 },
 ] as const;
+/** The least distance between plinths, so they never touch. */
+const MIN_SPREAD = 4.8;
+const FOV = 30;
 
 /**
  * The results' podium: the first three cars, in their own colours and
@@ -25,7 +31,10 @@ const PLACES = [
 export class PodiumView {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  private camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100);
+  private plinths: THREE.Mesh[] = [];
+  /** Distance between plinths: set by `fit` so each car stands over its name. */
+  private spread = MIN_SPREAD;
   private cars: { mesh: CarMesh; state: CarState; y: number }[] = [];
   private raf = 0;
   private last = 0;
@@ -46,8 +55,9 @@ export class PodiumView {
         new THREE.CylinderGeometry(2.1, 2.2, p.h, 32),
         new THREE.MeshLambertMaterial({ color: p.colour, emissive: p.colour, emissiveIntensity: 0.12 }),
       );
-      plinth.position.set(p.x, p.h / 2, 0);
+      plinth.position.set(p.side * this.spread, p.h / 2, 0);
       this.scene.add(plinth);
+      this.plinths.push(plinth);
     }
     this.camera.position.set(0, 5, 11);
     this.camera.lookAt(0, 1.1, 0);
@@ -75,7 +85,7 @@ export class PodiumView {
       mesh.blob.visible = false;
       this.scene.add(mesh.root);
       // Each faces a little differently to start, so they don't turn in step.
-      const state = createCar(PLACES[i]!.x, 0, 0.9 + i * 2.1);
+      const state = createCar(PLACES[i]!.side * this.spread, 0, 0.9 + i * 2.1);
       return { mesh, state, y: PLACES[i]!.h };
     });
   }
@@ -113,5 +123,13 @@ export class PodiumView {
     this.camera.position.set(0, 5 * back, 11 * back);
     this.camera.lookAt(0, 1.1, 0);
     this.camera.updateProjectionMatrix();
+    // The names are in thirds of the box, their centres a third of its width
+    // apart: spread the plinths to match, measured across the view where they
+    // stand, so a wide landscape box doesn't leave the cars huddled mid-screen.
+    const dist = this.camera.position.distanceTo(new THREE.Vector3(0, 1.1, 0));
+    const halfWidth = dist * Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * this.camera.aspect;
+    this.spread = Math.max(MIN_SPREAD, (halfWidth * 2) / 3);
+    this.plinths.forEach((p, i) => (p.position.x = PLACES[i]!.side * this.spread));
+    this.cars.forEach((c, i) => (c.state.x = PLACES[i]!.side * this.spread));
   }
 }

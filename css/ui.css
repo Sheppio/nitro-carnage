@@ -519,6 +519,8 @@ select {
 /* The podium: the first three turning on their plinths, names underneath. */
 .podium { position: relative; width: min(560px, 100%); height: clamp(110px, 17vh, 190px); margin: -6px auto 6px; }
 .podium-canvas { width: 100%; height: 100%; display: block; }
+/* Landscape: the whole card's width, so the three stand well apart, each over its name. */
+@media (orientation: landscape) and (min-width: 720px) { .podium { width: 100%; } }
 .podium-names {
   position: absolute;
   left: 0;

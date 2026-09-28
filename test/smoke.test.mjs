@@ -532,6 +532,11 @@ try {
   const clickedStripe = await gp.evaluate(() => [window.nitro.garage.current.stripe, document.querySelectorAll('#garage-stripe .swatch.on').length]);
   r.check('the Garage picks by arrows and colour squares; only the race number is a dropdown',
     noSelects === 'garage-number' && clickedBody === 'hatch' && clickedStripe[0] === 'jade' && clickedStripe[1] === 1, `${noSelects}; › gave ${clickedBody}; square gave ${clickedStripe[0]}`);
+  // A quick race's Garage picks the car's colour too; silver among them.
+  const picked = await gp.evaluate(() => !document.getElementById('garage-colour-row').hidden);
+  await gp.click('#garage-colour .swatch[title="Silver"]');
+  const silver = await gp.evaluate(() => window.nitro.colour);
+  r.check('offline, the Garage picks the car colour, silver included', picked && silver === 'silver', `${picked ? 'shown' : 'hidden'}, ${silver}`);
   const bodies = await gp.evaluate(async () => {
     const out = [];
     for (const body of ['coupe', 'hatch', 'muscle', 'wedge', 'buggy', 'tractor', 'forklift', 'f1']) {
