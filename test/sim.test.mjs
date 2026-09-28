@@ -15,6 +15,7 @@ import { SKILLS, skillFor } from '../dist/sim/autopilot.js';
 import { STUCK_RESPAWN, GHOST_TIME } from '../dist/sim/World.js';
 import { TRACKS } from '../dist/sim/track/index.js';
 import { World } from '../dist/sim/World.js';
+import { RaceLog, awards, Tally } from '../dist/sim/raceLog.js';
 import { interpolateCar } from '../dist/sim/interpolate.js';
 import { resolveColours, PALETTE } from '../dist/sim/palette.js';
 import { applyDeadzone1, filterAxis } from '../dist/input/sources.js';
@@ -1476,6 +1477,47 @@ check('the hardware drift floor zeroes a resting stick', filterAxis(0.12) === 0 
 }
 
 check('the stock car stats are all ones', STOCK.engine === 1 && STOCK.grip === 1 && STOCK.turbo === 1);
+
+/* ------------------------------------------------------ awards and tally */
+
+console.log('\nawards and the room tally');
+
+{
+  // A made-up race: A wrecks B three times (twice with missiles, once finishing
+  // it off against a wall), C wrecks itself, D starts last and wins.
+  const lap = (finishTime, progress = 0) => ({ finishTime, progress });
+  const grid = ['A', 'B', 'C', 'D'].map((id, i) => ({ id, lap: lap(null, 100 - i) }));
+  const log = new RaceLog();
+  log.onEvent({ kind: 'go', time: 0 }, grid);
+  const hit = (by, id, weapon = 'front') => log.onEvent({ kind: 'hit', id, by, seq: 1, weapon, damage: 20, x: 0, z: 0, remote: false }, grid);
+  const wreck = (id, by) => log.onEvent({ kind: 'wreck', id, by, x: 0, z: 0, time: 1 }, grid);
+  hit('A', 'B'); const w1 = wreck('B', 'A');
+  hit('A', 'B', 'mine'); const w2 = wreck('B', 'A');
+  wreck('B', 'A');
+  const w4 = wreck('C', null);
+  check('the feed names the weapon that did it, and a wall for a wreck nobody caused', w1.cause === 'front' && w2.cause === 'mine' && w4.cause === 'wall' && log.feed.length === 4);
+  check('the log counts wrecks dealt and taken, and self-inflicted ones', log.kills.get('A') === 3 && log.wrecked.get('B') === 3 && log.selfWrecks.get('C') === 1);
+  check('the grid order is taken at GO', log.start.get('A') === 1 && log.start.get('D') === 4);
+
+  const order = ['D', 'A', 'C', 'B'];
+  const list = awards(log, order, (id) => id);
+  const titles = list.map((a) => a.title);
+  check('awards: the grudge, the comeback and the kamikaze, three at most', titles.join() === 'Grudge match,Comeback,Kamikaze', titles.join());
+  check('and nobody gets two', new Set(list.map((a) => a.id)).size === list.length);
+  check('and the grudge says who and how often', list[0].text === 'A wrecked B 3 times', list[0].text);
+  const quiet = new RaceLog();
+  quiet.onEvent({ kind: 'go', time: 0 }, grid);
+  check('a clean race in grid order gives no awards', awards(quiet, ['A', 'B', 'C', 'D'], (id) => id).length === 0);
+
+  const tally = new Tally();
+  tally.add(order, log, (id) => `N${id}`, (id) => id === 'C');
+  tally.add(['A', 'D', 'B', 'C'], log, (id) => `N${id}`, (id) => id === 'C');
+  const st = tally.standings();
+  check('the tally adds points across races: 10, 6, 4, 3', st[0].id === 'A' && st[0].points === 16 && st[0].wins === 1 && st[1].id === 'D' && st[1].points === 16,
+    st.map((r) => `${r.id}:${r.points}`).join(' '));
+  check('and counts races, wrecks and bots', tally.races === 2 && st[0].kills === 6 && st.find((r) => r.id === 'C').bot);
+  check('the nemesis is whoever has wrecked you most', tally.nemesis('B')?.id === 'A' && tally.nemesis('B').count === 6 && tally.nemesis('A') === null);
+}
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
 if (fail) process.exitCode = 1;

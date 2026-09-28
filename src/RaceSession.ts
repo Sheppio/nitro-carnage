@@ -18,6 +18,8 @@ import { COLOUR_ORDER, colourOf } from './sim/palette.js';
 import { botLook, DEFAULT_LOOK } from './sim/look.js';
 import type { CarLook } from './sim/look.js';
 import { displayLap, standings } from './sim/race.js';
+import { RaceLog } from './sim/raceLog.js';
+import type { WreckEntry } from './sim/raceLog.js';
 import { racingLine } from './sim/racingLine.js';
 import type { TrackDef } from './sim/track/TrackDef.js';
 import { World } from './sim/World.js';
@@ -147,6 +149,10 @@ export class RaceSession {
   onHud: ((hud: HudSnapshot) => void) | null = null;
   onEvent: ((ev: RaceEvent) => void) | null = null;
   onOver: ((rows: ResultRow[]) => void) | null = null;
+  /** A car was wrecked: the kill feed. */
+  onWreck: ((w: WreckEntry) => void) | null = null;
+  /** This race's story so far: wrecks, hits and the grid, for the feed, the awards and the room's tally. */
+  readonly log = new RaceLog();
   /** Sound, if the page has it. Set by the page after construction. */
   audio: AudioEngine | null = null;
   /** The best lap on record for this track (hotlap); the page loads and saves it. */
@@ -403,6 +409,8 @@ export class RaceSession {
       this.player.car.turbo = SIM.car.turboCapacity;
     }
     this.soundFor(ev);
+    const wreck = this.log.onEvent(ev, this.world.entrants);
+    if (wreck) this.onWreck?.(wreck);
     const focus = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
     if (ev.kind === 'hit') {
       this.view.explode(ev.x, ev.z, ev.weapon === 'mine' ? 1.4 : 1, focus);

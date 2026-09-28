@@ -506,10 +506,70 @@ select {
 .results-table tr.you td { background: rgba(255, 255, 255, 0.06); font-weight: 600; }
 .results-table .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
 
+/* The race's awards: a coloured bar for whoever won each, the title, then the line. */
+.awards { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.awards li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 4px solid var(--c, var(--accent-2));
+}
+.awards b { font: 700 13px var(--display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-2); flex: none; }
+.awards span { font-size: 14px; }
+
+/* Tonight's standings sit beside the race's results where there is room, under them where not. */
+.results-grid { display: grid; gap: 0 22px; }
+.tonight h3 { font: 700 14px var(--display); letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 4px; }
+.tonight h3 small { color: var(--muted); font-weight: 600; letter-spacing: 0.04em; text-transform: none; }
+.tonight .menu-note { margin: -10px 0 14px; }
+.results-grid > * { min-width: 0; }
+.tonight .results-table th { padding: 6px; }
+.tonight .results-table td { padding: 8px 6px; white-space: nowrap; }
+.tonight .results-table td:nth-child(2) { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+@media (min-width: 960px) {
+  .results-grid.with-tonight { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+}
+/* Rematch, lobby and leave in one row: three stacked buttons pushed the results off a short screen. */
+@media (min-width: 720px) {
+  .results .menu-actions { flex-direction: row; }
+  .results .menu-actions > .btn { flex: 1; }
+}
+
+/* The kill feed: every wreck in the race, newest on top, under the top right corner. */
+.hud-feed {
+  position: absolute;
+  right: 16px;
+  top: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+}
+.feed-line {
+  font: 700 14px var(--display);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: rgba(10, 10, 16, 0.62);
+  transition: opacity 0.5s;
+  animation: feed-in 0.25s ease-out;
+}
+.feed-line.you { background: rgba(255, 77, 46, 0.35); }
+.feed-line.gone { opacity: 0; }
+.feed-icon { color: var(--accent-2); margin: 0 8px; }
+@keyframes feed-in { from { transform: translateX(24px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .feed-line { animation: none; } }
+
 @media (pointer: coarse) {
   .hud-race { top: 86px; }
   .hud-pos b { font-size: 40px; }
   .hud-minimap { top: 56px; bottom: auto; width: 110px; height: 110px; }
+  .hud-feed { top: 176px; }
 }
 
 @media (max-width: 520px) {
@@ -572,6 +632,7 @@ input[type='text'] {
 .roster .badge.host { color: var(--accent-2); border-color: rgba(255, 179, 0, 0.5); }
 .roster .badge.warn, .menu-note.warn { color: var(--accent); border-color: currentColor; }
 .roster li.bot { opacity: 0.6; }
+.roster .badge.score { color: var(--text); border-color: rgba(255, 255, 255, 0.3); font-variant-numeric: tabular-nums; }
 
 .lobby-grid { display: grid; gap: 4px; margin-bottom: 6px; }
 

@@ -210,6 +210,20 @@ export class NetRace {
   /** Host: freeze the grid and start the countdown. */
   startRace(): void {
     if (!this.isHost || this.state.phase !== 'L') return;
+    this.launch();
+  }
+
+  /**
+   * Host: another race from the results, on the same track with the same
+   * settings, without the trip back to the lobby. Whoever is in the room now
+   * is on the grid, like any start.
+   */
+  rematch(): void {
+    if (!this.isHost || this.state.phase !== 'X') return;
+    this.launch();
+  }
+
+  private launch(): void {
     const humans = this.room.aliveIds.slice(0, NET.maxPlayers);
     const grid = [...humans];
     for (let slot = grid.length; slot < Math.max(this.state.cars, humans.length); slot++) grid.push(`b${slot}`);

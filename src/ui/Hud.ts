@@ -1,5 +1,6 @@
 import { SIM } from '../config.js';
 import type { HudSnapshot, RaceSession, ResultRow } from '../RaceSession.js';
+import type { Award, Tally, WreckCause, WreckEntry } from '../sim/raceLog.js';
 import type { RaceEvent } from '../sim/World.js';
 import { Minimap } from './Minimap.js';
 import { NameTags } from './NameTags.js';
@@ -21,6 +22,20 @@ export function ordinal(n: number): string {
   const s = ['TH', 'ST', 'ND', 'RD'];
   const v = n % 100;
   return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+}
+
+/** The kill feed's icon for each way to be wrecked: the HUD's ammo icons, and a burst for a wall. */
+const CAUSE: Record<WreckCause, string> = { front: '▲', rear: '▼', mine: '◆', wall: '✹' };
+/** Lines in the kill feed at once, and how long each stays, ms. */
+const FEED_LINES = 4;
+const FEED_MS = 6000;
+
+/** A name in its car's colour, for the feed and the results. */
+function named(name: string, css: string): HTMLElement {
+  const b = document.createElement('b');
+  b.textContent = name;
+  b.style.color = css;
+  return b;
 }
 
 /**
@@ -47,7 +62,33 @@ export class Hud {
     $('hud-pos').parentElement!.hidden = hotlap;
     $('hud-record-row').hidden = !hotlap;
     $('hud-debug').hidden = !debug;
+    $('hud-feed').replaceChildren();
     this.banner('', 0);
+  }
+
+  /**
+   * A line in the kill feed: every wreck in the race, not only your own, so
+   * you see your friends take each other out. Old lines fade on a timer.
+   */
+  wreck(w: WreckEntry): void {
+    if (this.session.mode === 'hotlap') return;
+    const cars = this.session.cars;
+    const victim = cars.get(w.id);
+    if (!victim) return;
+    const feed = $('hud-feed');
+    const line = document.createElement('div');
+    line.className = 'feed-line';
+    if (victim.you || cars.get(w.by ?? '')?.you) line.classList.add('you');
+    const killer = w.by ? cars.get(w.by) : undefined;
+    const icon = document.createElement('span');
+    icon.className = 'feed-icon';
+    icon.textContent = CAUSE[w.cause];
+    if (killer) line.append(named(killer.name, killer.css), icon, named(victim.name, victim.css));
+    else line.append(named(victim.name, victim.css), icon, document.createTextNode('WALL'));
+    feed.prepend(line);
+    while (feed.children.length > FEED_LINES) feed.lastElementChild!.remove();
+    window.setTimeout(() => line.classList.add('gone'), FEED_MS);
+    window.setTimeout(() => line.remove(), FEED_MS + 500);
   }
 
   update(hud: HudSnapshot): void {
@@ -203,6 +244,57 @@ export class Hud {
     }
     const you = rows.find((r) => r.car.you);
     $('results-title').textContent = you ? `You finished ${ordinal(you.position).toLowerCase()}` : 'Results';
+  }
+
+  /** The race's awards, under the results: who wrecked whom, the comeback, the kamikaze. */
+  static awards(list: readonly Award[], css: (id: string) => string): void {
+    const ul = $('results-awards');
+    ul.replaceChildren();
+    ul.hidden = list.length === 0;
+    for (const a of list) {
+      const li = document.createElement('li');
+      li.style.setProperty('--c', css(a.id));
+      const title = document.createElement('b');
+      title.textContent = a.title;
+      const text = document.createElement('span');
+      text.textContent = a.text;
+      li.append(title, text);
+      ul.appendChild(li);
+    }
+  }
+
+  /**
+   * The room's running score, beside the results: points, wins and wrecks
+   * across tonight's races, and who has been wrecking you. Hidden offline and
+   * after a room's first race, when it would only repeat the results.
+   */
+  static tonight(tally: Tally | null, you: string, css: (id: string) => string): void {
+    const box = $('results-tonight');
+    box.hidden = !tally || tally.races < 2;
+    box.parentElement!.classList.toggle('with-tonight', !box.hidden);
+    if (!tally || box.hidden) return;
+    $('tonight-races').textContent = `after ${tally.races} races`;
+    const body = $('tonight-body');
+    body.replaceChildren();
+    tally.standings().forEach((r, i) => {
+      const tr = document.createElement('tr');
+      if (r.id === you) tr.className = 'you';
+      const name = document.createElement('td');
+      const sw = document.createElement('span');
+      sw.className = 'swatch';
+      sw.style.background = css(r.id);
+      name.append(sw, r.name);
+      const cells = [String(i + 1), name, String(r.points), String(r.wins), String(r.kills)];
+      for (const c of cells) {
+        const td = typeof c === 'string' ? Object.assign(document.createElement('td'), { textContent: c }) : c;
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    });
+    const nemesis = tally.nemesis(you);
+    const note = $('tonight-nemesis');
+    note.hidden = !nemesis;
+    if (nemesis) note.replaceChildren('Your nemesis: ', named(tally.name(nemesis.id), css(nemesis.id)), `, ${nemesis.count} wrecks`);
   }
 
   dispose(): void {

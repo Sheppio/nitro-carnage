@@ -9,7 +9,7 @@ import { sanitizeName } from './net/codec.js';
 import { RaceSession } from './RaceSession.js';
 import type { SessionMode } from './RaceSession.js';
 import { RoomClient } from './RoomClient.js';
-import { isColourId } from './sim/palette.js';
+import { colourOf, isColourId } from './sim/palette.js';
 import { TRACKS } from './sim/track/index.js';
 import { AudioEngine } from './audio/AudioEngine.js';
 import { dateSeed, daySeed, generateTrack, seedOf, utcDay } from './sim/track/generate.js';
@@ -28,6 +28,8 @@ import { formatTime, Hud } from './ui/Hud.js';
 import { Keyboard } from './ui/Keyboard.js';
 import { ChoiceList } from './ui/ChoiceList.js';
 import { Lobby } from './ui/Lobby.js';
+import { awards, Tally } from './sim/raceLog.js';
+import { isBotId } from './sim/bots.js';
 import { makePlayerId, makeRoomCode } from './util.js';
 import { VERSION } from './version.js';
 
@@ -301,6 +303,7 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
   if (params.has('autopilot')) s.autopilot = true;
   hud = new Hud(s, params.has('debug'));
   s.onHud = (h) => hud?.update(h);
+  s.onWreck = (w) => hud?.wreck(w);
   s.onEvent = (ev) => {
     hud?.event(ev);
     // Hotlap: a lap faster than the record is the new record.
@@ -316,10 +319,19 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
   s.onOver = (rows) => {
     Hud.results(rows);
     const online = mode === 'net';
+    // Names as the room knows them (the session calls you YOU), and each car's colour.
+    const name = (id: string): string => (room ? room.net.carInfo(id).name : id === s.playerId ? playerName() || 'You' : (s.cars.get(id)?.name ?? '—'));
+    const css = (id: string): string => s.cars.get(id)?.css ?? (room ? colourOf(room.net.carInfo(id).colour).cssColour : '#fff');
+    const order = rows.map((r) => r.car.id);
+    if (online) tally?.add(order, s.log, name, isBotId);
+    Hud.awards(awards(s.log, order, name), css);
+    Hud.tonight(online ? tally : null, s.playerId, css);
     // In a room the first button goes straight back to the lobby; the room
-    // itself returns everyone there when the results time is up.
+    // itself returns everyone there when the results time is up, unless the
+    // host starts a rematch first.
     $('btn-again').textContent = online ? 'Back to lobby' : 'Race again';
     $('results-note').hidden = !online;
+    rematchButton();
     if (online) countDownToLobby();
     $('btn-results-menu').textContent = online ? 'Leave room' : 'Back';
     if (!online) stopSession();
@@ -408,6 +420,19 @@ function toMenu(): void {
 
 let room: RoomClient | null = null;
 let lobby: Lobby | null = null;
+/** The room's running score across tonight's races; a new room starts a new one. */
+let tally: Tally | null = null;
+
+/** Rematch, on the results, for the host of a room: it becomes the button the pad lands on. */
+function rematchButton(): void {
+  const host = room?.net.isHost === true && room.net.phase === 'X';
+  const btn = $('btn-rematch');
+  btn.hidden = !host;
+  btn.toggleAttribute('data-nav-default', host);
+  $('btn-again').toggleAttribute('data-nav-default', !host);
+  // One bright button: Rematch when there is one.
+  $('btn-again').classList.toggle('primary', !host);
+}
 
 async function openRoom(code: string): Promise<void> {
   leaveRoom();
@@ -418,6 +443,7 @@ async function openRoom(code: string): Promise<void> {
   const client = new RoomClient(code, makePlayerId(), playerName(), colourId, encodeLook(look));
   client.net.botLevel = settings.current.botLevel;
   room = client;
+  tally = new Tally();
   $('connect-status').textContent = `Reaching ${broker.label}…`;
   show('screen-connecting');
 
@@ -427,7 +453,11 @@ async function openRoom(code: string): Promise<void> {
   };
   net.events.on('state', redraw);
   net.events.on('roster', redraw);
-  net.events.on('hostChange', redraw);
+  net.events.on('hostChange', () => {
+    redraw();
+    // The host left during the results: Rematch moves to whoever took over.
+    if (room === client && current === 'screen-results') rematchButton();
+  });
   net.events.on('roomFull', () => {
     leaveRoom();
     show('screen-full');
@@ -461,7 +491,7 @@ async function openRoom(code: string): Promise<void> {
     return;
   }
   if (room !== client) return;
-  lobby = new Lobby(net, code);
+  lobby = new Lobby(net, code, tally!);
   history.replaceState(null, '', `?room=${code}${params.has('quality') ? `&quality=${params.get('quality')}` : ''}`);
   show('screen-lobby');
   lobby.render();
@@ -472,6 +502,7 @@ function leaveRoom(): void {
   room.leave();
   room = null;
   lobby = null;
+  tally = null;
   document.body.classList.remove('is-host');
   if (params.has('room')) history.replaceState(null, '', location.pathname);
 }
@@ -564,11 +595,15 @@ function countDownToLobby(): void {
       clearInterval(lobbyTimer);
       return;
     }
-    $('results-note').textContent = `Back to the lobby in ${left} s.`;
+    const host = room?.net.room.hostId ? room.net.carInfo(room.net.room.hostId) : null;
+    $('results-note').textContent = host && !host.you
+      ? `Back to the lobby in ${left} s, unless ${host.name} starts a rematch.`
+      : `Back to the lobby in ${left} s.`;
   };
   tick();
   lobbyTimer = window.setInterval(tick, 250);
 }
+$('btn-rematch').addEventListener('click', () => room?.net.rematch());
 $('btn-results-menu').addEventListener('click', toMenu);
 $('btn-pause').addEventListener('click', openPause);
 $('btn-resume').addEventListener('click', closePause);

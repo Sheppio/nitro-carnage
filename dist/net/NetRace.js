@@ -150,6 +150,19 @@ export class NetRace {
     startRace() {
         if (!this.isHost || this.state.phase !== 'L')
             return;
+        this.launch();
+    }
+    /**
+     * Host: another race from the results, on the same track with the same
+     * settings, without the trip back to the lobby. Whoever is in the room now
+     * is on the grid, like any start.
+     */
+    rematch() {
+        if (!this.isHost || this.state.phase !== 'X')
+            return;
+        this.launch();
+    }
+    launch() {
         const humans = this.room.aliveIds.slice(0, NET.maxPlayers);
         const grid = [...humans];
         for (let slot = grid.length; slot < Math.max(this.state.cars, humans.length); slot++)

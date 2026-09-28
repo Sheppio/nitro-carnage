@@ -13,8 +13,10 @@ const $ = (id) => document.getElementById(id);
  */
 export class Lobby {
     net;
-    constructor(net, roomId) {
+    tally;
+    constructor(net, roomId, tally = null) {
         this.net = net;
+        this.tally = tally;
         $('lobby-code').textContent = roomId;
         const link = `${location.origin}${location.pathname}?room=${roomId}`;
         $('lobby-link').textContent = link;
@@ -46,6 +48,15 @@ export class Lobby {
         // A player on another wire protocol can't race with this one: their cars,
         // shots and bots would not show. Say who, and who should reload.
         let older = 0, newer = 0;
+        // Tonight's points beside each name, once there has been a race: the lobby between races is where the score is argued over.
+        const standings = this.tally?.standings() ?? [];
+        const score = (id) => {
+            const i = standings.findIndex((r) => r.id === id);
+            if (i < 0)
+                return '';
+            const r = standings[i];
+            return `${i === 0 && r.points > 0 ? '👑 ' : ''}${r.points} PTS${r.wins ? ` · ${r.wins} WIN${r.wins === 1 ? '' : 'S'}` : ''}`;
+        };
         for (const id of ids) {
             const info = net.carInfo(id);
             const wire = id === net.playerId ? WIRE : (room.peers.get(id)?.wire ?? WIRE);
@@ -55,7 +66,7 @@ export class Lobby {
                 newer++;
             list.appendChild(this.row(info.name, colours[id] ?? info.colour, [
                 id === room.hostId ? 'HOST' : '', id === net.playerId ? 'YOU' : '',
-                wire < WIRE ? 'OLD BUILD' : wire > WIRE ? 'NEWER BUILD' : '',
+                wire < WIRE ? 'OLD BUILD' : wire > WIRE ? 'NEWER BUILD' : '', score(id),
             ], info.look));
         }
         const builds = $('lobby-builds');
@@ -68,7 +79,8 @@ export class Lobby {
         const taken = new Set(Object.values(colours));
         const free = PALETTE.map((c) => c.id).filter((c) => !taken.has(c));
         for (let b = 0; b < bots; b++) {
-            const li = this.row(net.carInfo(`b${ids.length + b}`).name, free[b % free.length] ?? 'black', ['BOT'], net.carInfo(`b${ids.length + b}`).look);
+            const id = `b${ids.length + b}`;
+            const li = this.row(net.carInfo(id).name, free[b % free.length] ?? 'black', ['BOT', score(id)], net.carInfo(id).look);
             li.classList.add('bot');
             list.appendChild(li);
         }
@@ -122,7 +134,7 @@ export class Lobby {
         li.append(icon, n);
         for (const b of badges.filter(Boolean)) {
             const tag = document.createElement('span');
-            tag.className = `badge${b === 'HOST' ? ' host' : b.endsWith('BUILD') ? ' warn' : ''}`;
+            tag.className = `badge${b === 'HOST' ? ' host' : b.endsWith('BUILD') ? ' warn' : b.includes('PTS') ? ' score' : ''}`;
             tag.textContent = b;
             li.appendChild(tag);
         }

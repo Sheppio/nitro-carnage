@@ -19,6 +19,7 @@ import { TRACKS } from '../dist/sim/track/index.js';
 import { autopilot, createAutopilot, SKILLS } from '../dist/sim/autopilot.js';
 import { racingLine } from '../dist/sim/racingLine.js';
 import { World } from '../dist/sim/World.js';
+import { RaceLog } from '../dist/sim/raceLog.js';
 import { mulberry32, wrapAngle } from '../dist/util.js';
 import { SIM } from '../dist/config.js';
 import { trainAt } from '../dist/sim/train.js';
@@ -703,6 +704,12 @@ function dropFirst(room, ...tags) {
   host.net.events.on('race', ({ ev }) => {
     if (ev.kind in tally) tally[ev.kind]++;
   });
+  // Each screen's own story of the race, as the results screen tells it.
+  const logs = room.clients.map((c) => {
+    const log = new RaceLog();
+    c.net.events.on('race', ({ ev }) => log.onEvent(ev, c.net.world.entrants));
+    return log;
+  });
   let drift = 0;
   const done = room.run(300000, () => {
     // Each car's health as its owner has it, against every other screen's copy.
@@ -720,6 +727,36 @@ function dropFirst(room, ...tags) {
   // Frames where some screen still shows an old health: a packet in flight, not a disagreement.
   const frames = 300000 / 16;
   check('and every screen agrees on every car\'s health, bar a packet in flight', drift / frames < 0.3, `${(100 * drift / frames).toFixed(1)}% of frame-pairs behind`);
+  const told = logs.map((l) => JSON.stringify([...l.kills].sort()) + JSON.stringify([...l.wrecked].sort()));
+  check('and every screen tells the same story: who wrecked whom, for the awards and the tally', new Set(told).size === 1 && logs[0].feed.length > 0,
+    `${logs[0].feed.length} wrecks in the feed`);
+}
+
+{
+  // Rematch: the host goes from the results straight into another race.
+  const room = makeRoom(3, { latency: 40 });
+  room.run(2500);
+  const host = hostOf(room);
+  const guest = room.clients.find((c) => c !== host);
+  host.net.configure(4, 1, 2, 0, 0);
+  room.run(500);
+  guest.net.rematch();
+  host.net.rematch();
+  room.run(500);
+  check('rematch does nothing from the lobby, or from a guest', room.clients.every((c) => c.net.phase === 'L'));
+  host.net.startRace();
+  room.run(1500);
+  const firstGo = host.net.state.goAt;
+  toResults(room);
+  guest.net.rematch();
+  room.run(500);
+  check('a guest cannot start the rematch', room.clients.every((c) => c.net.phase === 'X'));
+  host.net.rematch();
+  room.run(1500);
+  check('the host\'s rematch starts the next race from the results, with no lobby between',
+    room.clients.every((c) => c.net.phase === 'C' && c.net.state.goAt > firstGo && c.net.world !== null && c.net.me !== null));
+  check('on the same track, with the same laps and cars', room.clients.every((c) => c.net.state.track === 2 && c.net.state.laps === 1 && c.net.state.grid.length === 4));
+  check('and it runs to the results like any race', toResults(room));
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
