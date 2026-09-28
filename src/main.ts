@@ -9,6 +9,7 @@ import { sanitizeName } from './net/codec.js';
 import { RaceSession } from './RaceSession.js';
 import type { SessionMode } from './RaceSession.js';
 import { RoomClient } from './RoomClient.js';
+import { LOBBY_STATE } from './net/RoomSession.js';
 import { colourOf, isColourId } from './sim/palette.js';
 import { TRACKS } from './sim/track/index.js';
 import { AudioEngine } from './audio/AudioEngine.js';
@@ -227,6 +228,13 @@ function showLocked(canvas: HTMLCanvasElement, info: HTMLElement, why: string): 
   canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
   info.replaceChildren(Object.assign(document.createElement('b'), { textContent: '🔒 Locked' }), document.createElement('br'), why);
 }
+/** A quick race's laps, remembered; five until changed, like a room's. */
+const LAPS_KEY = `${SLUG}.laps`;
+const menuLaps = $<HTMLSelectElement>('menu-laps');
+menuLaps.value = store.get(LAPS_KEY);
+// Nothing stored, or a value the list no longer has.
+if (!menuLaps.value) menuLaps.value = String(LOBBY_STATE.laps);
+menuLaps.addEventListener('change', () => store.set(LAPS_KEY, menuLaps.value));
 const menuWeapons = $<HTMLSelectElement>('menu-weapons');
 menuWeapons.value = store.get(WEAPONS_KEY) === '0' ? '0' : '1';
 menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.value));
@@ -370,6 +378,7 @@ function chooseTrack(mode: 'race' | 'hotlap'): void {
   $('btn-track-go').textContent = mode === 'race' ? 'Start race' : 'Start hotlap';
   // A hotlap never has weapons: the switch only belongs to a race.
   $('menu-weapons-row').hidden = mode === 'hotlap';
+  $('menu-laps-row').hidden = mode === 'hotlap';
   show('screen-track');
 }
 
@@ -386,7 +395,7 @@ function startOffline(mode: 'race' | 'hotlap'): void {
   const track = choice.def;
   const s = new RaceSession(
     gameRoot,
-    { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || track.laps, look, weapons: menuWeapons.value !== '0' },
+    { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look, weapons: menuWeapons.value !== '0' },
     input,
     settings,
   );
