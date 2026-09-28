@@ -100,6 +100,17 @@ try {
 
   const shown = await until(() => page.evaluate(() => Number(document.getElementById('hud-speed').textContent) > 40));
   r.check('the HUD shows the speed', Boolean(shown));
+  // The speed's width doesn't move what's beside it: 0, 8, 88 and 188 km/h put
+  // the turbo bar in the same place.
+  const bars = await page.evaluate(() => {
+    const el = document.getElementById('hud-speed');
+    const bar = document.getElementById('hud-turbo').parentElement;
+    const was = el.textContent;
+    const xs = ['0', '8', '88', '188'].map((t) => { el.textContent = t; return bar.getBoundingClientRect().left; });
+    el.textContent = was;
+    return xs;
+  });
+  r.check('the turbo bar stays put whatever the speed reads', new Set(bars.map((x) => x.toFixed(1))).size === 1, bars.map((x) => x.toFixed(1)).join(' / '));
 
   // Camera lead: at speed the car sits behind screen centre, with the road
   // ahead in view. Measured along the car's own direction, whichever way the

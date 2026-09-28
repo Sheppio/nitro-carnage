@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.37**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.38**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 772 checks: simulation and networking (Node), and real browsers
+npm test           # 773 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -485,12 +485,18 @@ nothing. Now the page's ticker calls `update` whenever nothing else has for 100 
 browser test has the host go back early and then start the next race; the old code
 fails it.
 
+**The speed readout keeps its place.** Sized to its digits, it pushed the turbo bar
+and everything after it along whenever the speed crossed 10 or 100 km/h. It is now a
+fixed three-digit box, right-aligned. A smoke check sets it to 0, 8, 88 and 188, and
+the bar doesn't move.
+
 **The lobby, after play-testing.**
 - **Your name** can be changed in the lobby as well as the menu. It's the same saved
   setting, and it reaches everyone's roster through presence.
 - **Back to lobby on the results.** In a room, the results screen goes straight back
   to the lobby, and counts down the 12 s until the room takes everybody back itself.
-- **Bots have drivers' names,** 20 made-up ones such as ACE RIVERA and NINA DRIFT,
+- **Bots have drivers' names,** 30 made-up ones such as ACE RIVERA, NINA DRIFT and (added
+  by request) MAX CRASHTAPPEN and JENSON BELLYBUTTON,
   dealt without repeats. In a room the names are dealt from the room code, so every
   screen agrees. Offline they change from race to race. They were one word each
   offline and "BOT 1" in a room.
@@ -1115,7 +1121,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-772 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+773 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1200,7 +1206,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (55, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (56, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the

@@ -186,6 +186,9 @@ select {
 }
 
 .speedo small { font-size: 14px; margin-left: 4px; color: var(--muted); }
+/* A fixed box for three digits, right-aligned: sized to its text, the number
+   pushed the turbo bar and everything after it about as the speed changed. */
+#hud-speed { display: inline-block; width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
 
 .turbo {
   width: 140px;
