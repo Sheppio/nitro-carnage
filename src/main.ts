@@ -676,6 +676,16 @@ window.addEventListener('keydown', (e) => {
 });
 
 show('screen-menu');
+/**
+ * A link to a ready-to-go track screen: `?daily` is today's Track of the Day
+ * as a hotlap, and `?pick=hotlap` or `?pick=race` with `&track=` or `&seed=`
+ * any other. The player lands on the track screen with Start focused, so one
+ * press drives. (`?hotlap` and `?race` skip even that: for tests.)
+ */
+if (params.has('daily') || params.has('pick')) {
+  if (params.has('daily')) menuTrack.value = 'day';
+  chooseTrack(params.get('pick') === 'race' ? 'race' : 'hotlap');
+}
 if (params.has('drive') || params.has('hotlap')) startOffline('hotlap');
 if (params.has('race')) startOffline('race');
 const linked = params.get('room');

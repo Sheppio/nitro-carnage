@@ -370,6 +370,30 @@ try {
   r.check('high quality renders with shadows inside 150 draw calls', shadows && calls > 0 && calls < 150, `${calls} draw calls`);
   await hi.close();
 
+  /* --------------------------------------------------- the daily link */
+  // ?daily: today's Track of the Day as a hotlap, on the track screen with
+  // Start focused, so one press (Enter, A, or a tap) drives it.
+  {
+    const dp = await browser.newPage({ viewport: { width: 800, height: 450 } });
+    dp.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    await dp.goto(`${url}?quality=potato&daily`);
+    const landed = await until(() => dp.evaluate(() => (!document.getElementById('screen-track').hidden ? {
+      mode: document.getElementById('track-mode').textContent,
+      track: document.getElementById('menu-track').value,
+      focus: document.activeElement?.id,
+      go: document.getElementById('btn-track-go').textContent,
+    } : null)));
+    await dp.keyboard.press('Enter');
+    const drove = await until(() => dp.evaluate(() => {
+      const s = window.nitro.session;
+      return s ? { mode: s.mode, id: s.world.track.def.id } : null;
+    }), { timeout: 30000 });
+    r.check('a ?daily link opens the Track of the Day as a hotlap, Start focused, and one press drives it',
+      landed?.mode === 'Hotlap' && landed.track === 'day' && landed.focus === 'btn-track-go' && drove?.mode === 'hotlap' && /^seed-/.test(drove.id),
+      `${JSON.stringify(landed)} -> ${JSON.stringify(drove)}`);
+    await dp.close();
+  }
+
   /* ---------------------------------------------------------------- zoom */
   // The mouse wheel zooms the race camera by changing the field-of-view setting;
   // it is kept, clamped, and the slider shows it.

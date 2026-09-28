@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.35**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.36**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 771 checks: simulation and networking (Node), and real browsers
+npm test           # 772 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -872,6 +872,12 @@ from today's date. Type any word in the seed box and the track switches to **Cus
 seed** at the first letter: the same word is the same track for anyone, so a track can
 be shared by name.
 
+**A link to today's hotlap:** [sheppio.github.io/nitro-carnage/?daily](https://sheppio.github.io/nitro-carnage/?daily)
+opens the track screen on the Track of the Day as a hotlap, with Start already focused:
+one press (Enter, A, or a tap) and you're driving. `?pick=hotlap` or `?pick=race`, with
+`&track=monza` or `&seed=egg-cup-top`, does the same for any track. The day's track is
+the same for everyone on the same date, so a daily link is a daily challenge.
+
 **Same seed, same track, on every computer.** That rules out anything a different
 JavaScript engine could compute differently, so the generator deals only in integers
 until it hands over a `TrackDef`:
@@ -1101,7 +1107,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-771 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+772 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1186,7 +1192,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     dropped, hurts the car that drives over it, and is cleared everywhere; a wreck
     credits the kill on every screen; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
-- **`smoke.test.mjs`** (54, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (55, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
