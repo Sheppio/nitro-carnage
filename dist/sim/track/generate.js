@@ -46,16 +46,15 @@ export function utcDay(ms) {
 }
 /** The track of the day's seed. */
 export function daySeed(ms) {
-    return seedOf(`DAY ${utcDay(ms)}`);
+    return seedOf(utcDay(ms));
 }
 /**
- * A seed typed as a date, `2026-09-28` (or `DAY 2026-09-28`, the string the
- * day's seed is made from), is that day's Track of the Day: so a past day can
- * be raced again. A day after today (UTC) is `locked`, so nobody practises
+ * The day's seed is its date: `2026-09-28` typed as a seed is that day's
+ * Track of the Day, so a past day can be raced again. A day after today (UTC) is `locked`, so nobody practises
  * tomorrow's track. Null when the text isn't a real date: then it's just a word.
  */
 export function dateSeed(text, nowMs) {
-    const m = /^(?:DAY\s+)?(\d{4})-(\d{2})-(\d{2})$/i.exec(text.trim());
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/i.exec(text.trim());
     if (!m)
         return null;
     const day = `${m[1]}-${m[2]}-${m[3]}`;
@@ -63,7 +62,7 @@ export function dateSeed(text, nowMs) {
     // 2026-02-30 rolls over to March: not a date.
     if (!Number.isFinite(ms) || utcDay(ms) !== day)
         return null;
-    return { day, seed: seedOf(`DAY ${day}`), locked: day > utcDay(nowMs) };
+    return { day, seed: seedOf(day), locked: day > utcDay(nowMs) };
 }
 /** A name for a seed, drawn from its own stream, so a shared seed is a shared name. */
 export function trackName(seed) {

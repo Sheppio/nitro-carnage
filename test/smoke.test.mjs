@@ -416,14 +416,15 @@ try {
       track: document.getElementById('menu-track').value,
       focus: document.activeElement?.id,
       go: document.getElementById('btn-track-go').textContent,
+      seed: document.getElementById('menu-seed').value,
     } : null)));
     await dp.keyboard.press('Enter');
     const drove = await until(() => dp.evaluate(() => {
       const s = window.nitro.session;
       return s ? { mode: s.mode, id: s.world.track.def.id } : null;
     }), { timeout: 30000 });
-    r.check('a ?daily link opens the Track of the Day as a hotlap, Start focused, and one press drives it',
-      landed?.mode === 'Hotlap' && landed.track === 'day' && landed.focus === 'btn-track-go' && drove?.mode === 'hotlap' && /^seed-/.test(drove.id),
+    r.check('a ?daily link opens the Track of the Day as a hotlap, its date in the seed box, Start focused, and one press drives it',
+      landed?.mode === 'Hotlap' && landed.track === 'day' && landed.seed === new Date().toISOString().slice(0, 10) && landed.focus === 'btn-track-go' && drove?.mode === 'hotlap' && /^seed-/.test(drove.id),
       `${JSON.stringify(landed)} -> ${JSON.stringify(drove)}`);
     await dp.close();
   }
@@ -561,7 +562,7 @@ try {
     const u = await import(new URL('util.js', main).href);
     return u.hashString(JSON.stringify(g.generateTrack(g.daySeed(Date.UTC(2026, 8, 25, 12))))).toString(16);
   });
-  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === 'db2d691e', sameTrack);
+  r.check('the browser generates the same track from a seed as Node does, to the byte', sameTrack === '9a8d4796', sameTrack);
   const label = await hl.evaluate(() => document.getElementById('hud-track').textContent);
   const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: getComputedStyle(document.getElementById('hud-arms')).display === 'none' }));
   r.check('a hotlap on the track of the day: named on the HUD, a record to beat, no position, no weapons',

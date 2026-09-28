@@ -78,6 +78,9 @@ export class Lobby {
     if (!(net.isHost && trackSel.value === 'seed' && st.seed !== 0 && !today)) {
       trackSel.value = st.seed === 0 ? String(st.track) : today ? 'day' : 'seed';
     }
+    // The day's seed is its date: the seed box says so.
+    const seedBox = $<HTMLInputElement>('lobby-seed');
+    if (today && document.activeElement !== seedBox) seedBox.value = utcDay(Date.now());
     $<HTMLSelectElement>('lobby-weapons').value = String(st.arms);
     $('lobby-wait').hidden = net.isHost;
     const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? `Track of the day ${utcDay(Date.now())} · ` : ''}${generateTrack(st.seed).name}`;

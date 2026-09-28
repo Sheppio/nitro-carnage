@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.41**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.42**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -57,7 +57,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 779 checks: simulation and networking (Node), and real browsers
+npm test           # 780 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -903,9 +903,11 @@ one press (Enter, A, or a tap) and you're driving. `?pick=hotlap` or `?pick=race
 `&track=monza` or `&seed=egg-cup-top`, does the same for any track. The day's track is
 the same for everyone on the same date, so a daily link is a daily challenge.
 
-**Any past day, never a future one.** A date typed as the seed, `2026-09-28`, is that
+**Any past day, never a future one.** The day's seed *is* its date, so a date typed as the seed, `2026-09-28`, is that
 day's Track of the Day, and so is a link, `?daily=2026-09-28`, so an old daily can be
-raced again. The label shows the date: *Track of the day 2026-09-28 · Ember Yard*.
+raced again. Picking Track of the day puts today's date in the seed box, so the
+seed you see is the seed you race, and the date can be shared as a seed. Switching back
+to Custom seed brings your own word back. The label shows the date: *Track of the day 2026-09-28 · Ember Yard*.
 - **A future date is locked.** The map stays blank, Start is disabled, and in the lobby
   the room keeps its last track. The daily challenge only works if nobody gets to
   practise tomorrow's track. Today and every earlier day are open.
@@ -913,8 +915,6 @@ raced again. The label shows the date: *Track of the day 2026-09-28 · Ember Yar
   would give the layout away.
 - **"Today" is the UTC date**, like the day's seed, so the lock opens at the same
   instant everywhere.
-- **`DAY 2026-09-29` is locked too.** That is the exact string the day's seed is hashed
-  from, so typing it would otherwise have been a way round the lock.
 - **Only a real date counts.** `2026-02-30` and `2026-9-28` are just words, and make a
   seed of their own.
 
@@ -929,7 +929,8 @@ until it hands over a `TrackDef`:
 - **Angles** are whole degrees, looked up in a table of cosines and sines rounded to
   integers. No two engines can disagree in the last bit of a `Math.sin`.
 - **Corners** are whole metres.
-- **The day** is the UTC date as `YYYY-MM-DD`, hashed. It's the same string
+- **The day** is the UTC date as `YYYY-MM-DD`, hashed exactly as a typed seed is (it
+  was `DAY 2026-09-28` until v0.1.42, which changed every day's track once). It's the same string
   everywhere at the same instant, and it changes at UTC midnight, not at your local
   one.
 

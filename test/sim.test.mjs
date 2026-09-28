@@ -1110,7 +1110,8 @@ const PINNED = [
   [1, 'Neon Sprint', 'a8a9a9cf'],
   [42, 'Static Reach', '5fc6df9d'],
   [seedOf('NITRO'), 'Neon Yard', 'd6d30adf'],
-  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Signal Mile', 'db2d691e'],
+  // The day's seed became the bare date in v0.1.42, so this day's track changed.
+  [daySeed(Date.UTC(2026, 8, 25, 12)), 'Granite Loop', '9a8d4796'],
   // A port, a city at dusk and a city by day (M10), so every theme's rules are pinned.
   [seedOf('pin-run-dig'), 'Hollow Ring', '36c3e42e'],
   [seedOf('big-red-bus'), 'Granite Park', '46939bfd'],
@@ -1125,7 +1126,7 @@ const PINNED = [
 // Re-pinned on purpose when the laps were shortened to about 30 s and the
 // road widened by a quarter: every seed's shape changed, and saved records
 // moved to a new key with them.
-const SHAPES = ['909cd37f', 'f7011ebf', 'be2e3974', 'da90f83a', 'a2feb768', 'd9b4c83b', '57db5f65'];
+const SHAPES = ['909cd37f', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', 'd9b4c83b', '57db5f65'];
 
 {
   const got = PINNED.map(([seed]) => {
@@ -1151,12 +1152,12 @@ const SHAPES = ['909cd37f', 'f7011ebf', 'be2e3974', 'da90f83a', 'a2feb768', 'd9b
     && utcDay(day + 86399999) === '2026-09-25', `today is "${trackName(daySeed(day))}"`);
   // A date typed as a seed is that day's track; a day after today is locked.
   const noon = day + 43200000;
-  const past = dateSeed(' 2026-09-20 ', noon), today = dateSeed('2026-09-25', noon), soon = dateSeed('day 2026-09-26', noon);
+  const past = dateSeed(' 2026-09-20 ', noon), today = dateSeed('2026-09-25', noon), soon = dateSeed('2026-09-26', noon);
   check('a date as a seed is that day\'s Track of the Day: past days and today open, a future day locked, a non-date just a word',
     past?.seed === daySeed(Date.UTC(2026, 8, 20)) && !past.locked
     && today?.seed === daySeed(noon) && !today.locked
     && soon?.seed === daySeed(day + 86400000) && soon.locked && dateSeed('2027-01-01', noon)?.locked === true
-    && dateSeed('2026-02-30', noon) === null && dateSeed('2026-9-25', noon) === null && dateSeed('green mile', noon) === null,
+    && daySeed(noon) === seedOf('2026-09-25') && dateSeed('2026-02-30', noon) === null && dateSeed('2026-9-25', noon) === null && dateSeed('green mile', noon) === null,
     JSON.stringify([past, today, soon]));
 
   // A thousand seeds: every one yields a track, every one valid.

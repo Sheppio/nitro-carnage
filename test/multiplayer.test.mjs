@@ -89,6 +89,12 @@ try {
   const seeds = await Promise.all([a, b].map((p) => p.evaluate(() => window.nitro.room.net.state.seed)));
   r.check('a future day\'s Track of the Day typed in the lobby is locked, and never reaches the room',
     Boolean(lockedInfo) && seeds.every((s) => s === seedBefore), `${lockedInfo} ${seeds} vs ${seedBefore}`);
+  await a.selectOption('#lobby-track', 'day');
+  const daySeedBox = await until(() => a.evaluate(() => {
+    const v = document.getElementById('lobby-seed').value;
+    return v === new Date().toISOString().slice(0, 10) ? v : null;
+  }));
+  r.check('picking the Track of the Day puts its seed, today\'s date, in the seed box', Boolean(daySeedBox), daySeedBox ?? '');
   await a.selectOption('#lobby-track', '0');
 
   // Bob's look, set in his Garage, reaches Alice's lobby.

@@ -188,7 +188,19 @@ $('menu-seed-random').addEventListener('click', () => {
   menuSeed.value = randomSeedText();
   useMenuSeed();
 });
-menuTrack.addEventListener('change', () => store.set(TRACK_KEY, menuTrack.value));
+/**
+ * The seed box shows the seed being raced: today's date for the Track of the
+ * Day (its seed is the date), and your own word back for Custom seed.
+ */
+const showMenuSeed = (): void => {
+  if (menuTrack.value === 'day') menuSeed.value = utcDay(Date.now());
+  else if (menuTrack.value === 'seed' && dateSeed(menuSeed.value, Date.now())?.day === utcDay(Date.now())) menuSeed.value = store.get(SEED_KEY);
+};
+showMenuSeed();
+menuTrack.addEventListener('change', () => {
+  store.set(TRACK_KEY, menuTrack.value);
+  showMenuSeed();
+});
 menuSeed.addEventListener('input', useMenuSeed);
 const chosenTrack = (): TrackChoice => trackChoice(menuTrack.value, menuSeed.value);
 
@@ -590,7 +602,10 @@ const lobbySettings = (): void => {
 };
 $('lobby-cars').addEventListener('change', lobbySettings);
 $('lobby-laps').addEventListener('change', lobbySettings);
-$('lobby-track').addEventListener('change', lobbySettings);
+$('lobby-track').addEventListener('change', () => {
+  if ($<HTMLSelectElement>('lobby-track').value === 'day') $<HTMLInputElement>('lobby-seed').value = utcDay(Date.now());
+  lobbySettings();
+});
 $('lobby-weapons').addEventListener('change', lobbySettings);
 $('lobby-seed').addEventListener('change', lobbySettings);
 // As in the menu, typing a seed switches the room to it; the rest of the room hears when the typing is done.
@@ -713,7 +728,10 @@ if (params.has('daily') || params.has('pick')) {
   if (day) {
     menuTrack.value = 'seed';
     menuSeed.value = day;
-  } else if (params.has('daily')) menuTrack.value = 'day';
+  } else if (params.has('daily')) {
+    menuTrack.value = 'day';
+    showMenuSeed();
+  }
   chooseTrack(params.get('pick') === 'race' ? 'race' : 'hotlap');
 }
 if (params.has('drive') || params.has('hotlap')) startOffline('hotlap');
