@@ -46,8 +46,18 @@ export class PodiumView {
     }
     /** Put the first three (fewer, in a short race) on their plinths. */
     show(cars) {
-        for (const c of this.cars)
+        // Last race's cars, off the plinths and out of GPU memory.
+        for (const c of this.cars) {
             this.scene.remove(c.mesh.root, c.mesh.blob);
+            c.mesh.root.traverse((o) => {
+                const m = o;
+                m.geometry?.dispose?.();
+                const mat = m.material;
+                for (const x of Array.isArray(mat) ? mat : mat ? [mat] : [])
+                    x.dispose();
+            });
+            c.mesh.blob.geometry.dispose();
+        }
         this.cars = cars.slice(0, 3).map((c, i) => {
             const mesh = new CarMesh(c.colour, false, c.look);
             // The blob shadow belongs on a road, not on a plinth top.

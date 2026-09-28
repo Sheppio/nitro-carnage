@@ -311,6 +311,12 @@ export class RaceSession {
       alpha = this.frozen || this.paused ? 1 : this.world.advance(dt);
       for (const ev of this.world.drain()) this.handle(ev);
     }
+    // The race can end inside this frame: a finish runs `onOver`, which stops
+    // the session and frees the scene. Drawing on would upload the whole
+    // scene again to a renderer the next race shares, and nothing would ever
+    // free it: a race's worth of GPU memory lost per race, and the judder
+    // that came with it on an Xbox by the second race.
+    if (!this.running) return;
     for (const e of this.world.entrants) {
       interpolateCar(e.prev, e.car, alpha, this.drawn.get(e.id)!);
       this.view.setCondition(e.id, e.hp, e.wrecked > 0, e.ghost > 0);

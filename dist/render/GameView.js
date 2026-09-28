@@ -12,6 +12,34 @@ import { buildTrackMesh } from './TrackMesh.js';
 import { WeaponView } from './WeaponView.js';
 import { HazardView } from './HazardView.js';
 import { PickupView } from './PickupView.js';
+/**
+ * One renderer, and so one WebGL context, for every race. A new one per race
+ * left the last race's context and its GPU memory alive until the garbage
+ * collector got round to the canvas, which a small heap rarely asks it to:
+ * an Xbox ran the first race at 60 fps and the next ones at 52-56, with
+ * judder, until a reload. A context is only replaced when the antialias
+ * setting changes, which WebGL fixes at creation, and the old one is then
+ * released at once.
+ */
+let shared = null;
+function rendererFor(antialias) {
+    if (shared && shared.antialias === antialias)
+        return shared.renderer;
+    if (shared) {
+        shared.renderer.dispose();
+        shared.renderer.forceContextLoss();
+    }
+    const renderer = new THREE.WebGLRenderer({ antialias, powerPreference: 'high-performance' });
+    shared = { renderer, antialias };
+    return renderer;
+}
+/** Free a material's GPU copy and every texture it uses. */
+function disposeMaterial(m) {
+    for (const v of Object.values(m))
+        if (v instanceof THREE.Texture)
+            v.dispose();
+    m.dispose();
+}
 import { missileAt } from '../sim/weapons.js';
 /** How far out the cut-away hole reaches around a car, in metres at the car. */
 const CUT_RADIUS_M = 6.5;
@@ -53,7 +81,7 @@ export class GameView {
         this.track = track;
         this.quality = quality;
         const preset = QUALITY[quality];
-        this.renderer = new THREE.WebGLRenderer({ antialias: preset.antialias, powerPreference: 'high-performance' });
+        this.renderer = rendererFor(preset.antialias);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatioCap));
         this.renderer.shadowMap.enabled = preset.shadowMapSize > 0;
         this.renderer.shadowMap.type = preset.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
@@ -304,16 +332,33 @@ export class GameView {
     setCutaway(on) {
         cutawayUniforms.uCutEnabled.value = on ? 1 : 0;
     }
+    /**
+     * Give back everything this race put on the GPU: geometry, materials,
+     * textures and the shadow map. The renderer itself is kept for the next
+     * race (see `rendererFor`), so its canvas only leaves the page.
+     */
     dispose() {
         this.resizeObserver.disconnect();
-        this.renderer.dispose();
         this.renderer.domElement.remove();
-        for (const view of this.cars.values())
-            view.mesh.blob.removeFromParent();
+        for (const view of this.cars.values()) {
+            const blob = view.mesh.blob;
+            blob.removeFromParent();
+            blob.geometry.dispose();
+            disposeMaterial(blob.material);
+        }
         this.scene.traverse((o) => {
             const mesh = o;
             mesh.geometry?.dispose?.();
+            const mat = mesh.material;
+            if (Array.isArray(mat))
+                mat.forEach(disposeMaterial);
+            else if (mat)
+                disposeMaterial(mat);
+            o.shadow?.dispose();
         });
+        if (this.scene.background instanceof THREE.Texture)
+            this.scene.background.dispose();
+        this.renderer.renderLists.dispose();
     }
 }
 //# sourceMappingURL=GameView.js.map

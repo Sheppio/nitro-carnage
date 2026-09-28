@@ -273,6 +273,8 @@ try {
     const s = window.nitro.session;
     return s.world.time > s.world.goTime + 3 && s.world.entrants.every((e) => Math.hypot(e.car.vx, e.car.vz) > 5);
   }), { timeout: 30000 });
+  const gpu = () => race.evaluate(() => ({ ...window.nitro.session.view.renderer.info.memory }));
+  const gpu1 = await gpu();
   const hudText = await race.evaluate(() => ({
     of: document.getElementById('hud-of').textContent,
     lap: document.getElementById('hud-lap').textContent + document.getElementById('hud-laps').textContent,
@@ -324,6 +326,18 @@ try {
   }));
   r.check('the race ends on a results table with the player marked', results.rows === 6 && results.you === 1 && /^You finished/.test(results.title) && results.canvases === 0,
     results.title);
+
+  // Race again: the renderer is kept, and must hold what this race needs,
+  // not that plus everything the last one left behind (the Xbox judder).
+  await race.click('#btn-again');
+  const again = await until(() => race.evaluate(() => {
+    const s = window.nitro.session;
+    return s && s.world.time > s.world.goTime + 3 ? true : null;
+  }), { timeout: 60000 });
+  const gpu2 = await gpu();
+  r.check('a second race holds no more on the GPU than the first: the last race is freed', Boolean(again)
+    && gpu2.geometries <= gpu1.geometries + 3 && gpu2.textures <= gpu1.textures + 1,
+    `geometries ${gpu1.geometries} → ${gpu2.geometries}, textures ${gpu1.textures} → ${gpu2.textures}`);
   await race.close();
 
   /* --------------------------------------------------------------- weapons */
