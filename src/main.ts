@@ -271,9 +271,11 @@ menuBody.addEventListener('change', () => store.set(BODY_KEY, menuBody.value));
 // ghost) from the old, longer shape of a track would be unbeatable and drive
 // through the new one's walls.
 const recordKey = (def: TrackDef): string => `${SLUG}.best2.${def.id}`;
-function loadRecord(def: TrackDef): LapRecord | null {
+/** The Track of the Day mode's own records: laps without turbo are not comparable with a turbo hotlap's. */
+const dailyKey = (def: TrackDef): string => `${recordKey(def)}.noturbo`;
+function loadRecord(key: string): LapRecord | null {
   try {
-    const r = JSON.parse(store.get(recordKey(def)) || 'null') as LapRecord | null;
+    const r = JSON.parse(store.get(key) || 'null') as LapRecord | null;
     if (!r || !Number.isFinite(r.time) || r.time <= 0 || !Array.isArray(r.splits)) return null;
     // A record from before the ghost (or a damaged one) races without it.
     if (r.ghost !== undefined && !validTrace(r.ghost)) delete r.ghost;
@@ -327,11 +329,13 @@ let colourId = isColourId(savedColour) ? savedColour : 'vermilion';
 let session: RaceSession | null = null;
 let hud: Hud | null = null;
 let helpTimer = 0;
-let lastMode: SessionMode = 'race';
+/** An offline mode: the Track of the Day is a hotlap on today's track, without turbo. */
+type OfflineMode = 'race' | 'hotlap' | 'daily';
+let lastMode: OfflineMode = 'race';
 /** `?laps=1` shortens races, for tests and for trying things quickly. */
 const lapsOverride = Number(params.get('laps')) || 0;
 
-function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track.name): void {
+function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track.name, bestKey = recordKey(track)): void {
   session = s;
   if (params.has('autopilot')) s.autopilot = true;
   hud = new Hud(s, params.has('debug'));
@@ -344,7 +348,7 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
       if (!s.record || ev.lapTime < s.record.time) {
         const beaten = s.record !== null;
         s.record = { time: ev.lapTime, splits: [...s.player.lap.lastSplits], ghost: s.lastTrace };
-        store.set(recordKey(track), JSON.stringify(s.record));
+        store.set(bestKey, JSON.stringify(s.record));
         if (beaten) hud?.banner(`NEW RECORD  ·  ${formatTime(ev.lapTime)}`, 3);
       }
     }
@@ -427,27 +431,33 @@ function chooseTrack(mode: 'race' | 'hotlap'): void {
   show('screen-track');
 }
 
-function startOffline(mode: 'race' | 'hotlap'): void {
+function startOffline(mode: OfflineMode): void {
   leaveRoom();
   stopSession();
   lastMode = mode;
   const quality = qualityOverride ?? settings.current.quality;
-  const choice = chosenTrack();
-  if (choice.locked) {
-    chooseTrack(mode);
+  // The Track of the Day skips the track screen: today's track, set up and ready.
+  const daily = mode === 'daily';
+  const choice = daily ? trackChoice('day', '') : chosenTrack();
+  if (choice.locked && !daily) {
+    chooseTrack(mode as 'race' | 'hotlap');
     return;
   }
   const track = choice.def;
+  const race = mode === 'race';
   const s = new RaceSession(
     gameRoot,
-    { mode, track, quality, colourId, bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look,
-      weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0', turbo: menuTurbo.value !== '0',
-      body: BODIES[Number(menuBody.value) - 1] },
+    { mode: race ? 'race' : 'hotlap', track, quality, colourId, bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look,
+      weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0',
+      // A hotlap has its turbo; the Track of the Day is driven without.
+      turbo: race ? menuTurbo.value !== '0' : !daily,
+      body: race ? BODIES[Number(menuBody.value) - 1] : undefined },
     input,
     settings,
   );
-  if (mode === 'hotlap') s.record = loadRecord(track);
-  begin(mode, s, track, choice.label);
+  const bestKey = daily ? dailyKey(track) : recordKey(track);
+  if (!race) s.record = loadRecord(bestKey);
+  begin(race ? 'race' : 'hotlap', s, track, daily ? `${choice.label} · no turbo` : choice.label, bestKey);
 }
 
 function stopSession(): void {
@@ -468,7 +478,8 @@ function toMenu(): void {
   const wasRoom = room !== null;
   leaveRoom();
   stopSession();
-  if (wasRoom) show('screen-menu');
+  // The Track of the Day came straight from the menu, so it goes back there.
+  if (wasRoom || lastMode === 'daily') show('screen-menu');
   else chooseTrack(lastMode === 'hotlap' ? 'hotlap' : 'race');
 }
 
@@ -628,6 +639,7 @@ $('btn-connect-cancel').addEventListener('click', toMenu);
 $('btn-full-back').addEventListener('click', () => show('screen-menu'));
 $('btn-race').addEventListener('click', () => chooseTrack('race'));
 $('btn-free-drive').addEventListener('click', () => chooseTrack('hotlap'));
+$('btn-daily').addEventListener('click', () => startOffline('daily'));
 $('btn-track-go').addEventListener('click', () => startOffline(trackMode));
 $('btn-track-back').addEventListener('click', () => show('screen-menu'));
 $('btn-again').addEventListener('click', () => {
@@ -636,7 +648,7 @@ $('btn-again').addEventListener('click', () => {
     show('screen-lobby');
     lobby?.render();
   } else {
-    startOffline(lastMode === 'hotlap' ? 'hotlap' : 'race');
+    startOffline(lastMode);
   }
 });
 

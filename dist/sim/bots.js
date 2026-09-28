@@ -15,6 +15,7 @@ export const BOT_NAMES = [
     // Added by request, from play-testing.
     'LANDO FLORIST', 'GEORGE RUSTHILL', 'DAVID COLDHEART', 'JENSON BELLYBUTTON', 'DAMON HILLSTART',
     'JOHNNY HUBCAP', 'MAX CRASHTAPPEN', 'MICHAEL SHOEMAKER', 'CHARLES LECRASH', 'SEBASTIAN KETTLE',
+    'KIMI MUDDY-WELLIE',
 ];
 /**
  * The names for a grid of bots, dealt from the pool without repeats. The

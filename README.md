@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.53**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.54**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -1063,11 +1063,15 @@ though they still work if typed:
   jay, why, are), and the ones with two spellings (axe/ax, eon/aeon).
 
 **The menu is modes and settings; the track is a screen of its own.** The menu holds
-your name, Create and Join room, Quick race, Hotlap and Settings.
+your name, Create and Join room (side by side), Quick race, Hotlap, Track of the day
+and Settings. Track of the day skips the track screen: it goes straight into a hotlap
+on today's track with the turbo off, and keeps its own lap records, apart from a turbo
+hotlap's on the same track.
 Quick race or Hotlap opens the track screen, which holds:
 - the track (built-in, of the day, or a seed) and the dice;
 - a map of the track;
-- the weapons switch, for a race only, since a hotlap never has weapons;
+- for a race only, the switches for weapons, power-ups and turbo, and the car type
+  (everyone their own, or the whole grid in one body);
 - the Garage, since the car is chosen for the drive you're about to start, and
   its Done comes back here;
 - the controls.

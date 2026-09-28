@@ -45,6 +45,27 @@ try {
   });
   r.check('nothing invisible covers the menu buttons', clickable);
 
+  const rooms = await page.evaluate(() => {
+    const c = document.getElementById('btn-create').getBoundingClientRect(), j = document.getElementById('btn-join').getBoundingClientRect();
+    return Math.abs(c.top - j.top) < 1 && c.right <= j.left;
+  });
+  r.check('Create room and Join room share a line on the menu', rooms);
+
+  // Track of the day: one press from the menu into a hotlap on today's track, turbo off.
+  {
+    const dp = await openPage('quality=potato');
+    await dp.click('#btn-daily');
+    await dp.waitForSelector('#screen-hud:not([hidden])');
+    const d = await until(() => dp.evaluate(() => {
+      const s = window.nitro.session;
+      if (!s?.world) return null;
+      return { mode: s.mode, turbo: s.world.turbo, meter: s.player.car.turbo, bar: getComputedStyle(document.getElementById('hud-turbo').parentElement).display, label: document.getElementById('hud-track').textContent };
+    }));
+    r.check('Track of the day goes straight from the menu to a hotlap on today\'s track, with no turbo and no turbo bar',
+      d?.mode === 'hotlap' && d.turbo === false && d.meter === 0 && d.bar === 'none' && /^Track of the day \d{4}-\d{2}-\d{2} · .* · no turbo$/.test(d.label), JSON.stringify(d));
+    await dp.close();
+  }
+
   // The track list comes in three groups, the real circuits (M9) among them.
   const groups = await page.evaluate(() => [...document.querySelectorAll('#menu-track optgroup')].map((g) => `${g.label}:${g.children.length}`));
   r.check('the track list is grouped: the game\'s own tracks, 21 real circuits, and the generated ones', JSON.stringify(groups) === JSON.stringify(['Nitro Carnage:4', 'Real circuits:21', 'Generated:2']), groups.join(', '));

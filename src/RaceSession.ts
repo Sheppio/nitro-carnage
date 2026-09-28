@@ -203,8 +203,7 @@ export class RaceSession {
       const race = opts.mode === 'race';
       this.world = new World(opts.track, {
         laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0, weapons: race && opts.weapons !== false,
-        // The switches belong to a race: a hotlap always has its turbo.
-        pickups: opts.pickups !== false, turbo: !race || opts.turbo !== false,
+        pickups: opts.pickups !== false, turbo: opts.turbo !== false,
         // A hotlap starts a quarter of a lap back, so the first timed lap is a flying one.
         flyingStart: race ? 0 : 0.25,
       });
@@ -440,11 +439,12 @@ export class RaceSession {
     if (ev.kind === 'go') this.input.rumble(HAPTIC.go.weak, HAPTIC.go.strong, HAPTIC.go.ms);
     if (this.mode === 'hotlap' && ev.kind === 'lap' && ev.id === this.playerId && this.player) {
       // A new lap: the recording of the last one is handed over, and the car
-      // is made whole — every hotlap starts from full health and a full turbo.
+      // is made whole — every hotlap starts from full health and a full turbo
+      // (when there is one: the Track of the Day has none).
       this.lastTrace = this.trace.data;
       this.trace = new LapTrace();
       if (this.player.wrecked <= 0) this.player.hp = SIM.weapons.health;
-      this.player.car.turbo = SIM.car.turboCapacity;
+      if (this.world.turbo) this.player.car.turbo = SIM.car.turboCapacity;
     }
     this.soundFor(ev);
     const wreck = this.log.onEvent(ev, this.world.entrants);
