@@ -2,6 +2,7 @@ import { GAME_NAME, SLUG } from './brand.js';
 import { BROKERS, NET } from './config.js';
 import { InputManager } from './input/InputManager.js';
 import { SettingsStore } from './input/settings.js';
+import { tvLayout } from './input/settings.js';
 import { sanitizeName } from './net/codec.js';
 import { RaceSession } from './RaceSession.js';
 import { RoomClient } from './RoomClient.js';
@@ -16,6 +17,7 @@ import { randomSeedText } from './sim/track/seedWords.js';
 import { decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
 import { GaragePreview } from './render/GaragePreview.js';
+import { PodiumView } from './render/PodiumView.js';
 import { applyGlyphs, padFamily } from './ui/glyphs.js';
 import { GamepadNavigator } from './ui/GamepadNavigator.js';
 import { formatTime, Hud } from './ui/Hud.js';
@@ -56,11 +58,15 @@ const screens = [
     'screen-garage', 'screen-track',
 ];
 let current = 'screen-menu';
+/** The results' podium: its own WebGL context, made the first time a race ends. */
+let podium = null;
 function show(id) {
     // A race can start while the host's guest is in the Garage: stop its turntable.
     if (id !== 'screen-garage')
         garage?.close();
     current = id;
+    if (id !== 'screen-results')
+        podium?.stop();
     for (const s of screens)
         $(s).hidden = s !== id;
     if (id === 'screen-hud') {
@@ -301,6 +307,7 @@ function begin(mode, s, track, label = track.name) {
     };
     s.onOver = (rows) => {
         Hud.results(rows);
+        showPodium(rows);
         const online = mode === 'net';
         // Names as the room knows them (the session calls you YOU), and each car's colour.
         const name = (id) => (room ? room.net.carInfo(id).name : id === s.playerId ? playerName() || 'You' : (s.cars.get(id)?.name ?? '—'));
@@ -337,6 +344,23 @@ function begin(mode, s, track, label = track.name) {
     audio.music.play('race');
     show('screen-hud');
     s.start();
+}
+function showPodium(rows) {
+    const top = rows.slice(0, 3);
+    // A race with nobody to beat has no podium.
+    $('results-podium').hidden = top.length < 2;
+    if (top.length < 2)
+        return;
+    podium ??= new PodiumView($('results-podium'));
+    podium.show(top.map((r) => ({ look: r.car.look, colour: r.car.colour })));
+    top.forEach((r, i) => {
+        const el = $(`podium-${i + 1}`);
+        el.textContent = r.car.name;
+        el.style.color = r.car.css;
+    });
+    for (let i = top.length; i < 3; i++)
+        $(`podium-${i + 1}`).textContent = '';
+    podium.start();
 }
 /** `?bots=0` races alone, for tests. */
 const botsOverride = params.has('bots') ? Math.max(0, Math.min(5, Number(params.get('bots')) || 0)) : 5;
@@ -673,6 +697,13 @@ addEventListener('wheel', (e) => {
     settings.set('fov', settings.current.fov + Math.sign(e.deltaY) * 2);
 }, { passive: false });
 $('set-bots').addEventListener('change', (e) => settings.set('botLevel', e.target.value));
+$('set-uisize').addEventListener('change', (e) => settings.set('uiSize', e.target.value));
+/** The TV layout: everything larger, and kept clear of the edges a TV may crop. */
+const applyUiSize = () => {
+    document.body.classList.toggle('tv', tvLayout(settings.current.uiSize));
+};
+applyUiSize();
+settings.events.on('change', applyUiSize);
 $('set-names').addEventListener('change', (e) => settings.set('nameTags', e.target.value));
 $('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number(e.target.value)));
 $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number(e.target.value)));
@@ -689,6 +720,7 @@ function openSettings(fromPause) {
     $('set-sfx').value = String(settings.current.sfxVolume);
     $('set-ghost').value = String(settings.current.ghostLead);
     $('set-names').value = settings.current.nameTags;
+    $('set-uisize').value = settings.current.uiSize;
     $('set-bots').value = settings.current.botLevel;
     $('set-fov').value = String(settings.current.fov);
     $('set-music').value = String(settings.current.musicVolume);

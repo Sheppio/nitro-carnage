@@ -416,7 +416,7 @@ select {
 .hud-countdown {
   position: absolute;
   left: 50%;
-  top: 38%;
+  top: 30%;
   transform: translate(-50%, -50%);
   font: 700 120px var(--display);
   font-style: italic;
@@ -426,6 +426,15 @@ select {
 }
 
 .hud-countdown.go { color: #5cff8a; }
+.hud-countdown.pop { animation: count-pop 0.9s ease-out both; }
+.hud-countdown.go.pop { animation-duration: 1.4s; }
+@keyframes count-pop {
+  0% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+  18% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.2; }
+}
+@media (prefers-reduced-motion: reduce) { .hud-countdown.pop { animation: none; } }
 
 .hud-banner {
   position: absolute;
@@ -505,6 +514,24 @@ select {
 .results-table td { padding: 8px; border-top: 1px solid var(--edge); }
 .results-table tr.you td { background: rgba(255, 255, 255, 0.06); font-weight: 600; }
 .results-table .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
+
+/* The podium: the first three turning on their plinths, names underneath. */
+.podium { position: relative; width: min(560px, 100%); height: clamp(110px, 17vh, 190px); margin: -6px auto 6px; }
+.podium-canvas { width: 100%; height: 100%; display: block; }
+.podium-names {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  text-align: center;
+  font: 700 13px var(--display);
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 4px #000;
+}
+.podium-names span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 6px; }
+#podium-1 { font-size: 15px; }
 
 /* The race's awards: a coloured bar for whoever won each, the title, then the line. */
 .awards { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
@@ -839,3 +866,14 @@ body[data-pad="none"] .pad-only { display: none; }
 
 .track-info { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
 .track-info b { color: var(--text); font-family: var(--display); letter-spacing: 0.04em; }
+
+/* ------------------------------------------------------------- TV layout */
+
+/* A TV across the room (on by default on a console): the whole overlay is
+   zoomed so a 1080p screen lays out like a 1370x770 one, the size every
+   screen is already checked at, and held in from the edges a TV may crop.
+   The HUD maps car positions into the zoomed overlay itself. */
+body.tv .ui-root { zoom: 1.4; }
+body.tv .screen.hud { inset: 3vh 3vw; }
+body.tv .screen.menu { padding: 4vh 3vw; }
+body.tv .name-tag { font-size: 14px; }

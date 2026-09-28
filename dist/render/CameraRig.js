@@ -26,6 +26,11 @@ export class CameraRig {
     baseFov = CAMERA.fov;
     /** Scales shake; 0.25 under "reduce motion". */
     shakeScale = 1;
+    /**
+     * The race start, 1 down to 0 over the countdown: the camera starts high and
+     * swung round, showing the whole grid, and drops in behind the lights.
+     */
+    intro = 0;
     constructor(aspect) {
         this.camera = new THREE.PerspectiveCamera(CAMERA.fov, aspect, 5, 600);
     }
@@ -91,7 +96,13 @@ export class CameraRig {
         const sz = shake * noise(t, 7.1);
         this.focus.set(car.x + this.lead.x + sx, 0, car.z + this.lead.y + sz);
         const tilt = THREE.MathUtils.degToRad(CAMERA.tiltDeg);
-        this.camera.position.set(this.focus.x, height, this.focus.z + height * Math.tan(tilt));
+        // The start: higher, tilted further and swung round to one side, easing to
+        // the usual north-up view as the intro runs down.
+        const k = this.intro * this.intro * (3 - 2 * this.intro);
+        const up = height * (1 + 0.7 * k);
+        const back = up * Math.tan(tilt + k * 0.35);
+        const swing = k * 0.7;
+        this.camera.position.set(this.focus.x + back * Math.sin(swing), up, this.focus.z + back * Math.cos(swing));
         this.camera.lookAt(this.focus);
         if (shake > 0)
             this.camera.rotateZ(shake * 0.012 * noise(t, 3.7));

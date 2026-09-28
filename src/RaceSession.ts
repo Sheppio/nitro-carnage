@@ -27,6 +27,8 @@ import type { Entrant, RaceEvent } from './sim/World.js';
 import type { DriveIntent } from './types.js';
 import { IDLE_INTENT } from './types.js';
 
+/** Seconds the camera takes to drop from above the grid at the start. */
+const INTRO = 2.6;
 /** Seconds of lights before GO, offline. */
 const COUNTDOWN = 3;
 /** After the player finishes an offline race, how long the others get. */
@@ -164,6 +166,7 @@ export class RaceSession {
   private splitDelta = 0;
   private seenSplits = 0;
   private lastPip = -1;
+  private lastLight = -1;
   private warned = false;
 
   constructor(host: HTMLElement, opts: SessionOptions, private input: InputManager, readonly settings: SettingsStore, net: NetRace | null = null) {
@@ -317,6 +320,7 @@ export class RaceSession {
     this.view.drawHazards(drawTime - this.world.goTime, dt);
     if (this.mode === 'hotlap') this.hotlapFrame(drawTime);
     this.sound(drawTime - this.world.goTime);
+    this.startFrame();
     // Spectating: follow whoever is leading.
     if (!this.player) this.view.focusId = standings(this.world.entrants)[0]?.id ?? this.view.focusId;
     this.view.render(this.drawn, this.paused && !this.net ? 0 : dt);
@@ -330,6 +334,21 @@ export class RaceSession {
     this.onHud?.(this.hud());
     this.raf = requestAnimationFrame(this.frame);
   };
+
+  /**
+   * The race start: the camera's drop from above the grid (seconds of it,
+   * ending just before GO), and a rumble on each light, whatever the audio.
+   */
+  private startFrame(): void {
+    const cd = this.world.countdown;
+    const race = this.mode !== 'hotlap';
+    this.view.rig.intro = race && cd > 0 ? Math.min(1, Math.max(0, (cd - 0.4) / INTRO)) : 0;
+    const light = Math.ceil(cd);
+    if (race && cd > 0 && light <= 3 && light !== this.lastLight) {
+      this.lastLight = light;
+      this.input.rumble(HAPTIC.count.weak, HAPTIC.count.strong, HAPTIC.count.ms);
+    }
+  }
 
   /** Distance from the car being followed, for how loud something is. */
   private hear(x: number, z: number): number {

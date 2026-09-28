@@ -5,6 +5,8 @@ import { Emitter } from '../util.js';
 import type { BotLevel } from '../sim/autopilot.js';
 
 export type NameTags = 'rivals' | 'all' | 'off';
+/** Menus and HUD at their normal size, or large with a margin for a TV across the room. */
+export type UiSize = 'auto' | 'normal' | 'tv';
 
 export interface InputSettings {
   /** Graphics preset; see `QUALITY` in config.ts. */
@@ -39,6 +41,8 @@ export interface InputSettings {
   nameTags: NameTags;
   /** Which public MQTT broker rooms meet on; see `BROKERS`. */
   broker: string;
+  /** 'auto' is large on a console, which is on a TV across the room, and normal elsewhere. */
+  uiSize: UiSize;
 }
 
 /** Numeric settings and the range each is clamped to when read back. */
@@ -67,6 +71,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   botLevel: 'hard',
   fov: 50,
   broker: BROKERS[0]!.id,
+  uiSize: 'auto',
 };
 
 export interface SettingsEvents extends Record<string, unknown> {
@@ -114,6 +119,17 @@ export function isSteamDeck(): boolean {
   return /Steam Deck|SteamOS|Valve Steam/i.test(ua);
 }
 
+/** Xbox Edge and the PlayStation browser say so in the user agent: a console means a TV. */
+export function isConsole(): boolean {
+  const ua = typeof navigator === 'object' ? navigator.userAgent : '';
+  return /Xbox|PlayStation/i.test(ua);
+}
+
+/** Whether the TV layout is on: asked for, or 'auto' on a console. */
+export function tvLayout(size: UiSize): boolean {
+  return size === 'tv' || (size === 'auto' && isConsole());
+}
+
 function load(): Partial<InputSettings> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -136,6 +152,7 @@ function coerce(state: InputSettings): InputSettings {
   if (!['easy', 'medium', 'hard', 'expert'].includes(out.botLevel)) out.botLevel = 'hard';
   if (!['rivals', 'all', 'off'].includes(out.nameTags)) out.nameTags = 'rivals';
   if (!BROKERS.some((b) => b.id === out.broker)) out.broker = BROKERS[0]!.id;
+  if (!['auto', 'normal', 'tv'].includes(out.uiSize)) out.uiSize = 'auto';
   for (const key of ['vibration', 'reduceMotion', 'autopilot'] as const) out[key] = Boolean(out[key]);
   return out;
 }
@@ -163,6 +180,8 @@ export const HAPTIC = {
   crash: { weak: 0.2, strong: 0.7, ms: 120 },
   /** Coming down off a jump. */
   landing: { weak: 0.15, strong: 0.6, ms: 90 },
+  /** Each light of the countdown: a tap, so GO lands harder. */
+  count: { weak: 0.25, strong: 0.2, ms: 80 },
   /** The lights go green. */
   go: { weak: 0.6, strong: 0.3, ms: 140 },
   /** Menu focus moved. */

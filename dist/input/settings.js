@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS = {
     botLevel: 'hard',
     fov: 50,
     broker: BROKERS[0].id,
+    uiSize: 'auto',
 };
 /**
  * Persisted player settings. Read back through `coerce`, because storage
@@ -63,6 +64,15 @@ export function isSteamDeck() {
     const ua = typeof navigator === 'object' ? navigator.userAgent : '';
     return /Steam Deck|SteamOS|Valve Steam/i.test(ua);
 }
+/** Xbox Edge and the PlayStation browser say so in the user agent: a console means a TV. */
+export function isConsole() {
+    const ua = typeof navigator === 'object' ? navigator.userAgent : '';
+    return /Xbox|PlayStation/i.test(ua);
+}
+/** Whether the TV layout is on: asked for, or 'auto' on a console. */
+export function tvLayout(size) {
+    return size === 'tv' || (size === 'auto' && isConsole());
+}
 function load() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -90,6 +100,8 @@ function coerce(state) {
         out.nameTags = 'rivals';
     if (!BROKERS.some((b) => b.id === out.broker))
         out.broker = BROKERS[0].id;
+    if (!['auto', 'normal', 'tv'].includes(out.uiSize))
+        out.uiSize = 'auto';
     for (const key of ['vibration', 'reduceMotion', 'autopilot'])
         out[key] = Boolean(out[key]);
     return out;
@@ -117,6 +129,8 @@ export const HAPTIC = {
     crash: { weak: 0.2, strong: 0.7, ms: 120 },
     /** Coming down off a jump. */
     landing: { weak: 0.15, strong: 0.6, ms: 90 },
+    /** Each light of the countdown: a tap, so GO lands harder. */
+    count: { weak: 0.25, strong: 0.2, ms: 80 },
     /** The lights go green. */
     go: { weak: 0.6, strong: 0.3, ms: 140 },
     /** Menu focus moved. */

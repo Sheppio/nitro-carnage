@@ -15,6 +15,8 @@ import { RaceLog } from './sim/raceLog.js';
 import { racingLine } from './sim/racingLine.js';
 import { World } from './sim/World.js';
 import { IDLE_INTENT } from './types.js';
+/** Seconds the camera takes to drop from above the grid at the start. */
+const INTRO = 2.6;
 /** Seconds of lights before GO, offline. */
 const COUNTDOWN = 3;
 /** After the player finishes an offline race, how long the others get. */
@@ -75,6 +77,7 @@ export class RaceSession {
     splitDelta = 0;
     seenSplits = 0;
     lastPip = -1;
+    lastLight = -1;
     warned = false;
     constructor(host, opts, input, settings, net = null) {
         this.input = input;
@@ -230,6 +233,7 @@ export class RaceSession {
         if (this.mode === 'hotlap')
             this.hotlapFrame(drawTime);
         this.sound(drawTime - this.world.goTime);
+        this.startFrame();
         // Spectating: follow whoever is leading.
         if (!this.player)
             this.view.focusId = standings(this.world.entrants)[0]?.id ?? this.view.focusId;
@@ -243,6 +247,20 @@ export class RaceSession {
         this.onHud?.(this.hud());
         this.raf = requestAnimationFrame(this.frame);
     };
+    /**
+     * The race start: the camera's drop from above the grid (seconds of it,
+     * ending just before GO), and a rumble on each light, whatever the audio.
+     */
+    startFrame() {
+        const cd = this.world.countdown;
+        const race = this.mode !== 'hotlap';
+        this.view.rig.intro = race && cd > 0 ? Math.min(1, Math.max(0, (cd - 0.4) / INTRO)) : 0;
+        const light = Math.ceil(cd);
+        if (race && cd > 0 && light <= 3 && light !== this.lastLight) {
+            this.lastLight = light;
+            this.input.rumble(HAPTIC.count.weak, HAPTIC.count.strong, HAPTIC.count.ms);
+        }
+    }
     /** Distance from the car being followed, for how loud something is. */
     hear(x, z) {
         const f = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;

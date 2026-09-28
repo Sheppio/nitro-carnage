@@ -100,16 +100,19 @@ export class Hud {
         const cd = $('hud-countdown');
         const racing = hud.mode !== 'hotlap';
         $('hud-arms').hidden = !hud.weapons;
-        if (racing && hud.countdown > 0) {
-            cd.textContent = String(Math.ceil(hud.countdown));
-            cd.classList.remove('go');
-        }
-        else if (racing && hud.raceTime < 1 && hud.raceTime > -0.5) {
-            cd.textContent = 'GO';
-            cd.classList.add('go');
-        }
-        else {
-            cd.textContent = '';
+        let count = '';
+        if (racing && hud.countdown > 0)
+            count = hud.countdown <= 3 ? String(Math.ceil(hud.countdown)) : '';
+        else if (racing && hud.raceTime < 1 && hud.raceTime > -0.5)
+            count = 'GO';
+        if (cd.textContent !== count) {
+            cd.textContent = count;
+            cd.classList.toggle('go', count === 'GO');
+            // Each light punches in: restart the animation by taking it off for a reflow.
+            cd.classList.remove('pop');
+            void cd.offsetWidth;
+            if (count)
+                cd.classList.add('pop');
         }
         const bannerEl = $('hud-banner');
         if (hud.wrongWay) {
@@ -136,7 +139,8 @@ export class Hud {
         const cars = [];
         const screen = [];
         const tags = [];
-        const show = s.settings.current.nameTags;
+        // On the grid everybody is introduced, whatever the setting, unless names are off.
+        const show = s.settings.current.nameTags === 'off' ? 'off' : racing && hud.countdown > 0 ? 'all' : s.settings.current.nameTags;
         for (const [id, st] of s.drawnStates) {
             const info = s.cars.get(id);
             if (!info)
@@ -159,9 +163,14 @@ export class Hud {
         else {
             split.textContent = '';
         }
-        const rect = s.view.renderer.domElement.getBoundingClientRect();
-        this.arrows.update(screen, rect.width, rect.height);
-        this.names.update(tags);
+        // Screen points are canvas pixels; the overlay may be inset and zoomed (the TV layout), so map them into it.
+        const box = $('screen-hud');
+        const r = box.getBoundingClientRect();
+        const k = box.offsetWidth > 0 ? r.width / box.offsetWidth : 1;
+        const canvas = s.view.renderer.domElement.getBoundingClientRect();
+        const into = (p) => ({ ...p, x: (p.x + canvas.left - r.left) / k, y: (p.y + canvas.top - r.top) / k });
+        this.arrows.update(screen.map(into), box.offsetWidth, box.offsetHeight);
+        this.names.update(tags.map(into));
         // Text at 10 Hz: nobody reads faster, and the DOM is not free.
         if (now - this.textAt < 100)
             return;
