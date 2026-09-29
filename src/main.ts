@@ -22,8 +22,8 @@ import { randomSeedText } from './sim/track/seedWords.js';
 import { BODIES, BODY_NAMES, bodyCode, decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import type { CarLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
-import { carIcon } from './ui/carIcon.js';
 import { GaragePreview } from './render/GaragePreview.js';
+import { carPortrait } from './render/carPortrait.js';
 import { PodiumView } from './render/PodiumView.js';
 import type { TrackDef } from './sim/track/TrackDef.js';
 import { applyGlyphs, padFamily } from './ui/glyphs.js';
@@ -319,13 +319,11 @@ function openGarage(from: typeof garageFrom): void {
       look = l;
       store.set(LOOK_KEY, encodeLook(l));
       room?.net.room.setIdentity(playerName(), colourId, encodeLook(l));
-      showMenuCar();
     };
     // Only offline: a room's colour is picked in its lobby.
     g.onColour = (c) => {
       colourId = c;
       store.set(COLOUR_KEY, c);
-      showMenuCar();
     };
     return g;
   })();
@@ -338,6 +336,8 @@ $('btn-lobby-garage').addEventListener('click', () => openGarage('screen-lobby')
 $('btn-menu-garage').addEventListener('click', () => openGarage('screen-menu'));
 $('btn-garage-back').addEventListener('click', () => {
   garage?.close();
+  // Redrawn once on the way out, not on every pick: each still is a WebGL context.
+  showMenuCar();
   if (garageFrom === 'screen-lobby' && room) {
     show('screen-lobby');
     lobby?.render();
@@ -347,9 +347,9 @@ $('btn-garage-back').addEventListener('click', () => {
   }
 });
 
-/** The main menu's Garage button (#1) wears the player's own car. */
+/** The main menu's Garage button (#1) wears the player's own car, drawn by the game's renderer (#7). */
 function showMenuCar(): void {
-  $('btn-menu-garage').replaceChildren(carIcon(look, colourId, 48, 24));
+  $('btn-menu-garage').replaceChildren(carPortrait(look, colourId, 64, 32));
 }
 
 const savedColour = store.get(COLOUR_KEY);
@@ -778,6 +778,7 @@ $('lobby-colour').addEventListener('change', () => {
   store.set(COLOUR_KEY, colourId);
   room?.net.room.setIdentity(playerName(), colourId, encodeLook(look));
   lobby?.render();
+  showMenuCar();
 });
 const lobbySettings = (): void => {
   const pick = $<HTMLSelectElement>('lobby-track').value;

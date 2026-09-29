@@ -2,6 +2,7 @@ import { SIM } from '../config.js';
 import { mulberry32, wrapAngle } from '../util.js';
 import { steerLimit } from './car.js';
 import { SURFACES } from './surfaces.js';
+import { choosePlan, createPlanState, moveAt, moveIntent, PLAN_EVERY, technical } from './planner.js';
 const WHEELBASE = SIM.car.cgToFront + SIM.car.cgToRear;
 export const SKILLS = [
     { pace: 1.0, wander: 0.4, turbo: true, trigger: 3.5 },
@@ -12,16 +13,16 @@ export const SKILLS = [
     { pace: 0.94, wander: 1.4, turbo: false, trigger: 7 },
 ];
 export const BOT_LEVELS = {
-    easy: { pace: 0.72, top: 0.72, turbo: false, trigger: 2.5 },
-    medium: { pace: 0.84, top: 0.86, turbo: false, trigger: 1.8 },
-    hard: { pace: 0.94, top: 0.95, turbo: true, trigger: 1.3 },
-    expert: { pace: 1, top: 1, turbo: true, trigger: 1 },
+    easy: { pace: 0.72, top: 0.72, turbo: false, trigger: 2.5, drift: false },
+    medium: { pace: 0.84, top: 0.86, turbo: false, trigger: 1.8, drift: false },
+    hard: { pace: 0.94, top: 0.95, turbo: true, trigger: 1.3, drift: false },
+    expert: { pace: 1, top: 1, turbo: true, trigger: 1, drift: true },
 };
 /** The driver in a grid slot, at a level. */
 export function skillFor(slot, level = 'expert') {
     const base = SKILLS[slot % SKILLS.length];
     const l = BOT_LEVELS[level] ?? BOT_LEVELS.expert;
-    return { ...base, pace: base.pace * l.pace, top: l.top, turbo: base.turbo && l.turbo, trigger: base.trigger * l.trigger };
+    return { ...base, pace: base.pace * l.pace, top: l.top, turbo: base.turbo && l.turbo, trigger: base.trigger * l.trigger, drift: l.drift };
 }
 /** A front shot is taken at a rival within this cone either side of the nose, radians... */
 const FIRE_CONE = (6 * Math.PI) / 180;
@@ -34,7 +35,7 @@ const REAR_LANE = 1.6;
 const YAW_DAMP = 0.8;
 export function createAutopilot(seed, skill) {
     const rand = mulberry32(seed);
-    return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0, fireAt: 0 };
+    return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0, fireAt: 0, plan: createPlanState() };
 }
 /**
  * One step of self-driving.
@@ -107,6 +108,20 @@ export function autopilot(st, car, track, line, rivals, time, dt, stopAt = null)
     }
     if (time >= st.shiftUntil)
         st.shift *= Math.max(0, 1 - dt * 1.5);
+    // --- The best drivers plan the corners: see planner.ts. ---
+    if (st.skill.drift && stopAt === null && technical(car, track, line, p.s)) {
+        const ps = st.plan;
+        if (--ps.wait <= 0 || !ps.plan) {
+            choosePlan(ps, car, track, line, st.skill.pace, st.shift, p.s);
+            ps.wait = PLAN_EVERY;
+        }
+        moveIntent(moveAt(ps.plan, ps.age), ps.dir, car, track, line, st.skill.pace, st.shift, out);
+        ps.age += dt;
+        st.steer = out.steer;
+        aim(st, out, car, p.s, p.d, track, rivals, time);
+        return out;
+    }
+    st.plan.plan = null;
     // --- Steering: pure pursuit on the (shifted, wandering) line. ---
     // Short, so the car follows a chicane rather than cutting across it (but
     // not so short that a car pulling away from the grid swings for a line six
