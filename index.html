@@ -201,6 +201,16 @@
               </label>
               <button class="btn dice" id="lobby-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
             </div>
+            <!-- The championship (#8): tracks the host lines up, raced in order for points. -->
+            <div class="field cup-row" id="lobby-cup">
+              <span>Championship</span>
+              <!-- One line, like every other setting: the chips scroll rather than push Start off a Deck's screen. -->
+              <div class="cup-box">
+                <ol class="cup-list" id="lobby-cup-list"></ol>
+                <button class="btn small host-only" id="btn-cup-add" title="Add this track to the championship" aria-label="Add this track to the championship">+</button>
+                <button class="btn small host-only" id="btn-cup-end" hidden>End</button>
+              </div>
+            </div>
             <label class="field host-only">
               <span>Weapons</span>
               <select id="lobby-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
@@ -432,7 +442,7 @@
             </table>
             <!-- A room's score across the evening's races (after the first). -->
             <div class="tonight" id="results-tonight" hidden>
-              <h3>Tonight <small id="tonight-races"></small></h3>
+              <h3><span id="tonight-title">Tonight</span> <small id="tonight-races"></small></h3>
               <table class="results-table">
                 <thead><tr><th></th><th>Driver</th><th>Pts</th><th>Wins</th><th>Wrecks</th></tr></thead>
                 <tbody id="tonight-body"></tbody>

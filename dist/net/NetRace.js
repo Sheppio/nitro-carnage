@@ -1,6 +1,7 @@
 import { NET, STEP } from '../config.js';
 import { createAutopilot, autopilot, skillFor } from '../sim/autopilot.js';
 import { botNames, isBotId } from '../sim/bots.js';
+import { award, CUP_MAX, cupOn, nextCupRace } from '../sim/championship.js';
 import { COLOUR_ORDER, DEFAULT_COLOUR } from '../sim/palette.js';
 import { standings } from '../sim/race.js';
 import { generateTrack } from '../sim/track/generate.js';
@@ -140,6 +141,9 @@ export class NetRace {
     configure(cars, laps, track = this.state.track, seed = this.state.seed, arms = this.state.arms, pick = this.state.pick, boost = this.state.boost, body = this.state.body) {
         if (!this.isHost || this.state.phase !== 'L')
             return;
+        // Mid-championship the track is the championship's: the lobby's boxes may still hold another.
+        if (cupOn(this.state))
+            ({ track, seed } = this.state);
         track = Math.max(0, Math.min(this.tracks.length - 1, Math.round(track) || 0));
         this.state = {
             ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(9, laps)), track,
@@ -149,29 +153,55 @@ export class NetRace {
         this.room.beatNow();
         this.events.emit('state', { state: this.state });
     }
-    /** Host: freeze the grid and start the countdown. */
+    /** Host: plan the championship's tracks, in order. Fixed once it is under way. */
+    planCup(cup) {
+        if (!this.isHost || this.state.phase !== 'L' || cupOn(this.state))
+            return;
+        const plan = cup.slice(0, CUP_MAX).map((c) => ({
+            track: c.seed ? 0 : Math.max(0, Math.min(this.tracks.length - 1, Math.round(c.track) || 0)), seed: c.seed >>> 0,
+        }));
+        this.setState({ ...this.state, cup: plan, of: plan.length });
+    }
+    /** Host: stop a championship part-way. Its points stay on the table. */
+    endCup() {
+        if (!this.isHost || this.state.phase !== 'L' || !cupOn(this.state))
+            return;
+        this.setState({ ...this.state, race: 0 });
+    }
+    /**
+     * Host: freeze the grid and start the countdown. With tracks planned, that
+     * is the championship's next race, or its first, which clears the points.
+     */
     startRace() {
         if (!this.isHost || this.state.phase !== 'L')
             return;
-        this.launch();
+        const s = this.state;
+        const next = nextCupRace(s);
+        if (next)
+            this.launch({ race: s.race + 1, ...next });
+        else if (s.cup.length)
+            this.launch({ race: 1, of: s.cup.length, score: [], ...s.cup[0] });
+        else
+            this.launch({ race: 0 });
     }
     /**
-     * Host: another race from the results, on the same track with the same
-     * settings, without the trip back to the lobby. Whoever is in the room now
-     * is on the grid, like any start.
+     * Host: another race from the results without the trip back to the lobby.
+     * Whoever is in the room now is on the grid, like any start. Mid-championship
+     * it is the next race; otherwise the same track with the same settings.
      */
     rematch() {
         if (!this.isHost || this.state.phase !== 'X')
             return;
-        this.launch();
+        const next = nextCupRace(this.state);
+        this.launch(next ? { race: this.state.race + 1, ...next } : { race: 0 });
     }
-    launch() {
+    launch(change) {
         const humans = this.room.aliveIds.slice(0, NET.maxPlayers);
         const grid = [...humans];
         for (let slot = grid.length; slot < Math.max(this.state.cars, humans.length); slot++)
             grid.push(`b${slot}`);
         this.director.reset();
-        this.setState({ ...this.state, phase: 'C', goAt: Math.round(this.roomNow + NET.countdownMs), grid, finish: [] });
+        this.setState({ ...this.state, ...change, phase: 'C', goAt: Math.round(this.roomNow + NET.countdownMs), grid, finish: [] });
     }
     /** Name and resolved colour for every car on the grid (or in the room, in the lobby). */
     carInfo(id) {
@@ -236,6 +266,9 @@ export class NetRace {
     setState(next) {
         if (next.phase !== this.state.phase)
             this.director.phaseChanged(this.roomNow);
+        // The race is over: its points go on the room's table, in the same heartbeat as the results.
+        if (next.phase === 'X' && this.state.phase !== 'X')
+            next = { ...next, score: award(next.score, this.finishOrder(next)) };
         this.state = next;
         this.apply(next);
         this.room.beatNow();
@@ -376,6 +409,12 @@ export class NetRace {
         this.fleet.reset();
         this.raceGoAt = 0;
         this.events.emit('raceEnd', {});
+    }
+    /** Every car on the grid, first to last: the finishers as the host listed them, then the rest as they stand. */
+    finishOrder(s) {
+        const home = s.finish.map((f) => s.grid[f.slot]).filter((id) => id !== undefined);
+        const rest = this.world ? standings(this.world.entrants).map((e) => e.id) : s.grid;
+        return [...home, ...rest.filter((id) => !home.includes(id) && s.grid.includes(id))];
     }
     /** Current race order, finish times from GO. */
     results() {

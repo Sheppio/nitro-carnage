@@ -1,3 +1,5 @@
+import type { CupRace, Score } from '../sim/championship.js';
+
 /**
  * Wire codec. Every message is a short delimited base36 string, never JSON.
  *
@@ -286,7 +288,7 @@ export interface Heartbeat {
   /** The host's room time as it sent this, ms. */
   roomT: number;
   phase: Phase;
-  /** Race number, and how many are planned (the championship, M8). */
+  /** The championship race being run, or just run, 1-based (0: none on), and how many it has. */
   race: number;
   of: number;
   /** Track index and race length. */
@@ -310,6 +312,10 @@ export interface Heartbeat {
   boost: number;
   /** Every car in one body (`bodyCode`), or 0 for everybody's own. */
   body: number;
+  /** The championship's tracks, in order (#8). Empty from older builds. */
+  cup: CupRace[];
+  /** The room's points so far. Empty from older builds. */
+  score: Score[];
 }
 
 export function encodeHeartbeat(h: Heartbeat): string {
@@ -331,6 +337,9 @@ export function encodeHeartbeat(h: Heartbeat): string {
     b36(h.pick),
     b36(h.boost),
     b36(h.body),
+    // A seed is marked `s`; a bare number is a built-in track.
+    h.cup.map((c) => (c.seed ? `s${b36(c.seed)}` : b36(c.track))).join(LIST),
+    h.score.map((s) => `${s.id}:${b36(s.points)}:${b36(s.wins)}`).join(LIST),
   ].join(FLD);
 }
 
@@ -364,6 +373,13 @@ export function decodeHeartbeat(payload: string): Heartbeat | null {
     pick: f[14] === undefined ? 1 : un36(f[14]),
     boost: f[15] === undefined ? 1 : un36(f[15]),
     body: un36(f[16]),
+    cup: f[17] ? f[17].split(LIST).map((c) => (c.startsWith('s') ? { track: 0, seed: un36(c.slice(1)) } : { track: un36(c), seed: 0 })) : [],
+    score: f[18]
+      ? f[18].split(LIST).flatMap((r) => {
+          const [id, points, wins] = r.split(':');
+          return id ? [{ id, points: un36(points), wins: un36(wins) }] : [];
+        })
+      : [],
   };
 }
 

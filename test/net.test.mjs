@@ -286,7 +286,7 @@ console.log('\nnet.test\n\ncodecs');
 
   const grid = Array.from({ length: 6 }, (_, i) => 'mfy2k3x9a' + String(i).padStart(4, '0'));
   const hb = { hostId: grid[0], seq: 1295, roomT: 36 ** 6 - 1, phase: 'F', race: 9, of: 9, track: 2, laps: 9, goAt: 36 ** 6 - 1, grid,
-    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1, pick: 1, boost: 1, body: 0 };
+    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1, pick: 1, boost: 1, body: 0, cup: [], score: [] };
   const enc2 = encodeHeartbeat(hb);
   const d2 = decodeHeartbeat(enc2);
   const withSeed = decodeHeartbeat(encodeHeartbeat({ ...hb, seed: 0xffffffff, arms: 0 }));
@@ -304,6 +304,15 @@ console.log('\nnet.test\n\ncodecs');
   const mine = { body: 'buggy', pattern: 'roundel', stripe: 'jade', rims: 'gold', number: 42 };
   check('a locked car keeps its own livery, rims and number; only the body changes',
     JSON.stringify(lockedLook(mine, bodyCode('tractor'))) === JSON.stringify({ ...mine, body: 'tractor' }) && lockedLook(mine, 0) === mine && lockedLook(mine, 99) === mine);
+  const cup = [{ track: 3, seed: 0 }, ...Array.from({ length: 9 }, () => ({ track: 0, seed: 0xffffffff }))];
+  const score = [...grid, ...Array.from({ length: 6 }, (_, i) => `b${i}`)].map((id, i) => ({ id, points: 60 - i, wins: 6 }));
+  const full = { ...hb, cup, score };
+  const d3 = decodeHeartbeat(encodeHeartbeat(full));
+  check('the heartbeat carries the championship\'s tracks and the room\'s points; an older one has neither',
+    JSON.stringify(d3.cup) === JSON.stringify(cup) && JSON.stringify(d3.score) === JSON.stringify(score) && legacy.cup.length === 0 && oldBody.score.length === 0);
+  const enc3 = encodeHeartbeat(full);
+  // The worst case: 429 bytes, twice a second, only in a room that has planned ten seeds.
+  check('a heartbeat with ten seeded tracks planned and twelve cars scored stays under 440 bytes', enc3.length <= 440, `${enc3.length} bytes`);
   check('a full heartbeat (six humans, all finished) round-trips', d2.grid.length === 6 && d2.finish.length === 6 && d2.finish[5].t === STAMP_WRAP - 1 && d2.phase === 'F');
   // 184 since M7: a track seed (up to 7 characters) and the weapons switch joined the heartbeat;
   // 190 once the power-ups and turbo switches and the car-type lock did.
@@ -919,6 +928,59 @@ function dropFirst(room, ...tags) {
     room.clients.every((c) => c.net.phase === 'C' && c.net.state.goAt > firstGo && c.net.world !== null && c.net.me !== null));
   check('on the same track, with the same laps and cars', room.clients.every((c) => c.net.state.track === 2 && c.net.state.laps === 1 && c.net.state.grid.length === 4));
   check('and it runs to the results like any race', toResults(room));
+}
+
+{
+  // A championship (#8): the host plans the tracks, the room races them in
+  // order, and the points are the room's, kept on the heartbeat.
+  const room = makeRoom(3, { latency: 40 });
+  room.run(2500);
+  const host = hostOf(room);
+  const guest = room.clients.find((c) => c !== host);
+  const seed = seedOf('egg-cup-top');
+  host.net.configure(4, 1, 0, 0, 0);
+  guest.net.planCup([{ track: 1, seed: 0 }]);
+  host.net.planCup([{ track: 2, seed: 0 }, { track: 0, seed }]);
+  room.run(500);
+  check('the host plans a championship, and every client sees the plan; a guest cannot',
+    room.clients.every((c) => c.net.state.cup.length === 2 && c.net.state.cup[1].seed === seed && c.net.state.race === 0));
+  host.net.startRace();
+  room.run(1500);
+  check('Start runs its first race, on its first track', room.clients.every((c) => c.net.state.race === 1 && c.net.state.of === 2 && c.net.state.track === 2 && c.net.state.seed === 0));
+  host.net.planCup([]);
+  room.run(200);
+  check('and the plan is fixed once it is under way', host.net.state.cup.length === 2);
+  toResults(room);
+  const first = room.clients.map((c) => JSON.stringify(c.net.state.score));
+  const pts = host.net.state.score.reduce((n, r) => n + r.points, 0);
+  const winner = host.net.state.grid[host.net.state.finish[0].slot];
+  check('each race\'s points reach every client with its results: 10, 6, 4, 3 on a grid of four',
+    new Set(first).size === 1 && pts === 23 && host.net.state.score.length === 4 && host.net.state.score[0].id === winner && host.net.state.score[0].wins === 1, first[0]);
+  room.run(NET.resultsMs + 2000);
+  check('between races the lobby shows the next track', room.clients.every((c) => c.net.phase === 'L' && c.net.state.race === 1 && c.net.state.seed === seed));
+  host.net.configure(4, 2, 5, 0, 0);
+  room.run(500);
+  check('the host can change the laps between races, but not the track', room.clients.every((c) => c.net.state.laps === 2 && c.net.state.seed === seed));
+
+  // The host leaves between races: the next one takes the championship and its points over.
+  host.t.disconnect(false);
+  host.alive = false;
+  room.run(5000);
+  const next = hostOf(room);
+  check('a new host carries on the championship, points and all',
+    Boolean(next) && next.net.state.race === 1 && next.net.state.cup.length === 2 && next.net.state.score.reduce((n, r) => n + r.points, 0) === 23);
+  next.net.startRace();
+  room.run(1500);
+  check('its Start runs the next race, on the next track', room.clients.filter((c) => c.alive).every((c) => c.net.state.race === 2 && c.net.state.seed === seed && c.net.world !== null));
+  toResults(room);
+  const total = next.net.state.score.reduce((n, r) => n + r.points, 0);
+  check('whose points add to the table: the host who left keeps theirs', total === 46 && next.net.state.score.some((r) => r.id === host.net.playerId), `${total} points`);
+  room.run(NET.resultsMs + 2000);
+  check('after the last race the championship is over, and its table stays',
+    room.clients.filter((c) => c.alive).every((c) => c.net.phase === 'L' && c.net.state.race === 0 && c.net.state.score.length > 0));
+  next.net.startRace();
+  room.run(1500);
+  check('Start again begins a new championship on a clean table', next.net.state.race === 1 && next.net.state.score.length === 0 && next.net.state.track === 2);
 }
 
 /* ---------------------------------------------------------- direct links */

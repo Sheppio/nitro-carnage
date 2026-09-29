@@ -277,14 +277,18 @@ export class Hud {
   /**
    * The room's running score, beside the results: points, wins and wrecks
    * across tonight's races, and who has been wrecking you. Hidden offline and
-   * after a room's first race, when it would only repeat the results.
+   * after a room's first race, when it would only repeat the results, unless
+   * that race is a championship's.
+   *
+   * @param cup the championship race just run, and how many it has
    */
-  static tonight(tally: Tally | null, you: string, css: (id: string) => string): void {
+  static tonight(tally: Tally | null, you: string, css: (id: string) => string, cup: { race: number; of: number } | null = null): void {
     const box = $('results-tonight');
-    box.hidden = !tally || tally.races < 2;
+    box.hidden = !tally || (tally.races < 2 && !cup);
     box.parentElement!.classList.toggle('with-tonight', !box.hidden);
     if (!tally || box.hidden) return;
-    $('tonight-races').textContent = `after ${tally.races} races`;
+    $('tonight-title').textContent = cup ? 'Championship' : 'Tonight';
+    $('tonight-races').textContent = !cup ? `after ${tally.races} races` : cup.race >= cup.of ? 'final standings' : `after race ${cup.race} of ${cup.of}`;
     const body = $('tonight-body');
     body.replaceChildren();
     tally.standings().forEach((r, i) => {

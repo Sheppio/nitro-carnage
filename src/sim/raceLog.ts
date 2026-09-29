@@ -1,3 +1,5 @@
+import { racesScored } from './championship.js';
+import type { Score } from './championship.js';
 import { standings } from './race.js';
 import type { WeaponKind } from './weapons.js';
 import type { Entrant, RaceEvent } from './World.js';
@@ -133,14 +135,10 @@ export function awards(log: RaceLog, order: readonly string[], name: (id: string
   return out;
 }
 
-/** Points by finishing position. */
-export const POINTS = [10, 6, 4, 3, 2, 1] as const;
-
 export interface TallyRow {
   id: string;
   name: string;
   bot: boolean;
-  races: number;
   wins: number;
   points: number;
   kills: number;
@@ -148,32 +146,57 @@ export interface TallyRow {
 }
 
 /**
- * A room's running score across races: points, wins and wrecks for everyone
- * who has raced, and who has wrecked whom the most. Each client keeps its own,
- * from the races it saw, so one who joined late has a shorter memory.
+ * A room's running score across races: points and wins as the room keeps them
+ * (`sync`, from the heartbeat), and the wrecks this client saw, with who has
+ * wrecked whom the most. The wrecks are this client's own memory, so one who
+ * joined late has a shorter one; the points are everyone's.
  */
 export class Tally {
   private rows = new Map<string, TallyRow>();
   private pairs = new Map<string, number>();
+  /** Races the room has scored. */
   races = 0;
 
-  /** Add a finished race. */
+  /** Add a finished race's wrecks. */
   add(order: readonly string[], log: RaceLog, name: (id: string) => string, bot: (id: string) => boolean): void {
-    this.races++;
-    order.forEach((id, i) => {
-      const r = this.rows.get(id) ?? { id, name: name(id), bot: bot(id), races: 0, wins: 0, points: 0, kills: 0, wrecked: 0 };
-      r.name = name(id);
-      r.races++;
-      if (i === 0) r.wins++;
-      r.points += POINTS[i] ?? 0;
+    for (const id of order) {
+      const r = this.row(id, name, bot);
       r.kills += log.kills.get(id) ?? 0;
       r.wrecked += log.wrecked.get(id) ?? 0;
-      this.rows.set(id, r);
-    });
+    }
     for (const [k, n] of log.pairs) bump(this.pairs, k, n);
   }
 
-  /** Everyone, best first: points, then wins, then wrecks dealt. */
+  /** Take the room's points and wins: whoever is not on its table has none. */
+  sync(score: readonly Score[], name: (id: string) => string, bot: (id: string) => boolean): void {
+    const races = racesScored(score);
+    // Fewer races than before: a championship has started a clean table, and the wrecks start again with it.
+    if (races < this.races) {
+      this.rows.clear();
+      this.pairs.clear();
+    }
+    for (const r of this.rows.values()) r.points = r.wins = 0;
+    for (const s of score) {
+      const r = this.row(s.id, name, bot);
+      r.points = s.points;
+      r.wins = s.wins;
+    }
+    this.races = races;
+  }
+
+  private row(id: string, name: (id: string) => string, bot: (id: string) => boolean): TallyRow {
+    let r = this.rows.get(id);
+    if (!r) {
+      r = { id, name: name(id), bot: bot(id), wins: 0, points: 0, kills: 0, wrecked: 0 };
+      this.rows.set(id, r);
+    }
+    // A player who has left keeps the name they raced under.
+    const now = name(id);
+    if (now !== '—') r.name = now;
+    return r;
+  }
+
+  /** Everyone who has scored or raced, best first: points, then wins, then wrecks dealt. */
   standings(): TallyRow[] {
     return [...this.rows.values()].sort((a, b) => b.points - a.points || b.wins - a.wins || b.kills - a.kills || (a.id < b.id ? -1 : 1));
   }

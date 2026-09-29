@@ -1,4 +1,6 @@
 import { WIRE } from '../net/codec.js';
+import { isBotId } from '../sim/bots.js';
+import { CUP_MAX, cupOn } from '../sim/championship.js';
 import { PALETTE } from '../sim/palette.js';
 import { TRACKS } from '../sim/track/index.js';
 import { daySeed, generateTrack, utcDay } from '../sim/track/generate.js';
@@ -29,6 +31,10 @@ export class Lobby {
     drawn = '';
     /** Why the host's typed seed can't be used: a future day's Track of the Day. */
     locked = null;
+    /** Generated tracks' names by seed: generating one takes a moment, and the lobby redraws twice a second. */
+    names = new Map();
+    /** What the championship list last drew. */
+    cupDrawn = '';
     /** The host typed a future date (or stopped doing so): shown in place of the map. */
     lock(why) {
         if (why === this.locked)
@@ -50,6 +56,7 @@ export class Lobby {
         // shots and bots would not show. Say who, and who should reload.
         let older = 0, newer = 0;
         // Tonight's points beside each name, once there has been a race: the lobby between races is where the score is argued over.
+        this.tally?.sync(net.state.score, (id) => net.carInfo(id).name, isBotId);
         const standings = this.tally?.standings() ?? [];
         const score = (id) => {
             const i = standings.findIndex((r) => r.id === id);
@@ -113,6 +120,7 @@ export class Lobby {
         $('lobby-turbo').value = String(st.boost);
         $('lobby-body').value = String(st.body);
         $('lobby-wait').hidden = net.isHost;
+        this.renderCup();
         const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? `Track of the day ${utcDay(Date.now())} · ` : ''}${generateTrack(st.seed).name}`;
         // A map of the room's track, for everyone: a seed is only a word until it's seen.
         const key = this.locked && net.isHost ? 'locked' : `${st.track}:${st.seed}`;
@@ -127,9 +135,64 @@ export class Lobby {
             const def = st.seed === 0 ? TRACKS[st.track] ?? TRACKS[0] : generateTrack(st.seed);
             drawTrackPreview($('lobby-track-map'), $('lobby-track-info'), def, track);
         }
+        const on = cupOn(st);
         $('lobby-wait').textContent = room.hostId
-            ? `Next race: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost ? '' : ', no turbo'}${BODIES[st.body - 1] ? `, everyone in a ${BODY_NAMES[BODIES[st.body - 1]]}` : ''}. Waiting for the host to start it.`
+            ? `${on ? `Championship race ${st.race + 1} of ${st.cup.length}` : 'Next race'}: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost ? '' : ', no turbo'}${BODIES[st.body - 1] ? `, everyone in a ${BODY_NAMES[BODIES[st.body - 1]]}` : ''}. Waiting for the host to start it.`
             : 'Looking for the room…';
+    }
+    /**
+     * The championship's tracks, the next one lit. The host plans them (a chip
+     * is its ✕) until the first race; then the room's track follows the list.
+     */
+    renderCup() {
+        const net = this.net;
+        const st = net.state;
+        const on = cupOn(st);
+        const plan = net.isHost && !on;
+        $('lobby-cup').hidden = !net.isHost && st.cup.length === 0;
+        $('btn-cup-add').hidden = on;
+        $('btn-cup-add').disabled = st.cup.length >= CUP_MAX || this.locked !== null;
+        $('btn-cup-end').hidden = !on;
+        // The track is the championship's while it runs.
+        for (const id of ['lobby-track', 'lobby-seed', 'lobby-seed-random'])
+            $(id).disabled = on;
+        $('btn-start-race').textContent = on ? `Start race ${st.race + 1} of ${st.cup.length}` : st.cup.length ? `Start championship · ${st.cup.length} race${st.cup.length === 1 ? '' : 's'}` : 'Start race';
+        // Rebuilt only when it changes: a pad's focus on a chip would not survive every heartbeat.
+        const key = `${plan}:${st.race}:${st.cup.map((c) => `${c.track}/${c.seed}`).join()}`;
+        if (key === this.cupDrawn)
+            return;
+        this.cupDrawn = key;
+        const list = $('lobby-cup-list');
+        list.replaceChildren();
+        if (!st.cup.length) {
+            list.appendChild(Object.assign(document.createElement('li'), { className: 'empty', textContent: net.isHost ? 'Off · + adds this track' : 'Off' }));
+            return;
+        }
+        st.cup.forEach((c, i) => {
+            const chip = document.createElement(plan ? 'button' : 'span');
+            chip.className = `cup-chip${on && i < st.race ? ' done' : ''}${on && i === st.race ? ' next' : ''}`;
+            chip.textContent = this.cupName(c);
+            if (chip instanceof HTMLButtonElement) {
+                chip.type = 'button';
+                chip.title = `Take ${chip.textContent} out`;
+                chip.addEventListener('click', () => net.planCup(st.cup.filter((_, k) => k !== i)));
+            }
+            const li = document.createElement('li');
+            li.appendChild(chip);
+            list.appendChild(li);
+        });
+        // The next race in view, however far along the line it is.
+        list.querySelector('.next')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    cupName(c) {
+        if (!c.seed)
+            return TRACKS[c.track]?.name ?? '—';
+        let name = this.names.get(c.seed);
+        if (name === undefined) {
+            name = generateTrack(c.seed).name;
+            this.names.set(c.seed, name);
+        }
+        return name;
     }
     row(name, colourId, badges, look) {
         const li = document.createElement('li');

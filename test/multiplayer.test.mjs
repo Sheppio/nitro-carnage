@@ -238,6 +238,30 @@ try {
   const back = await until(async () => (await phase(a)) === 'L' && (await phase(b)) === 'L' && (await b.evaluate(() => !document.getElementById('screen-lobby').hidden)), { timeout: 40000 });
   r.check('then everyone is back in the lobby', Boolean(back));
 
+  // The points are the room's: both lobbies show the same, 10 · 6 · 4.
+  const pts = (p) => p.evaluate(() => [...document.querySelectorAll('#lobby-roster .badge.score')].map((b) => parseInt(b.textContent.replace('👑 ', ''), 10)).sort((x, y) => y - x).join(' '));
+  const shared = await until(async () => {
+    const [pa, pb] = await Promise.all([pts(a), pts(b)]);
+    return pa === '10 6 4' && pa === pb ? pa : null;
+  });
+  r.check('both lobbies show the same points from the race', Boolean(shared), `${await pts(a)} / ${await pts(b)}`);
+
+  // A championship (#8): the host lines up two tracks; the guest sees them.
+  await a.click('#btn-cup-add');
+  await a.selectOption('#lobby-track', '2');
+  await a.click('#btn-cup-add');
+  const planned = await until(() => b.evaluate(() => {
+    const chips = [...document.querySelectorAll('#lobby-cup-list .cup-chip')].map((c) => c.textContent);
+    return chips.length === 2 && !document.getElementById('lobby-cup').hidden ? chips.join(' / ') : null;
+  }));
+  const startLabel = await a.evaluate(() => document.getElementById('btn-start-race').textContent);
+  r.check('the host plans a championship in the lobby, and the guest sees its tracks', Boolean(planned) && /championship/i.test(startLabel), `${planned} · "${startLabel}"`);
+  await a.click('#lobby-cup-list button.cup-chip');
+  const unplanned = await until(() => b.evaluate(() => (document.querySelectorAll('#lobby-cup-list .cup-chip').length === 1 ? true : null)));
+  r.check('and takes one out again with its ✕', Boolean(unplanned));
+  await a.click('#lobby-cup-list button.cup-chip');
+  await until(() => b.evaluate(() => (window.nitro.room.net.state.cup.length === 0 ? true : null)));
+
   // A new name from the lobby reaches the other screen's roster.
   await b.fill('#lobby-name', 'BOBBY');
   const renamed = await until(() => a.evaluate(() => [...document.querySelectorAll('#lobby-roster li')].some((li) => li.textContent.includes('BOBBY')) || null));

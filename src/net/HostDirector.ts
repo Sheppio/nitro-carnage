@@ -1,5 +1,6 @@
 import { NET } from '../config.js';
 import { isBotId } from '../sim/bots.js';
+import { nextCupRace } from '../sim/championship.js';
 import type { RoomState } from './RoomSession.js';
 
 /**
@@ -67,7 +68,9 @@ export class HostDirector {
     }
     if (s.phase === 'X' && nowRoomMs - this.phaseSince >= NET.resultsMs) {
       this.reset();
-      return { ...s, phase: 'L', goAt: 0, grid: [], finish: [] };
+      // Mid-championship, the lobby shows the next track; after its last race, the championship is over.
+      const next = nextCupRace(s);
+      return { ...s, phase: 'L', goAt: 0, grid: [], finish: [], ...(next ?? { race: 0 }) };
     }
     return null;
   }

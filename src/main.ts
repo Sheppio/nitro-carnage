@@ -34,6 +34,7 @@ import { ChoiceList } from './ui/ChoiceList.js';
 import { stepperFor } from './ui/Picker.js';
 import { Lobby } from './ui/Lobby.js';
 import { awards, Tally } from './sim/raceLog.js';
+import { cupOn, nextCupRace } from './sim/championship.js';
 import { isBotId } from './sim/bots.js';
 import { makePlayerId, makeRoomCode } from './util.js';
 import { VERSION } from './version.js';
@@ -394,8 +395,15 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
     const css = (id: string): string => s.cars.get(id)?.css ?? (room ? colourOf(room.net.carInfo(id).colour).cssColour : '#fff');
     const order = rows.map((r) => r.car.id);
     if (online) tally?.add(order, s.log, name, isBotId);
+    // The points are the room's: they came with the results, on the host's heartbeat.
+    if (online && room) tally?.sync(room.net.state.score, name, isBotId);
     Hud.awards(awards(s.log, order, name), css);
-    Hud.tonight(online ? tally : null, s.playerId, css);
+    const st = room?.net.state;
+    const cup = online && st && cupOn(st) ? { race: st.race, of: st.cup.length } : null;
+    Hud.tonight(online ? tally : null, s.playerId, css, cup);
+    // The last race of a championship: its winner is the headline.
+    const champ = cup && cup.race >= cup.of ? tally?.standings()[0] : undefined;
+    if (champ) $('results-title').textContent = champ.id === s.playerId ? 'You are the champion!' : `${champ.name} is the champion`;
     // In a room the first button goes straight back to the lobby; the room
     // itself returns everyone there when the results time is up, unless the
     // host starts a rematch first.
@@ -527,6 +535,8 @@ function rematchButton(): void {
   const host = room?.net.isHost === true && room.net.phase === 'X';
   const btn = $('btn-rematch');
   btn.hidden = !host;
+  // Mid-championship it runs the next race, on the next track.
+  btn.textContent = room && nextCupRace(room.net.state) ? `Next race · ${room.net.state.race + 1} of ${room.net.state.cup.length}` : 'Rematch';
   btn.toggleAttribute('data-nav-default', host);
   $('btn-again').toggleAttribute('data-nav-default', !host);
   // One bright button: Rematch when there is one.
@@ -571,7 +581,9 @@ async function openRoom(code: string): Promise<void> {
     const quality = qualityOverride ?? settings.current.quality;
     // The world the room built: a generated track when the heartbeat carried a seed.
     const track = net.world?.track.def ?? TRACKS[net.state.track] ?? TRACKS[0]!;
-    begin('net', new RaceSession(gameRoot, { mode: 'net', track, quality, colourId, bots: 0, laps: 0 }, input, settings, net), track);
+    const st = net.state;
+    const label = cupOn(st) ? `Race ${st.race} of ${st.cup.length} · ${track.name}` : track.name;
+    begin('net', new RaceSession(gameRoot, { mode: 'net', track, quality, colourId, bots: 0, laps: 0 }, input, settings, net), track, label);
   });
   net.events.on('raceEnd', () => {
     if (room !== client) return;
@@ -750,7 +762,7 @@ function countDownToLobby(): void {
     }
     const host = room?.net.room.hostId ? room.net.carInfo(room.net.room.hostId) : null;
     $('results-note').textContent = host && !host.you
-      ? `Back to the lobby in ${left} s, unless ${host.name} starts a rematch.`
+      ? `Back to the lobby in ${left} s, unless ${host.name} starts ${room && nextCupRace(room.net.state) ? 'the next race' : 'a rematch'}.`
       : `Back to the lobby in ${left} s.`;
   };
   tick();
@@ -763,6 +775,15 @@ $('btn-resume').addEventListener('click', closePause);
 $('btn-pause-leave').addEventListener('click', toMenu);
 $('btn-lobby-leave').addEventListener('click', toMenu);
 $('btn-start-race').addEventListener('click', () => room?.net.startRace());
+// The lobby's track, as chosen, onto the end of the championship.
+$('btn-cup-add').addEventListener('click', () => {
+  const net = room?.net;
+  const pick = $<HTMLSelectElement>('lobby-track').value;
+  const choice = trackChoice(pick, $<HTMLInputElement>('lobby-seed').value);
+  if (!net || choice.locked) return;
+  net.planCup([...net.state.cup, { track: choice.seed ? 0 : Number(pick), seed: choice.seed }]);
+});
+$('btn-cup-end').addEventListener('click', () => room?.net.endCup());
 $('btn-copy-link').addEventListener('click', () => void navigator.clipboard?.writeText($('lobby-link').textContent ?? ''));
 // Your name, from the lobby as well as the menu: the two boxes are one setting.
 const lobbyName = $<HTMLInputElement>('lobby-name');

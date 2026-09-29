@@ -698,6 +698,43 @@ input[type='text'] {
 .lobby-grid .field select, .lobby-grid .field input { min-width: 0; max-width: 62%; }
 .lobby-grid .seed-row .field input { max-width: none; flex: 1 1 auto; }
 body:not(.is-host) .host-only { display: none !important; }
+/* A setting the room has fixed for now: the championship's track while it runs. */
+.lobby-grid .field:has(select:disabled), .seed-row:has(input:disabled) { opacity: 0.45; }
+
+/* The championship: its tracks as a row of chips, the next one lit, on one line that scrolls. */
+.cup-box { flex: 0 1 62%; max-width: 62%; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.cup-box .btn { flex: none; }
+.cup-box .btn[hidden] { display: none; }
+#btn-cup-add { font-size: 16px; line-height: 1; padding: 6px 11px; }
+.cup-list {
+  list-style: none; margin: 0; padding: 2px; flex: 1 1 auto; min-width: 0;
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; counter-reset: cup;
+}
+.cup-list::-webkit-scrollbar { display: none; }
+.cup-list li { counter-increment: cup; flex: none; }
+.cup-list li.empty { color: var(--muted); font-size: 13px; counter-increment: none; }
+.cup-chip {
+  font: 600 12px var(--body);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 4px 8px;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.cup-chip::before { content: counter(cup) '. '; color: var(--muted); }
+button.cup-chip { cursor: pointer; }
+button.cup-chip::after { content: ' ✕'; color: var(--muted); }
+.cup-chip.done { opacity: 0.45; text-decoration: line-through; }
+.cup-chip.next { border-color: var(--accent-2); color: var(--accent-2); }
+/* A phone scrolls the page anyway: there the chips wrap, all in view. */
+@media (max-width: 719px) {
+  .cup-list { flex-wrap: wrap; overflow: visible; }
+}
 
 .console-banner {
   margin-top: 16px;
