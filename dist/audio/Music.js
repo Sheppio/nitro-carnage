@@ -8,12 +8,33 @@
  *
  * Two cues share the machinery: `menu`, sparse and slow, and `race`, with the
  * drums in. Everything is written here as numbers — there are no files.
+ *
+ * Each track has a theme of its own (a chord progression and a tempo, picked
+ * from its id), and the race cue builds as the race does: a lead line joins
+ * when you lead or reach the last lap, and the last lap pushes the tempo and
+ * doubles the hats.
  */
-/** A minor, F, C, G: two bars each. */
-const ROOTS = [57, 53, 48, 55];
+/** Two bars on each chord. The first is the menu's, and the default. */
+const THEMES = [
+    { chords: [[57, true], [53, false], [48, false], [55, false]], bpm: 132 }, // Am F C G
+    { chords: [[52, true], [48, false], [55, false], [50, false]], bpm: 136 }, // Em C G D
+    { chords: [[50, true], [58, false], [53, false], [48, false]], bpm: 128 }, // Dm Bb F C
+    { chords: [[48, true], [56, false], [51, false], [58, false]], bpm: 140 }, // Cm Ab Eb Bb
+    { chords: [[54, true], [50, false], [57, false], [52, false]], bpm: 134 }, // F#m D A E
+];
 const STEPS_PER_BAR = 16;
 const LOOKAHEAD = 0.15;
 const TICK_MS = 25;
+/** The lead line: which steps of a bar it plays on, and the notes over the chord's root. */
+const LEAD_STEPS = [0, 3, 6, 8, 10, 12, 14];
+const LEAD = [12, 10, 7, 12, 15, 14, 12, 7, 3];
+/** A stable number from a string (FNV-1a): a track's theme, a car's engine voice. */
+export function hash(s) {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++)
+        h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+    return h >>> 0;
+}
 const mtof = (m) => 440 * 2 ** ((m - 69) / 12);
 export class Music {
     ctx = null;
@@ -25,6 +46,9 @@ export class Music {
     step = 0;
     nextTime = 0;
     noise = null;
+    theme = THEMES[0];
+    /** Set by the race each frame; calm outside one. */
+    intensity = { finalLap: false, leading: false };
     attach(ctx, out, audible, onStart) {
         this.ctx = ctx;
         this.out = out;
@@ -48,6 +72,13 @@ export class Music {
         }
         this.run();
     }
+    /** The theme for a track, by its id, or the menu's with `null`. The same track always gets the same one. */
+    setTheme(key) {
+        this.theme = THEMES[key ? hash(key) % THEMES.length : 0];
+    }
+    get themeIndex() {
+        return THEMES.indexOf(this.theme);
+    }
     get playing() {
         return this.cue;
     }
@@ -62,7 +93,7 @@ export class Music {
         const ctx = this.ctx;
         if (!ctx || this.cue === 'off')
             return;
-        const bpm = this.cue === 'race' ? 132 : 96;
+        const bpm = this.cue === 'race' ? this.theme.bpm + (this.intensity.finalLap ? 10 : 0) : 96;
         const dt = 60 / bpm / 4;
         // Fell far behind (a hidden tab): skip ahead rather than play a burst.
         if (this.nextTime < ctx.currentTime - 0.3)
@@ -77,14 +108,16 @@ export class Music {
     note(step, t, dt) {
         const bar = Math.floor(step / STEPS_PER_BAR);
         const s = step % STEPS_PER_BAR;
-        const root = ROOTS[Math.floor(bar / 2) % ROOTS.length];
+        const chords = this.cue === 'race' ? this.theme.chords : THEMES[0].chords;
+        const [root, minor] = chords[Math.floor(bar / 2) % chords.length];
         const race = this.cue === 'race';
+        const { finalLap, leading } = race ? this.intensity : { finalLap: false, leading: false };
         // Bass: eighths in the race, a pulse on the beat in the menu.
         if (race ? s % 2 === 0 : s % 4 === 0)
             this.voice(mtof(root - 24 + (s % 8 === 6 ? 7 : 0)), t, dt * 1.8, 'sawtooth', 0.22, 600);
         // Arpeggio: root, third, fifth, octave.
         const arp = [0, 3, 7, 12, 7, 3, 0, 10];
-        const third = root === 53 || root === 48 || root === 55 ? 4 : 3;
+        const third = minor ? 3 : 4;
         if (s % 2 === 1 || !race) {
             const n = arp[(s >> (race ? 0 : 1)) % arp.length];
             this.voice(mtof(root + (n === 3 ? third : n)), t, dt * 0.9, 'square', race ? 0.07 : 0.05, 2600);
@@ -100,8 +133,19 @@ export class Music {
             this.kick(t);
         if (s === 4 || s === 12)
             this.snare(t);
-        if (s % 2 === 1)
+        if (s % 2 === 1 || (finalLap && s % 4 === 2))
             this.hat(t);
+        // The last lap: a crash cymbal at the top of every two bars.
+        if (finalLap && s === 0 && bar % 2 === 0)
+            this.noiseHit(t, 0.9, 0.16, 'highpass', 4500);
+        // In the lead, or on the last lap: a lead line over the top.
+        if (leading || finalLap) {
+            const at = LEAD_STEPS.indexOf(s);
+            if (at >= 0) {
+                const n = LEAD[(at + (bar % 2) * 3) % LEAD.length];
+                this.voice(mtof(root + 12 + (n === 3 ? third : n === 15 ? 12 + third : n)), t, dt * 1.6, 'square', 0.045, 3400);
+            }
+        }
     }
     voice(freq, t, dur, type, level, cutoff) {
         const ctx = this.ctx;

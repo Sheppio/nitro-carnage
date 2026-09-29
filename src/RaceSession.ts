@@ -5,13 +5,15 @@ import type { SettingsStore } from './input/settings.js';
 import type { InputManager } from './input/InputManager.js';
 import type { NetRace } from './net/NetRace.js';
 import { GameView } from './render/GameView.js';
-import type { AudioEngine } from './audio/AudioEngine.js';
+import type { AudioEngine, Ground, Heard, MissileVoiceInput } from './audio/AudioEngine.js';
 import { crossingWarning, trainAt } from './sim/train.js';
 import { ghostAt, LapTrace } from './sim/ghost.js';
 import { SIM } from './config.js';
 import { autopilot, createAutopilot, skillFor, SKILLS } from './sim/autopilot.js';
 import { botNames, isBotId } from './sim/bots.js';
 import { createCar } from './sim/car.js';
+import { Surface } from './sim/surfaces.js';
+import { missileAt } from './sim/weapons.js';
 import type { CarState } from './sim/car.js';
 import { interpolateCar } from './sim/interpolate.js';
 import { COLOUR_ORDER, colourOf } from './sim/palette.js';
@@ -178,6 +180,10 @@ export class RaceSession {
   private lastPip = -1;
   private lastLight = -1;
   private warned = false;
+  /** The player's place last frame, for the last-lap overtakes. */
+  private lastPlace = 0;
+  /** Remote cars' throttle, guessed from how they speed up: the network does not carry it. */
+  private revs = new Map<string, { speed: number; throttle: number }>();
 
   constructor(host: HTMLElement, opts: SessionOptions, private input: InputManager, readonly settings: SettingsStore, net: NetRace | null = null) {
     this.mode = opts.mode;
@@ -272,6 +278,7 @@ export class RaceSession {
     this.running = false;
     cancelAnimationFrame(this.raf);
     this.audio?.silenceEngines();
+    this.audio?.mood(null);
     this.input.setInRace(false);
     for (const off of this.offNet) off();
     this.offNet = [];
@@ -341,7 +348,7 @@ export class RaceSession {
     this.view.drawHazards(drawTime - this.world.goTime, dt);
     this.view.drawPickups(drawTime, this.paused && !this.net ? 0 : dt);
     if (this.mode === 'hotlap') this.hotlapFrame(drawTime);
-    this.sound(drawTime - this.world.goTime);
+    this.sound(drawTime - this.world.goTime, drawTime, dt);
     this.startFrame();
     // Spectating: follow whoever is leading.
     if (!this.player) this.view.focusId = standings(this.world.entrants)[0]?.id ?? this.view.focusId;
@@ -372,34 +379,79 @@ export class RaceSession {
     }
   }
 
-  /** Distance from the car being followed, for how loud something is. */
-  private hear(x: number, z: number): number {
+  /**
+   * Where a sound is from the car being followed: how far, for how loud, and
+   * how far to the side. The camera is north-up, so screen right is +x.
+   */
+  private hear(x: number, z: number): Heard {
     const f = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
-    return f ? Math.hypot(x - f.x, z - f.z) : 0;
+    if (!f) return { d: 0, pan: 0 };
+    const dx = x - f.x;
+    return { d: Math.hypot(dx, z - f.z), pan: Math.max(-1, Math.min(1, dx / 30)) * 0.85 };
   }
 
-  /** Once a frame: engines for the nearest cars, the countdown, the crossing. */
-  private sound(raceTime: number): void {
+  /** How fast something at (x, z) moving at (vx, vz) closes on the followed car, m/s. */
+  private closing(x: number, z: number, vx: number, vz: number): number {
+    const f = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
+    if (!f) return 0;
+    const dx = f.x - x;
+    const dz = f.z - z;
+    const d = Math.hypot(dx, dz);
+    return d < 0.5 ? 0 : ((vx - f.vx) * dx + (vz - f.vz) * dz) / d;
+  }
+
+  /**
+   * Once a frame: engines for the nearest cars, the wind, the missiles in the
+   * air, the countdown, the crossing, and the music's mood.
+   */
+  private sound(raceTime: number, drawTime: number, dt: number): void {
     const a = this.audio;
     if (!a) return;
     // Stopped mid-frame: the race ending runs `onOver`, which stops the
     // session, in the middle of this frame. Voicing engines after that
     // started ones nothing would ever stop, and they droned under the menus.
     if (!this.running) return;
+    const me = this.player;
+    const order = standings(this.world.entrants);
+    const place = me ? order.indexOf(me) + 1 : 0;
+    const lastLap = me !== null && this.mode !== 'hotlap' && this.world.laps > 1 && displayLap(me.lap, this.world.laps) >= this.world.laps;
+    const racing = Boolean(me && this.world.started && !me.lap.finished);
+    a.mood({
+      muffled: (this.paused && !this.net) || (me !== null && me.wrecked > 0),
+      finalLap: racing && lastLap,
+      leading: racing && place === 1 && order.length > 1,
+    });
     if (this.paused && !this.net) {
       a.silenceEngines();
       return;
     }
+    // A place won or lost on the last lap is worth hearing.
+    if (racing && lastLap && this.lastPlace > 0 && place !== this.lastPlace) a.place(place < this.lastPlace);
+    this.lastPlace = racing ? place : 0;
+    a.lowHealth(me && racing && me.wrecked <= 0 ? me.hp / SIM.weapons.health : 1);
     const voices = [];
     for (const e of this.world.entrants) {
       const c = this.drawn.get(e.id)!;
+      const speed = Math.hypot(c.vx, c.vz);
+      const heard = this.hear(c.x, c.z);
       voices.push({
-        id: e.id, speed: Math.hypot(c.vx, c.vz), throttle: e.remote ? (c.boosting ? 1 : 0.6) : c.throttle,
-        boosting: c.boosting, distance: this.hear(c.x, c.z),
-        slide: c.airborne || e.wrecked > 0 ? 0 : Math.max(0, Math.abs(c.slip) - 0.12) * 3 + (c.handbrake && Math.hypot(c.vx, c.vz) > 6 ? 0.5 : 0),
+        id: e.id, speed, throttle: e.remote ? this.guessThrottle(e.id, speed, c.boosting, dt) : c.throttle,
+        boosting: c.boosting, distance: heard.d, pan: heard.pan, closing: this.closing(c.x, c.z, c.vx, c.vz),
+        ground: e.wrecked > 0 || c.airborne ? 'tarmac' as Ground : ground(c.surfaceFront, c.surfaceRear),
+        slide: c.airborne || e.wrecked > 0 ? 0 : Math.max(0, Math.abs(c.slip) - 0.12) * 3 + (c.handbrake && speed > 6 ? 0.5 : 0),
       });
     }
     a.engines(voices);
+    const f = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
+    // Airborne, the wind is all there is: a little louder.
+    a.wind(f ? Math.hypot(f.vx, f.vz) * (f.airborne ? 1.2 : 1) : 0);
+    const shots: MissileVoiceInput[] = [];
+    for (const m of this.world.armoury.missiles) {
+      if (m.done || drawTime < m.t0 || drawTime > m.end) continue;
+      const p = missileAt(m, drawTime);
+      shots.push({ key: `${m.owner}:${m.seq}`, heard: this.hear(p.x, p.z), closing: this.closing(p.x, p.z, m.dx * m.speed, m.dz * m.speed) });
+    }
+    a.missiles(shots);
     // Pips on 3, 2, 1; GO has its own tone, from the go event.
     const cd = this.world.countdown;
     const pip = Math.ceil(cd);
@@ -471,12 +523,23 @@ export class RaceSession {
     if (!this.net) this.checkOver();
   }
 
+  /** A remote car's throttle, from how it gathers speed, smoothed over a few frames. */
+  private guessThrottle(id: string, speed: number, boosting: boolean, dt: number): number {
+    const r = this.revs.get(id) ?? { speed, throttle: 0.5 };
+    const accel = dt > 0 ? (speed - r.speed) / dt : 0;
+    const target = boosting ? 1 : Math.max(0, Math.min(1, 0.3 + accel / 7));
+    r.throttle += (target - r.throttle) * (1 - Math.exp(-dt * 6));
+    r.speed = speed;
+    this.revs.set(id, r);
+    return r.throttle;
+  }
+
   private soundFor(ev: RaceEvent): void {
     const a = this.audio;
     if (!a) return;
-    const at = (id: string): number => {
+    const at = (id: string): Heard => {
       const c = this.drawn.get(id);
-      return c ? this.hear(c.x, c.z) : 50;
+      return c ? this.hear(c.x, c.z) : { d: 50, pan: 0 };
     };
     switch (ev.kind) {
       case 'go':
@@ -505,12 +568,22 @@ export class RaceSession {
         break;
       case 'finish':
         if (ev.id === this.playerId) a.finish();
+        else if (this.player && !this.spectating) a.rivalHome();
+        break;
+      case 'bump': {
+        const p = this.drawn.get(ev.a);
+        const q = this.drawn.get(ev.b);
+        if (p && q) a.bump(this.hear((p.x + q.x) / 2, (p.z + q.z) / 2), ev.closing);
+        break;
+      }
+      case 'damage':
+        if (ev.id === this.playerId) a.damage(ev.amount);
         break;
       case 'respawn':
         if (ev.id === this.playerId) a.respawn();
         break;
       case 'pickup':
-        if (ev.id === this.playerId) a.pickup();
+        if (ev.id === this.playerId) a.pickup(ev.pick);
         break;
     }
   }
@@ -610,4 +683,14 @@ export class RaceSession {
   get drawnStates(): ReadonlyMap<string, CarState> {
     return this.drawn;
   }
+}
+
+/** What the ear hears of the two axles' surfaces: the rougher one. */
+function ground(front: Surface, rear: Surface): Ground {
+  const rank: Ground[] = ['oil', 'tarmac', 'kerb', 'dirt', 'grass', 'water'];
+  const of = (x: Surface): Ground => (x === Surface.Dirt ? 'dirt' : x === Surface.Grass ? 'grass' : x === Surface.Oil ? 'oil'
+    : x === Surface.Kerb ? 'kerb' : x === Surface.Water ? 'water' : 'tarmac');
+  const a = of(front);
+  const b = of(rear);
+  return rank.indexOf(a) >= rank.indexOf(b) ? a : b;
 }

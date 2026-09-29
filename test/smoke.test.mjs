@@ -794,6 +794,30 @@ try {
     await snd.waitForTimeout(100);
   }
   r.check('six cars on track, but only the nearest three engines are voiced', most > 0 && most <= 3, `${most} at most`);
+  // The new voices: placed one-shots, missile whines, the ducking under a
+  // blast, and the music's theme and build. Called directly: a race does not
+  // promise a missile or a bump on cue.
+  const extras = await snd.evaluate(async () => {
+    const a = window.nitro.audio;
+    const before = a.started;
+    a.bump({ d: 4, pan: 0.7 }, 12);
+    a.damage(20);
+    for (const k of ['ammo', 'repair', 'turbo']) a.pickup(k);
+    const oneShots = a.started - before;
+    a.missiles([{ key: 'x:1', heard: { d: 10, pan: -0.5 }, closing: 40 }, { key: 'x:2', heard: { d: 20, pan: 0.5 }, closing: -40 }]);
+    const flying = a.missileVoices;
+    a.missiles([]);
+    const landed = a.missileVoices;
+    a.explosion({ d: 0, pan: 0 }, 1.5);
+    await new Promise((res) => setTimeout(res, 80));
+    const ducked = a.musicDuck;
+    const theme = a.music.themeIndex;
+    const themes = new Set(['downtown', 'greenbelt', 'docks', 'monza', 'monaco', 'suzuka'].map((id) => (a.music.setTheme(id), a.music.themeIndex)));
+    return { oneShots, flying, landed, ducked, theme, themes: themes.size };
+  });
+  r.check('bumps, damage and every pickup make a sound; missiles whine while they fly and stop when they land; a blast ducks the music',
+    extras.oneShots >= 8 && extras.flying === 2 && extras.landed === 0 && extras.ducked < 0.9, JSON.stringify(extras));
+  r.check('tracks get music themes of their own', extras.theme >= 0 && extras.themes >= 3, JSON.stringify(extras));
   // The race ends inside a frame, and the menus after it are silent: the
   // frame used to carry on and voice fresh engines that nothing stopped.
   await snd.waitForSelector('#screen-results:not([hidden])', { timeout: 150000 });

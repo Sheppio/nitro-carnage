@@ -405,6 +405,7 @@ function begin(mode, s, track, label = track.name, bestKey = recordKey(track)) {
     clearTimeout(helpTimer);
     helpTimer = window.setTimeout(() => help.classList.add('gone'), 9000);
     s.audio = audio;
+    audio.music.setTheme(track.id);
     audio.music.play('race');
     show('screen-hud');
     s.start();
@@ -472,8 +473,10 @@ function startOffline(mode) {
     begin(race ? 'race' : 'hotlap', s, track, daily ? `${choice.label} · no turbo` : choice.label, bestKey);
 }
 function stopSession() {
-    if (session)
+    if (session) {
+        audio.music.setTheme(null);
         audio.music.play('menu');
+    }
     session?.stop();
     hud?.dispose();
     session = null;

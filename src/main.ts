@@ -429,6 +429,7 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
   clearTimeout(helpTimer);
   helpTimer = window.setTimeout(() => help.classList.add('gone'), 9000);
   s.audio = audio;
+  audio.music.setTheme(track.id);
   audio.music.play('race');
   show('screen-hud');
   s.start();
@@ -504,7 +505,10 @@ function startOffline(mode: OfflineMode): void {
 }
 
 function stopSession(): void {
-  if (session) audio.music.play('menu');
+  if (session) {
+    audio.music.setTheme(null);
+    audio.music.play('menu');
+  }
   session?.stop();
   hud?.dispose();
   session = null;

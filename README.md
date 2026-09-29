@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.70**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.71**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -63,7 +63,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 877 checks: simulation and networking (Node), and real browsers
+npm test           # 884 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -952,8 +952,18 @@ hotlap record's ghost therefore still drives the road it was recorded on.
 ## Sound
 
 Everything is synthesised with Web Audio, and there are no sound files:
+- **Placed in stereo.** Every sound in a race knows where it is: how far from the
+  followed car, for volume, and how far to the side, for the pan. The camera is always
+  north-up, so the pan is just the offset along x. A car coming up on your left is
+  heard on your left.
 - **Engines.** Two detuned oscillators through a lowpass filter. Pitch climbs through
-  six gears and drops at each change, and the throttle opens the filter.
+  six gears and drops at each change, and the throttle opens the filter. Each upshift
+  dips the note for a beat, with a click. Each car has its own voice (oscillator mix,
+  interval, resonance) picked from its id. Every car still performs the same; you can
+  just tell them apart by ear. A **Doppler shift** bends the pitch as a car closes or
+  pulls away. The turbo lights with a whoosh and lets go with a blow-off hiss.
+  Online, the network doesn't carry a rival's throttle, so it's guessed from how the
+  car gathers speed.
   - **Bug, found at the Docks (v0.1.43): container ends flickered** where two met.
     Container lots repeated every 12 m, but a container turned across its lot is
     12.2 m long, so the next lot's containers overlapped it by 0.2 m. Their sides
@@ -976,16 +986,34 @@ Everything is synthesised with Web Audio, and there are no sound files:
     fresh engine voices, which nothing would ever stop. The sound step now does nothing
     once the session has stopped, and a smoke check waits for a race to end and
     counts the engines left: none.
-- **Tyres.** Squeal is band-passed noise, gated by how far the car is sliding.
+- **Tyres.** Squeal is band-passed noise, gated by how far the car is sliding. Road
+  noise is filtered noise shaped by the rougher of the two axles' surfaces: a hiss on
+  dirt, a rumble on grass, a buzz on the kerbs, a splash in water. It gets louder with
+  speed.
+- **Wind.** Band-passed noise around the followed car, from nothing at a jog to a roar
+  at full boost.
 - **Weapons.** Missiles are a noise burst over a falling saw wave, and explosions a
-  noise sweep over a sine drop.
+  noise sweep over a sine drop. The nearest four missiles whine while they fly, pitched
+  up coming at you and down going away.
+- **Contact.** Cars knocking together crunch, scaled by closing speed. Leaning on each
+  other makes no sound. Damage to your car clangs, and under a third of your health
+  a heartbeat starts, faster as it gets worse.
 - **Everything else.** Countdown pips, lap chimes, a finish fanfare, the crossing bell
-  and a two-note train horn.
+  and a two-note train horn. Each pickup has its own call (ammo clacks, repair chimes,
+  turbo rushes), so you know what you got without looking. There are soft notes when a
+  rival finishes, and a blip when you win or lose a place on the last lap.
 - **Music.** A small synth band (bass, arpeggio, pad and drums) on a lookahead
   scheduler. A 25 ms timer schedules every note in the next 150 ms on the audio clock,
   which doesn't wander the way JavaScript timers do. The menu gets a slower cue
-  without drums.
+  without drums. Each track gets its own theme (one of five chord progressions and
+  tempos, picked from its id). The race cue builds: a lead line joins when you're
+  leading or on the last lap, and the last lap adds pace, doubled hats and a crash
+  cymbal. The music ducks under a close explosion and goes muffled while you're paused
+  or wrecked.
 
+- **Rate limits give way to louder sounds.** Each kind of one-shot plays at most so
+  often, but a much louder one always gets through, so a distant explosion can't
+  swallow the one beside you.
 - **Only the nearest three engines are voiced.** Six at once is mud, and the
   distant ones don't tell you anything.
 - **Volume sliders are squared**, so half sounds like half. A bus at zero **builds
@@ -1288,7 +1316,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-877 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+884 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
