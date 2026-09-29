@@ -282,6 +282,15 @@ try {
   const staysShut = await page.evaluate(() => document.getElementById('pause-veil').hidden);
   r.check('Esc again resumes, and does not reopen the menu it just closed', Boolean(resumed) && staysShut);
 
+  // The browser's Back button (#2): in a race it pauses, and again resumes, as Esc does.
+  await page.evaluate(() => (window.stayed = true));
+  await page.goBack();
+  const backPaused = await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden && window.nitro.session.paused));
+  await page.goBack();
+  const backResumed = await until(() => page.evaluate(() => document.getElementById('pause-veil').hidden && !window.nitro.session.paused));
+  r.check('the browser\'s Back button pauses the race, and Back again resumes it, without leaving the page',
+    Boolean(backPaused) && Boolean(backResumed) && await page.evaluate(() => window.stayed === true));
+
   // Settings from the pause menu, and back to it, still paused.
   await page.keyboard.press('Escape');
   await until(() => visible(page, 'pause-veil'));
@@ -302,6 +311,15 @@ try {
   const left = await until(() => page.evaluate(() => !document.getElementById('screen-track').hidden && window.nitro.session === null
     && document.getElementById('track-mode').textContent === 'Quick race'));
   r.check('arrows and Enter on Leave race go back to the track screen it was started from', onLeave && Boolean(left));
+
+  // Back on the track screen is up a level, to the menu; on the menu, with
+  // nowhere further up, it says the next Back leaves, and stays put.
+  await page.goBack();
+  const upToMenu = await until(() => visible(page, 'screen-menu'));
+  await page.goBack();
+  const warned = await until(() => page.evaluate(() => !document.getElementById('notice').hidden && document.getElementById('notice').textContent));
+  r.check('the browser\'s Back button goes up a menu level, and on the main menu warns that the next Back leaves the game',
+    Boolean(upToMenu) && /Back again to leave/.test(warned ?? '') && await page.evaluate(() => window.stayed === true && location.search.includes('quality')), warned);
 
   /* ------------------------------------------------------------- results */
   await page.goto(`${url}?quality=potato&race&autopilot&laps=1`);

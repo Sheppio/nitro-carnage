@@ -585,7 +585,7 @@ async function openRoom(code: string): Promise<void> {
   }
   if (room !== client) return;
   lobby = new Lobby(net, code, tally!);
-  history.replaceState(null, '', `?room=${code}${params.has('quality') ? `&quality=${params.get('quality')}` : ''}`);
+  setUrl(`?room=${code}${params.has('quality') ? `&quality=${params.get('quality')}` : ''}`);
   show('screen-lobby');
   lobby.render();
 }
@@ -597,7 +597,54 @@ function leaveRoom(): void {
   lobby = null;
   tally = null;
   document.body.classList.remove('is-host');
-  if (params.has('room')) history.replaceState(null, '', location.pathname);
+  if (params.has('room')) setUrl(location.pathname);
+}
+
+/* ----------------------------------------------------- the back button */
+
+/**
+ * The browser's Back button goes up a menu level, as B and Esc do, instead
+ * of leaving the game (#2): a spare history entry sits on top of the page's
+ * own, and Back only pops it. In a race it pauses. On the main menu, with
+ * nowhere further up, it says the next Back leaves, and that one does.
+ *
+ * Chrome skips a history entry added before the player has touched the
+ * page, so the spare goes on at the first press, and back on at the next
+ * one after a Back.
+ */
+let guarded = false;
+/** The address to keep on the spare entry: the lobby's `?room=` link. */
+let href = location.href;
+function guard(): void {
+  if (guarded) return;
+  guarded = true;
+  history.pushState({ nitro: 'back' }, '', href);
+}
+function setUrl(url: string): void {
+  history.replaceState(history.state, '', url);
+  href = location.href;
+}
+for (const type of ['pointerdown', 'keydown']) window.addEventListener(type, guard, true);
+window.addEventListener('popstate', () => {
+  if (!guarded) return;
+  guarded = false;
+  const racing = current === 'screen-hud' && session;
+  if (racing && $('pause-veil').hidden) openPause();
+  else if (!nav.goBack()) {
+    notice('Press Back again to leave Nitro Carnage');
+    return;
+  }
+  guard();
+});
+
+let noticeTimer = 0;
+/** A line of text at the foot of the screen for a few seconds. */
+function notice(text: string): void {
+  const el = $('notice');
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(noticeTimer);
+  noticeTimer = window.setTimeout(() => (el.hidden = true), 3000);
 }
 
 /* ------------------------------------------------------------------ pause */

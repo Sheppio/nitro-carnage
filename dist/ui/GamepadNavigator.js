@@ -404,12 +404,21 @@ export class GamepadNavigator {
     back() {
         if (performance.now() < this.quietUntil)
             return;
+        this.goBack();
+    }
+    /**
+     * Up a level, as B does: the topmost open modal's back button, or the
+     * screen's. False when there is none to press (the main menu). The
+     * browser's own Back button comes here too.
+     */
+    goBack() {
         for (const el of this.navScope().querySelectorAll('[data-nav-back]')) {
             if (!el.hidden && isVisible(el)) {
                 el.click();
-                return;
+                return true;
             }
         }
+        return false;
     }
     /**
      * "Lock gamepad focus to the browser window."

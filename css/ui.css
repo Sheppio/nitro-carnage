@@ -706,6 +706,25 @@ body:not(.is-host) .host-only { display: none !important; }
 .glyph { color: var(--focus); font-weight: 700; }
 .console-banner[hidden] { display: none; }
 
+.notice {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--edge);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+  z-index: 50;
+  pointer-events: none;
+}
+.notice[hidden] { display: none; }
+
 /* ----------------------------------------------------- overlays */
 
 .pause-veil, .keyboard-veil {
