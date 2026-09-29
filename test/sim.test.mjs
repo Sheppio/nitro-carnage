@@ -1119,15 +1119,15 @@ console.log('\ngenerated tracks');
  * different track: the test is there to make that a decision, not an accident.
  */
 const PINNED = [
-  [1, 'Neon Sprint', 'a8a9a9cf'],
+  [1, 'Neon Sprint', 'd2de948f'],
   [42, 'Static Reach', '5fc6df9d'],
   [seedOf('NITRO'), 'Neon Yard', 'd6d30adf'],
   // The day's seed became the bare date in v0.1.42, so this day's track changed.
   [daySeed(Date.UTC(2026, 8, 25, 12)), 'Granite Loop', '9a8d4796'],
   // A port, a city at dusk and a city by day (M10), so every theme's rules are pinned.
   [seedOf('pin-run-dig'), 'Hollow Ring', '36c3e42e'],
-  [seedOf('big-red-bus'), 'Granite Park', '46939bfd'],
-  [seedOf('oak-elm-fig'), 'Amber Loop', '6dcbae0'],
+  [seedOf('big-red-bus'), 'Granite Park', 'e6c16d92'],
+  [seedOf('oak-elm-fig'), 'Amber Loop', '1cf449b5'],
 ];
 /**
  * The shape alone — corners, start and ramps — pinned apart from the rest.
@@ -1138,7 +1138,10 @@ const PINNED = [
 // Re-pinned on purpose when the laps were shortened to about 30 s and the
 // road widened by a quarter: every seed's shape changed, and saved records
 // moved to a new key with them.
-const SHAPES = ['909cd37f', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', 'd9b4c83b', '57db5f65'];
+// And again for the pockets into the infield (#3): the loops and long
+// straights changed, the city grids did not, and records for the changed
+// ones moved to a new key.
+const SHAPES = ['99ca40c0', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', '881d2678', '31d83172'];
 
 {
   const got = PINNED.map(([seed]) => {
@@ -1177,6 +1180,8 @@ const SHAPES = ['909cd37f', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', 'd9b
   let most = 0;
   const layouts = {};
   let squared = 0;
+  let curvy = 0;
+  let infield = 0;
   for (let sd = 1000; sd < 2000; sd++) {
     try {
       const d = generateTrack(sd);
@@ -1188,11 +1193,21 @@ const SHAPES = ['909cd37f', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', 'd9b
       })) squared++;
       if (validateTrack(new Track({ ...d, props: [] })) !== null) bad++;
       most = Math.max(most, attemptsFor(sd));
+      // How far in the road reaches: its innermost corner against its outermost, from the middle.
+      if (d.layout !== 'City grid') {
+        const cx = d.corners.reduce((a, c) => a + c[0], 0) / d.corners.length, cz = d.corners.reduce((a, c) => a + c[1], 0) / d.corners.length;
+        const far = d.corners.map((c) => Math.hypot(c[0] - cx, c[1] - cz));
+        curvy++;
+        if (Math.min(...far) < 0.35 * Math.max(...far)) infield++;
+      }
     } catch {
       bad++;
     }
   }
   check('a thousand seeds all generate a valid track', bad === 0, `${bad} failed; at most ${most} candidates for one seed`);
+  // Not just a blob that goes round (#3): most loops and straights dive into the infield and back out.
+  check('most flowing loops and long straights have road that reaches into the infield', infield > curvy / 2,
+    `${infield} of ${curvy} reach within 35% of the middle`);
   const counts = Object.values(layouts);
   check('seeds share out evenly between flowing loops, city grids and long straights', counts.length === 3 && counts.every((c) => c > 280) && squared === layouts['City grid'],
     JSON.stringify(layouts));

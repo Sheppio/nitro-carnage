@@ -282,7 +282,10 @@ menuBody.addEventListener('change', () => store.set(BODY_KEY, menuBody.value));
 // "best2": the tracks were shortened to ~30 s laps, and a record (and its
 // ghost) from the old, longer shape of a track would be unbeatable and drive
 // through the new one's walls.
-const recordKey = (def: TrackDef): string => `${SLUG}.best2.${def.id}`;
+// "best3": generated loops and long straights gained pockets into the infield
+// (#3), so theirs moved again; city grids and the built-in tracks kept their shape.
+const reshaped = (def: TrackDef): boolean => def.id.startsWith('seed-') && def.layout !== 'City grid';
+const recordKey = (def: TrackDef): string => `${SLUG}.${reshaped(def) ? 'best3' : 'best2'}.${def.id}`;
 /** The Track of the Day mode's own records: laps without turbo are not comparable with a turbo hotlap's. */
 const dailyKey = (def: TrackDef): string => `${recordKey(def)}.noturbo`;
 function loadRecord(key: string): LapRecord | null {

@@ -125,6 +125,9 @@ export function attemptsFor(seed: number): number {
   return Infinity;
 }
 
+/** The longest a loop or straights may run round its corners, in metres: about a 36 s lap. */
+const LONGEST = 1120;
+
 /** Layout styles, and how each reads on the menu. */
 const LAYOUTS = ['loop', 'grid', 'straights'] as const;
 const LAYOUT_NAMES = { loop: 'Flowing loop', grid: 'City grid', straights: 'Long straights' } as const;
@@ -164,6 +167,16 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout }: S
   // inside wall.
   const [num, den] = layout === 'grid' ? [3, 5] : layout === 'straights' ? [17, 20] : [9, 10];
   corners = corners.map(([x, z, r]) => [Math.round((x * num) / den), Math.round((z * num) / den), Math.max(Math.round((r * num) / den), tight)]);
+  // A pocket into the infield adds a long way round: a loop or straights
+  // whose corners run to more than LONGEST is shrunk to it, so its lap stays
+  // near 30 s. Per mille, in integers (the perimeter is a sum of exact square
+  // roots, the same everywhere). Not the grid: its lap is short already.
+  if (layout !== 'grid') {
+    let around = 0;
+    for (let i = 0; i < corners.length; i++) around += dist(corners[i]!, corners[(i + 1) % corners.length]!);
+    const k = Math.floor((LONGEST * 1000) / around);
+    if (k < 1000) corners = corners.map(([x, z, r]) => [Math.round((x * k) / 1000), Math.round((z * k) / 1000), Math.max(Math.round((r * k) / 1000), tight)]);
+  }
   fit(corners);
   const n = corners.length;
   // The longest edge is the main straight: the start line goes on it.
@@ -252,13 +265,66 @@ function loop(int: Int, theme: string): Corner[] {
   const corners: Corner[] = [];
   const spread = Math.floor(360 / n);
   const base = int(0, 359);
-  const radius = int(150, 230);
+  // Stretched along a bearing of its own, by up to half as long again, so not every loop is round.
+  const stretch = int(100, 150);
+  const turn = int(0, 359);
+  const radius = int(140, 210);
   for (let i = 0; i < n; i++) {
     const deg = (base + i * spread + int(-Math.floor(spread / 3), Math.floor(spread / 3)) + 720) % 360;
-    const r = radius + int(-70, 60);
-    corners.push([Math.round((r * COS[deg]!) / 10000), Math.round((r * SIN[deg]!) / 10000), int(theme === 'park' ? 30 : 16, theme === 'park' ? 60 : 40)]);
+    const r = radius + int(-60, 50);
+    const x = Math.round((r * stretch * COS[deg]!) / 1000000);
+    const z = Math.round((r * SIN[deg]!) / 10000);
+    corners.push([Math.round((x * COS[turn]! - z * SIN[turn]!) / 10000), Math.round((x * SIN[turn]! + z * COS[turn]!) / 10000), int(theme === 'park' ? 30 : 16, theme === 'park' ? 60 : 40)]);
   }
-  return corners;
+  return infield(corners, int, theme === 'park' ? 30 : 16);
+}
+
+/**
+ * What the real circuits have and a star does not: road that dives into the
+ * infield and comes back out. Two thirds of the time one corner becomes a
+ * pocket — two arms into the middle, a hairpin at the bottom — and half the
+ * time another corner is pulled in on its own, bending the lap into a kidney.
+ * Corners are pulled towards the origin, the middle of the star.
+ */
+function infield(corners: Corner[], int: Int, tight: number): Corner[] {
+  const n = corners.length;
+  const pocket = int(0, 2) > 0 ? int(0, n - 1) : -1;
+  // The kidney's corner is at least two away from the pocket, round the lap.
+  const kidney = pocket < 0 || int(0, 1) ? (pocket < 0 ? int(0, n - 1) : (pocket + int(2, n - 2)) % n) : -1;
+  const out: Corner[] = [];
+  for (let i = 0; i < n; i++) {
+    const c = corners[i]!;
+    const [x, z] = c;
+    const far = Math.sqrt(x * x + z * z);
+    if (i === kidney) {
+      const pull = int(25, 45);
+      out.push([Math.round((x * pull) / 100), Math.round((z * pull) / 100), int(tight, tight + 14)]);
+      continue;
+    }
+    if (i !== pocket || far < 120) {
+      out.push(c);
+      continue;
+    }
+    // Outward, per mille, and along: the way the lap is heading as it passes this corner.
+    const ux = Math.round((x * 1000) / far);
+    const uz = Math.round((z * 1000) / far);
+    const p = corners[(i + n - 1) % n]!;
+    const q = corners[(i + 1) % n]!;
+    const ahead = -uz * (q[0] - p[0]) + ux * (q[1] - p[1]) >= 0 ? 1 : -1;
+    const tx = -uz * ahead;
+    const tz = ux * ahead;
+    // Arms 80-110 m apart (before the shrink to a 30 s lap), reaching 55-80% of the way in.
+    const half = int(40, 55);
+    const depth = Math.round((far * int(55, 80)) / 100);
+    const at = (along: number, down: number, r: number): void => {
+      out.push([Math.round(x + (tx * along - ux * down) / 1000), Math.round(z + (tz * along - uz * down) / 1000), r]);
+    };
+    at(-half, 0, int(tight, tight + 8));
+    at(-half, depth, int(tight + 10, tight + 20));
+    at(half, depth, int(tight + 10, tight + 20));
+    at(half, 0, int(tight, tight + 8));
+  }
+  return out;
 }
 
 /**
@@ -350,7 +416,7 @@ function straights(int: Int, tight: number): Corner[] {
     const t = tanHalf(corners[(i + n - 1) % n]!, corners[i]!, corners[(i + 1) % n]!);
     if (int(0, 1) === 0 && t < 0.41) corners[i]![2] = int(30, 50);
   }
-  return corners;
+  return infield(corners, int, tight);
 }
 
 /**

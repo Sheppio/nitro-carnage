@@ -634,7 +634,8 @@ try {
   // Two laps on autopilot: the first sets the record, which is saved.
   const saved = await until(() => hl.evaluate(() => {
     const id = window.nitro.session.world.track.def.id;
-    const r = localStorage.getItem(`nitrocarnage.best2.${id}`);
+    // best3 for a generated loop or long straights (reshaped in #3), best2 for the rest.
+    const r = localStorage.getItem(`nitrocarnage.best3.${id}`) ?? localStorage.getItem(`nitrocarnage.best2.${id}`);
     return r ? JSON.parse(r) : null;
   }), { timeout: 150000, interval: 500 });
   r.check('a finished lap becomes the record, with its splits, and is kept', saved && saved.time > 20 && saved.splits.length === 3,
