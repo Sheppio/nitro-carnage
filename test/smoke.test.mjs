@@ -625,6 +625,12 @@ try {
   const shows = await hl.evaluate(() => ({ record: !document.getElementById('hud-record-row').hidden, pos: document.getElementById('hud-pos').parentElement.hidden, arms: getComputedStyle(document.getElementById('hud-arms')).display === 'none' }));
   r.check('a hotlap on the track of the day: named on the HUD, a record to beat, no position, no weapons',
     /^Track of the day \d{4}-\d{2}-\d{2} · /.test(label) && shows.record && shows.pos && shows.arms, label);
+  // Built at the start, hidden: made at the end of the first lap, its shaders stalled the game (#4).
+  const early = await hl.evaluate(() => {
+    const g = window.nitro.session.view.scene.getObjectByName('ghost');
+    return g ? { visible: g.visible, lap: window.nitro.session.player.lap.completed } : null;
+  });
+  r.check('the ghost is built, hidden, before the first lap is done', early && !early.visible && early.lap < 1, JSON.stringify(early));
   // Two laps on autopilot: the first sets the record, which is saved.
   const saved = await until(() => hl.evaluate(() => {
     const id = window.nitro.session.world.track.def.id;

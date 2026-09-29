@@ -171,27 +171,8 @@ export class GameView {
       if (this.ghost) this.ghost.root.visible = false;
       return;
     }
-    if (!this.ghost) {
-      const me = this.focusId ? this.cars.get(this.focusId) : undefined;
-      if (!me) return;
-      const g = new CarMesh(me.mesh.colour, false, me.mesh.look);
-      g.root.name = 'ghost';
-      g.root.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (!mesh.material) return;
-        const mats = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((m) => {
-          const c = m.clone();
-          c.transparent = true;
-          c.opacity = 0.38;
-          c.depthWrite = false;
-          return c;
-        });
-        mesh.material = Array.isArray(mesh.material) ? mats : mats[0]!;
-        mesh.castShadow = false;
-      });
-      this.scene.add(g.root);
-      this.ghost = g;
-    }
+    if (!this.ghost) this.prepareGhost();
+    if (!this.ghost) return;
     const st = this.ghostState;
     st.x = pose.x;
     st.z = pose.z;
@@ -199,6 +180,38 @@ export class GameView {
     st.forward = pose.speed;
     this.ghost.root.visible = true;
     this.ghost.update(st, 1 / 60);
+  }
+
+  /**
+   * Build the ghost ahead of time, hidden, and compile its see-through
+   * shaders now: made on the spot, at the end of the first lap, the new
+   * shader programs stalled the game for a moment just as the ghost appeared.
+   */
+  prepareGhost(): void {
+    if (this.ghost) return;
+    const me = this.focusId ? this.cars.get(this.focusId) : undefined;
+    if (!me) return;
+    const g = new CarMesh(me.mesh.colour, false, me.mesh.look);
+    g.root.name = 'ghost';
+    g.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.material) return;
+      const mats = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((m) => {
+        const c = m.clone();
+        c.transparent = true;
+        c.opacity = 0.38;
+        c.depthWrite = false;
+        return c;
+      });
+      mesh.material = Array.isArray(mesh.material) ? mats : mats[0]!;
+      mesh.castShadow = false;
+    });
+    this.scene.add(g.root);
+    this.ghost = g;
+    // compile() skips hidden objects: show it for the compile, then hide it.
+    g.root.visible = true;
+    this.renderer.compile(this.scene, this.rig.camera);
+    g.root.visible = false;
   }
 
   private pickupView: PickupView | null = null;

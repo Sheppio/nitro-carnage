@@ -238,6 +238,8 @@ export class RaceSession {
       this.drawn.set(e.id, createCar(e.car.x, e.car.z, e.car.yaw));
     }
     this.view.focusId = this.player?.id ?? this.world.entrants[0]?.id ?? null;
+    // The hotlap ghost, built now so its first appearance does not stall the game.
+    if (this.mode === 'hotlap' && this.player) this.view.prepareGhost();
     this.view.rig.shakeScale = settings.current.reduceMotion ? 0.25 : 1;
     this.view.rig.baseFov = settings.current.fov;
     this.view.onJolt = (kind, k) => {
