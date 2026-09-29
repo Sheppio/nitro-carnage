@@ -607,6 +607,13 @@ try {
   const kept = await gp.evaluate(() => window.nitro.look);
   r.check('the chosen look is kept for next time: after a reload it is the last one picked', kept.body === 'f1' && kept.pattern === 'roundel' && kept.stripe === 'jade',
     `${kept.body} / ${kept.pattern} / ${kept.stripe}`);
+  // The main menu's Garage button (#1): drawn as your own car, and Done comes back to the menu.
+  const menuCar = await gp.evaluate(() => document.querySelector('#btn-menu-garage .car-icon')?.dataset.body ?? null);
+  await gp.click('#btn-menu-garage');
+  await gp.waitForSelector('#screen-garage:not([hidden])');
+  await gp.click('#btn-garage-back');
+  const backOnMenu = await until(() => gp.evaluate(() => !document.getElementById('screen-menu').hidden || null), { timeout: 5000 });
+  r.check('the main menu has a Garage button drawn as your car, and Done returns to the menu', menuCar === 'f1' && Boolean(backOnMenu), `icon ${menuCar}`);
   await gp.close();
 
   /* ------------------------------------------------------------- hotlap */

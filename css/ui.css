@@ -147,6 +147,13 @@ h2 {
 .seed-row input { min-width: 0; }
 .btn.dice { flex: none; font-size: 20px; line-height: 1; padding: 6px 9px; }
 
+/* The name and the Garage button beside it, drawn as your car: the button is the box's height. */
+.name-row { display: flex; align-items: flex-end; gap: 8px; margin: 0 0 12px; }
+.name-row .field { flex: 1 1 auto; min-width: 0; margin: 0; }
+.name-row input { min-width: 0; }
+.btn.car-btn { flex: none; display: grid; place-items: center; align-self: stretch; margin-top: 24px; padding: 0 10px; }
+.btn.car-btn .car-icon { margin: 0; }
+
 select {
   font: 15px var(--body);
   color: var(--text);

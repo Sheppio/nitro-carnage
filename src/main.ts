@@ -22,6 +22,7 @@ import { randomSeedText } from './sim/track/seedWords.js';
 import { BODIES, BODY_NAMES, bodyCode, decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import type { CarLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
+import { carIcon } from './ui/carIcon.js';
 import { GaragePreview } from './render/GaragePreview.js';
 import { PodiumView } from './render/PodiumView.js';
 import type { TrackDef } from './sim/track/TrackDef.js';
@@ -306,9 +307,11 @@ const LOOK_KEY = `${SLUG}.look`;
 /** The car's look, stored as its six-character wire form: one format, one sanitiser. */
 let look: CarLook = store.get(LOOK_KEY) ? decodeLook(store.get(LOOK_KEY)) : { ...DEFAULT_LOOK };
 let garage: Garage | null = null;
-let garageFromLobby = false;
-function openGarage(fromLobby: boolean): void {
-  garageFromLobby = fromLobby;
+/** Where the Garage was opened from, and so where Done goes back to. */
+let garageFrom: 'screen-menu' | 'screen-track' | 'screen-lobby' = 'screen-track';
+function openGarage(from: typeof garageFrom): void {
+  garageFrom = from;
+  const fromLobby = from === 'screen-lobby';
   // The preview is a WebGL context of its own: made on first use, not at boot.
   garage ??= (() => {
     const g = new Garage(new GaragePreview($('garage-view')), look);
@@ -316,11 +319,13 @@ function openGarage(fromLobby: boolean): void {
       look = l;
       store.set(LOOK_KEY, encodeLook(l));
       room?.net.room.setIdentity(playerName(), colourId, encodeLook(l));
+      showMenuCar();
     };
     // Only offline: a room's colour is picked in its lobby.
     g.onColour = (c) => {
       colourId = c;
       store.set(COLOUR_KEY, c);
+      showMenuCar();
     };
     return g;
   })();
@@ -328,21 +333,28 @@ function openGarage(fromLobby: boolean): void {
   show('screen-garage');
   garage.open(colour, !(fromLobby && room));
 }
-$('btn-garage').addEventListener('click', () => openGarage(false));
-$('btn-lobby-garage').addEventListener('click', () => openGarage(true));
+$('btn-garage').addEventListener('click', () => openGarage('screen-track'));
+$('btn-lobby-garage').addEventListener('click', () => openGarage('screen-lobby'));
+$('btn-menu-garage').addEventListener('click', () => openGarage('screen-menu'));
 $('btn-garage-back').addEventListener('click', () => {
   garage?.close();
-  if (garageFromLobby && room) {
+  if (garageFrom === 'screen-lobby' && room) {
     show('screen-lobby');
     lobby?.render();
   } else {
-    // The Garage is on the track screen, so Done goes back there.
-    show('screen-track');
+    // Back to the menu or the track screen, whichever it was opened from.
+    show(garageFrom === 'screen-menu' ? 'screen-menu' : 'screen-track');
   }
 });
 
+/** The main menu's Garage button (#1) wears the player's own car. */
+function showMenuCar(): void {
+  $('btn-menu-garage').replaceChildren(carIcon(look, colourId, 48, 24));
+}
+
 const savedColour = store.get(COLOUR_KEY);
 let colourId = isColourId(savedColour) ? savedColour : 'vermilion';
+showMenuCar();
 
 /* --------------------------------------------------------- race sessions */
 

@@ -45,10 +45,14 @@
         <div class="menu-card">
           <h1 class="title" data-brand>NITRO CARNAGE</h1>
           <p class="tagline">Top-down combat racing. Up to six players, no server.</p>
-          <label class="field stacked">
-            <span>Your name</span>
-            <input type="text" id="input-name" maxlength="12" autocomplete="off" spellcheck="false" placeholder="DRIVER" />
-          </label>
+          <div class="name-row">
+            <label class="field stacked">
+              <span>Your name</span>
+              <input type="text" id="input-name" maxlength="12" autocomplete="off" spellcheck="false" placeholder="DRIVER" />
+            </label>
+            <!-- The Garage, drawn as your own car: filled in by the page. -->
+            <button class="btn car-btn" id="btn-menu-garage" type="button" title="Garage: change your car" aria-label="Garage: change your car"></button>
+          </div>
           <nav class="menu-actions">
             <div class="btn-row">
               <button class="btn primary" id="btn-create" data-nav-default>Create room</button>
