@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.65**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.66**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -287,13 +287,40 @@ Now the best bot laps Indianapolis in 38.7 s, and the one that never uses turbo 
 39.9. Neon Downtown is 49.7 s, from 59.8. A test holds both Indianapolis times under
 41 s.
 
-**Rival skill** in Settings dials the bots down: Easy, Medium, Hard (the default) or
+**Corner technique** (#5). A player on Expert lapped the Track of the Day at 28.1 s,
+mistakes and all, a second or more quicker than any bot. The bots were already at the
+limit of driving neatly. That limit is the steering: its lock tightens with speed until
+the front tyres can't use all their grip. A driver gets past it by getting the car
+sideways. With the throttle flat the tail stays out at about 0.4 rad, and the stability
+aid swings a slide past 0.3 rad back towards the nose, which turns the car harder than
+the tyres alone. Measured on flat tarmac, that is 30 m/s² of cornering at 18–25 m radius,
+where the grip gives 15–17. So the line has a second speed profile, planned from that
+drift curve (`driftSpeed`).
+
+Which move a corner wants depends on everything at once, so Hard and Expert bots don't
+follow a script (`sim/planner.ts`). In a bend, every six steps, a bot copies its car
+and drives each of 15 moves 0.8 s ahead with the same physics. The moves are neat
+driving, a flat-out slide steered in or out, lifting, braking, a handbrake stab, and a
+Scandinavian flick (away from the corner, then into it), alone or with the handbrake.
+It keeps whichever gets furthest down the road without reaching a wall, finishing near
+the line, pointing up the road, and not much faster than the road ahead allows. The
+trial runs leave out the walls: they are a third of a step's cost, and a move that
+reaches one is scored as a hit by how far off the centreline it gets. Each bot plans
+in its own step of the six, so a grid doesn't all plan at once.
+
+It works. Over 30 tracks the planning bot is 7% quicker than the neat one, cleanly, and
+quicker on every one. On the Track of the Day that prompted it, Expert laps in 25.9–26.6 s
+without turbo, down from 28.6. Six Expert bots cost about 0.7 ms a step. The car is
+the same for everyone: no bot gets more grip or power than the player.
+
+**Rival skill** in Settings sets how the bots drive: Easy, Medium, Hard (the default) or
 Expert. Each level scales every bot on the grid, so the spread between them stays.
-Pace alone only slows the corners, and the straights are most of a lap, so below
-Expert a bot also backs off to a fraction of top speed on the straights. Below Hard it
-leaves the turbo alone, and at each lower level it fires less often. At Indianapolis
-the best bot's lap is 49.1 s on Easy, 43.0 on Medium, 39.9 on Hard and 38.7 on Expert,
-and a test holds that order. In a room, the bots follow the host's setting.
+Hard and Expert plan their corners, Hard at 88% of the pace. Medium and Easy drive
+neatly and back off on the straights too, since pace alone only slows the corners.
+Below Hard a bot leaves the turbo alone, and at each lower level it fires less often.
+Over 36 tracks each level is 5–9% slower a lap than the one above. At Indianapolis the
+best bot's lap is 31.8 s on Easy, 29.4 on Medium, 27.7 on Hard and 26.3 on Expert, and
+a test holds that order. In a room, the bots follow the host's setting.
 
 **Leaving a race goes back to where it was started.** Leave race, or Back on the
 results, returns to the track screen, set up as it was, rather than the top menu. So

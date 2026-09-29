@@ -12,18 +12,20 @@ import { stepCar, steerLimit } from './car.js';
  * swung back towards the nose, which turns the car harder still.
  *
  * Which of those a corner wants depends on everything at once, so the bot
- * tries them out: every few steps it copies its car, drives each move a
- * second ahead with the same physics every car has, and keeps the one that
+ * tries them out: every few steps it copies its car, drives each move
+ * most of a second ahead with the same physics every car has, and keeps the one that
  * gets furthest down the road without touching a wall, ending on the line,
  * pointing up the road, and no faster than the road ahead allows.
  */
 const WHEELBASE = SIM.car.cgToFront + SIM.car.cgToRear;
 /** How far ahead a move is tried, seconds, and in what steps. */
-const HORIZON = 1;
-const DT = 1 / 15;
+const HORIZON = 0.8;
+const DT = 1 / 10;
 /** World steps between plans. */
-export const PLAN_EVERY = 4;
+export const PLAN_EVERY = 6;
 const YAW_DAMP = 0.8;
+/** How far over the drift profile a flat-out move goes before lifting. */
+const DARE = 1.15;
 const m = (lean, pedal, until = Infinity, handbrake = false) => ({ lean, pedal, handbrake, until });
 export const PLANS = [
     { name: 'neat', moves: [m(0, 'neat')] },
@@ -32,6 +34,8 @@ export const PLANS = [
     { name: 'flat in', moves: [m(0.35, 'flat')] },
     { name: 'flat hard in', moves: [m(0.7, 'flat')] },
     { name: 'flat out', moves: [m(-0.3, 'flat')] },
+    { name: 'flat way out', moves: [m(-0.6, 'flat')] },
+    { name: 'flat slightly in', moves: [m(0.15, 'flat')] },
     { name: 'lift, flat', moves: [m(0, 'lift', 0.2), m(0, 'flat')] },
     { name: 'brake, flat', moves: [m(0, 'brake', 0.25), m(0.3, 'flat')] },
     { name: 'brake, neat', moves: [m(0, 'brake', 0.25), m(0, 'neat')] },
@@ -40,8 +44,12 @@ export const PLANS = [
     { name: 'flick', moves: [m(-0.8, 'lift', 0.15), m(0.9, 'flat', 0.45), m(0, 'flat')] },
     { name: 'flick, handbrake', moves: [m(-0.8, 'lift', 0.15), m(0.9, 'lift', 0.35, true), m(0, 'flat')] },
 ];
-export function createPlanState() {
-    return { plan: null, age: 0, dir: 1, wait: 0 };
+export function createPlanState(phase = 0) {
+    return { plan: null, age: 0, dir: 1, wait: 0, phase };
+}
+/** Steps until this driver's next turn to plan, from world step `step`: 1 to PLAN_EVERY. */
+export function nextPlan(ps, step) {
+    return PLAN_EVERY - ((step + ps.phase) % PLAN_EVERY);
 }
 /** What a move does to the controls, for a car at this moment. */
 export function moveIntent(move, dir, car, track, line, pace, shift, out) {
@@ -66,8 +74,10 @@ export function moveIntent(move, dir, car, track, line, pace, shift, out) {
     out.handbrake = move.handbrake;
     out.throttle = 0;
     out.brake = 0;
+    // Flat out, but no faster than the driver dares: its pace of the drift
+    // profile, and some over, the profile being cautious beside these moves.
     if (move.pedal === 'flat')
-        out.throttle = 1;
+        out.throttle = v > line.driftSpeed[idx(p.s + v * 0.3 + 2)] * pace * DARE ? 0 : 1;
     else if (move.pedal === 'brake')
         out.brake = 1;
     else if (move.pedal === 'neat') {
@@ -107,28 +117,54 @@ export function technical(car, track, line, s) {
     return false;
 }
 const scratch = { throttle: 0, brake: 0, steer: 0, handbrake: false, fireFront: false, fireRear: false, turbo: false };
+/**
+ * The track without its walls, for trying moves out: the collisions are a
+ * third of the cost of a step, and a move that reaches a wall is scored as
+ * a hit anyway, by how far off the centreline it gets.
+ */
+const open = new WeakMap();
+function openRoad(track) {
+    let env = open.get(track);
+    if (!env) {
+        env = {
+            walls: track.walls,
+            forWallsNear: () => { },
+            surfaceAt: (x, z, hint) => track.surfaceAt(x, z, hint),
+            groundAt: (x, z, hint) => track.groundAt(x, z, hint),
+            project: (x, z, hint) => track.project(x, z, hint),
+        };
+        open.set(track, env);
+    }
+    return env;
+}
 /** Metres a plan is worth: road covered, less what its ending will cost. */
 function score(plan, dir, car0, track, line, pace, shift, s0) {
     const car = { ...car0 };
-    const hits0 = car.impacts;
+    const env = openRoad(track);
+    // The car's middle this far off the centreline has its side in the wall.
+    const wall = track.wallOffset - SIM.car.radius;
+    let hits = 0;
     for (let t = 0; t < HORIZON - 1e-9; t += DT) {
         moveIntent(moveAt(plan, t), dir, car, track, line, pace, shift, scratch);
-        stepCar(car, scratch, track, DT);
+        stepCar(car, scratch, env, DT);
+        if (Math.abs(track.project(car.x, car.z, car.hint).d) > wall)
+            hits++;
     }
     const p = track.project(car.x, car.z, car.hint);
     const spacing = track.length / track.n;
     const i = Math.floor(p.s / spacing) % track.n;
     const v = Math.hypot(car.vx, car.vz);
     let value = track.deltaS(s0, p.s);
-    value -= 25 * (car.impacts - hits0);
+    value -= 25 * hits;
     // Off the line, and worse, off the road.
     value -= Math.max(0, Math.abs(p.d - line.offset[i]) - 2);
     value -= 6 * Math.max(0, Math.abs(p.d) - (track.halfWidth - 1.3));
-    // Going faster than the road ahead allows is speed to brake away, or a wall.
+    // Going faster than the road ahead allows is speed to brake away, or a
+    // wall. Lightly: the drift profile is cautious beside what these moves do.
     let safe = Infinity;
     for (let a = 0; a <= 12; a += 3)
         safe = Math.min(safe, line.driftSpeed[Math.floor(track.wrapS(p.s + a) / spacing) % track.n] * pace);
-    value -= 1.5 * Math.max(0, v - safe);
+    value -= 0.5 * Math.max(0, v - safe);
     // Travelling across the road rather than along it.
     if (v > 3) {
         const pose = track.poseAt(p.s);
@@ -137,7 +173,7 @@ function score(plan, dir, car0, track, line, pace, shift, s0) {
     }
     return value;
 }
-/** Choose a plan for now: every one tried a second ahead, the best kept. */
+/** Choose a plan for now: every one tried HORIZON seconds ahead, the best kept. */
 export function choosePlan(ps, car, track, line, pace, shift, s) {
     // Into the corner: the way the line turns over the next second.
     const spacing = track.length / track.n;

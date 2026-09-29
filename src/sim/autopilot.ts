@@ -3,6 +3,8 @@ import type { DriveIntent } from '../types.js';
 import { mulberry32, wrapAngle } from '../util.js';
 import { steerLimit } from './car.js';
 import { SURFACES } from './surfaces.js';
+import { choosePlan, createPlanState, moveAt, moveIntent, nextPlan, PLAN_EVERY, technical } from './planner.js';
+import type { PlanState } from './planner.js';
 import type { CarState } from './car.js';
 import type { RacingLine } from './racingLine.js';
 import type { Track } from './track/buildTrack.js';
@@ -21,6 +23,12 @@ export interface Skill {
   trigger: number;
   /** Fraction of the car's top speed the driver holds to on a straight; 1 is flat out. */
   top?: number;
+  /**
+   * Plans the corners by trying its moves out a second ahead — a power
+   * slide, a handbrake turn, a Scandinavian flick, or just neat — and
+   * driving the one that gets furthest (see `planner.ts`).
+   */
+  drift?: boolean;
 }
 
 export const SKILLS: readonly Skill[] = [
@@ -34,23 +42,27 @@ export const SKILLS: readonly Skill[] = [
 
 /**
  * How good the bots are, chosen in Settings. Each level scales every bot on
- * the grid, so the spread between them stays. Below Expert a bot also backs
- * off on the straights (pace alone only slows the corners, and the straights
- * are most of a lap), and below Hard it leaves the turbo alone.
+ * the grid, so the spread between them stays. Hard and Expert plan their
+ * corners — slides, handbrake turns, flicks (see planner.ts) — and Hard at a
+ * lower pace; Medium and Easy drive neatly, and back off on the straights
+ * too (pace alone only slows the corners, and the straights are most of a
+ * lap). Below Hard a bot leaves the turbo alone.
+ * Every level drives the same car: none gets more grip or power (#5).
  */
 export type BotLevel = 'easy' | 'medium' | 'hard' | 'expert';
-export const BOT_LEVELS: Record<BotLevel, { pace: number; top: number; turbo: boolean; trigger: number }> = {
-  easy: { pace: 0.72, top: 0.72, turbo: false, trigger: 2.5 },
-  medium: { pace: 0.84, top: 0.86, turbo: false, trigger: 1.8 },
-  hard: { pace: 0.94, top: 0.95, turbo: true, trigger: 1.3 },
-  expert: { pace: 1, top: 1, turbo: true, trigger: 1 },
+export const BOT_LEVELS: Record<BotLevel, { pace: number; top: number; turbo: boolean; trigger: number; drift: boolean }> = {
+  // A lap over 36 tracks: Hard 5% slower than Expert, Medium 6% slower than Hard, Easy 9% slower than Medium.
+  easy: { pace: 0.84, top: 0.86, turbo: false, trigger: 2.5, drift: false },
+  medium: { pace: 0.96, top: 0.97, turbo: false, trigger: 1.8, drift: false },
+  hard: { pace: 0.88, top: 1, turbo: true, trigger: 1.3, drift: true },
+  expert: { pace: 1, top: 1, turbo: true, trigger: 1, drift: true },
 };
 
 /** The driver in a grid slot, at a level. */
 export function skillFor(slot: number, level: BotLevel = 'expert'): Skill {
   const base = SKILLS[slot % SKILLS.length]!;
   const l = BOT_LEVELS[level] ?? BOT_LEVELS.expert;
-  return { ...base, pace: base.pace * l.pace, top: l.top, turbo: base.turbo && l.turbo, trigger: base.trigger * l.trigger };
+  return { ...base, pace: base.pace * l.pace, top: l.top, turbo: base.turbo && l.turbo, trigger: base.trigger * l.trigger, drift: l.drift };
 }
 
 /** What the autopilot needs to know about another car. */
@@ -92,11 +104,13 @@ export interface AutopilotState {
   steer: number;
   /** Earliest time the next shot may be taken. */
   fireAt: number;
+  /** The corner plan, for a driver who plans them. */
+  plan: PlanState;
 }
 
 export function createAutopilot(seed: number, skill: Skill): AutopilotState {
   const rand = mulberry32(seed);
-  return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0, fireAt: 0 };
+  return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0, fireAt: 0, plan: createPlanState(Math.floor(rand() * PLAN_EVERY)) };
 }
 
 /**
@@ -171,6 +185,21 @@ export function autopilot(
     }
   }
   if (time >= st.shiftUntil) st.shift *= Math.max(0, 1 - dt * 1.5);
+
+  // --- The best drivers plan the corners: see planner.ts. ---
+  if (st.skill.drift && stopAt === null && technical(car, track, line, p.s)) {
+    const ps = st.plan;
+    if (--ps.wait <= 0 || !ps.plan) {
+      choosePlan(ps, car, track, line, st.skill.pace, st.shift, p.s);
+      ps.wait = nextPlan(ps, Math.round(time / dt));
+    }
+    moveIntent(moveAt(ps.plan!, ps.age), ps.dir, car, track, line, st.skill.pace, st.shift, out);
+    ps.age += dt;
+    st.steer = out.steer;
+    aim(st, out, car, p.s, p.d, track, rivals, time);
+    return out;
+  }
+  st.plan.plan = null;
 
   // --- Steering: pure pursuit on the (shifted, wandering) line. ---
   // Short, so the car follows a chicane rather than cutting across it (but

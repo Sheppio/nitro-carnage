@@ -487,19 +487,19 @@ try {
     const dayOf = (off) => new Date(Date.now() + off * 86400000).toISOString().slice(0, 10);
     const dp = await browser.newPage({ viewport: { width: 800, height: 450 } });
     dp.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-    const state = () => until(() => dp.evaluate(() => {
+    // The info for what the seed box holds now: waited for, not a fixed pause,
+    // so a slow update is not read as the one before it.
+    const state = (about = '') => until(() => dp.evaluate((a) => {
       const go = document.getElementById('btn-track-go');
       const info = document.getElementById('menu-track-info').textContent;
-      return !document.getElementById('screen-track').hidden && info ? { info, disabled: go.disabled } : null;
-    }));
+      return !document.getElementById('screen-track').hidden && info && info.includes(a) ? { info, disabled: go.disabled } : null;
+    }, about));
     await dp.goto(`${url}?quality=potato&daily=${dayOf(1)}`);
     const tomorrow = await state();
     await dp.evaluate(() => { const s = document.getElementById('menu-seed'); s.value = 'green mile'; s.dispatchEvent(new Event('input')); });
-    await dp.waitForTimeout(200);
-    const word = await state();
+    const word = await state('green mile');
     await dp.evaluate((d) => { const s = document.getElementById('menu-seed'); s.value = d; s.dispatchEvent(new Event('input')); }, dayOf(3));
-    await dp.waitForTimeout(200);
-    const typed = await state();
+    const typed = await state(dayOf(3));
     await dp.goto(`${url}?quality=potato&daily=${dayOf(-2)}`);
     const past = await state();
     await dp.keyboard.press('Enter');
@@ -688,16 +688,20 @@ try {
     ahead.off === null && ahead.gap !== null && ahead.gap > 10, ahead.gap === null ? 'no ghost' : `${ahead.gap.toFixed(1)} m ahead at 1 s`);
 
   // Damage from a lap is gone at the line, and the turbo is full again.
-  const lapsBefore = await hl.evaluate(() => {
-    const p = window.nitro.session.player;
+  // Read at the lap event itself: polled a moment later, the autopilot has
+  // already started on the refilled turbo down the straight.
+  await hl.evaluate(() => {
+    const s = window.nitro.session;
+    const p = s.player;
     p.hp = 40;
     p.car.turbo = 0;
-    return p.lap.completed;
+    const pass = s.onEvent;
+    s.onEvent = (ev) => {
+      if (ev.kind === 'lap' && ev.id === s.playerId && !window.healed) window.healed = { hp: p.hp, turbo: p.car.turbo };
+      pass?.(ev);
+    };
   });
-  const healed = await until(() => hl.evaluate((n) => {
-    const p = window.nitro.session.player;
-    return p.lap.completed > n ? { hp: p.hp, turbo: p.car.turbo } : null;
-  }, lapsBefore), { timeout: 150000, interval: 200 });
+  const healed = await until(() => hl.evaluate(() => window.healed ?? null), { timeout: 150000, interval: 200 });
   r.check('in a hotlap every lap starts with full health and a full turbo', healed?.hp === 100 && healed.turbo > 3.9,
     `health ${healed?.hp}, turbo ${healed?.turbo.toFixed(2)} s after the line`);
   await hl.close();

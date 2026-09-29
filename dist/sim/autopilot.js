@@ -2,7 +2,7 @@ import { SIM } from '../config.js';
 import { mulberry32, wrapAngle } from '../util.js';
 import { steerLimit } from './car.js';
 import { SURFACES } from './surfaces.js';
-import { choosePlan, createPlanState, moveAt, moveIntent, PLAN_EVERY, technical } from './planner.js';
+import { choosePlan, createPlanState, moveAt, moveIntent, nextPlan, PLAN_EVERY, technical } from './planner.js';
 const WHEELBASE = SIM.car.cgToFront + SIM.car.cgToRear;
 export const SKILLS = [
     { pace: 1.0, wander: 0.4, turbo: true, trigger: 3.5 },
@@ -13,9 +13,10 @@ export const SKILLS = [
     { pace: 0.94, wander: 1.4, turbo: false, trigger: 7 },
 ];
 export const BOT_LEVELS = {
-    easy: { pace: 0.72, top: 0.72, turbo: false, trigger: 2.5, drift: false },
-    medium: { pace: 0.84, top: 0.86, turbo: false, trigger: 1.8, drift: false },
-    hard: { pace: 0.94, top: 0.95, turbo: true, trigger: 1.3, drift: false },
+    // A lap over 36 tracks: Hard 5% slower than Expert, Medium 6% slower than Hard, Easy 9% slower than Medium.
+    easy: { pace: 0.84, top: 0.86, turbo: false, trigger: 2.5, drift: false },
+    medium: { pace: 0.96, top: 0.97, turbo: false, trigger: 1.8, drift: false },
+    hard: { pace: 0.88, top: 1, turbo: true, trigger: 1.3, drift: true },
     expert: { pace: 1, top: 1, turbo: true, trigger: 1, drift: true },
 };
 /** The driver in a grid slot, at a level. */
@@ -35,7 +36,7 @@ const REAR_LANE = 1.6;
 const YAW_DAMP = 0.8;
 export function createAutopilot(seed, skill) {
     const rand = mulberry32(seed);
-    return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0, fireAt: 0, plan: createPlanState() };
+    return { skill, phase: rand() * Math.PI * 2, shift: 0, shiftUntil: 0, recover: 0, recoverSteer: 0, stuck: 0, steer: 0, fireAt: 0, plan: createPlanState(Math.floor(rand() * PLAN_EVERY)) };
 }
 /**
  * One step of self-driving.
@@ -113,7 +114,7 @@ export function autopilot(st, car, track, line, rivals, time, dt, stopAt = null)
         const ps = st.plan;
         if (--ps.wait <= 0 || !ps.plan) {
             choosePlan(ps, car, track, line, st.skill.pace, st.shift, p.s);
-            ps.wait = PLAN_EVERY;
+            ps.wait = nextPlan(ps, Math.round(time / dt));
         }
         moveIntent(moveAt(ps.plan, ps.age), ps.dir, car, track, line, st.skill.pace, st.shift, out);
         ps.age += dt;

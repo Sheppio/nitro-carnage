@@ -13,8 +13,15 @@ const RAMP_SPEED = 32;
 export interface RacingLine {
   /** Lateral offset from the centreline per sample, metres, positive left. */
   offset: Float64Array;
-  /** Target speed per sample, m/s. */
+  /** Target speed per sample, m/s, driven neatly on the grip. */
   speed: Float64Array;
+  /**
+   * Target speed per sample for a driver who power-slides the slow corners
+   * (#5): the faster of the grip speed and the drift speed, braked for alike.
+   */
+  driftSpeed: Float64Array;
+  /** Signed curvature of the line as driven, per sample, 1/m, positive turning left. */
+  curvature: Float64Array;
   /** Lap time the profile implies, seconds — a par for tests and bots. */
   parTime: number;
 }
@@ -41,6 +48,32 @@ export interface LineOptions {
   topSpeed: number;
   /** What the car reaches without turbo, for the par time. */
   carTop: number;
+}
+
+/**
+ * A power slide round a corner of radius R (metres): the speed a car settles
+ * at with the throttle flat and the tail out, measured on flat tarmac. Flat
+ * out the car drifts at about 0.4 rad of body slip, and the stability aid
+ * swinging its velocity back towards the nose turns it harder than its
+ * tyres alone: 30 m/s^2 of cornering at 18-25 m radius, where on the grip
+ * it manages 15-17. Past about 110 m it is no faster than the grip.
+ */
+export const DRIFT_CURVE: readonly (readonly [number, number])[] = [
+  [18, 23.5], [24, 26.6], [31, 29.2], [41, 31.6], [54, 33.6], [72, 35.5], [81, 37.5], [88, 39.3], [111, 42.6],
+];
+
+/** The drift speed for radius R, from DRIFT_CURVE: none below its tightest corner, and nothing past its widest. */
+export function driftSpeedFor(R: number): number {
+  const c = DRIFT_CURVE;
+  if (R < c[0]![0]) return c[0]![1] * Math.sqrt(R / c[0]![0]);
+  for (let k = 1; k < c.length; k++) {
+    const [r1, v1] = c[k]!;
+    if (R <= r1) {
+      const [r0, v0] = c[k - 1]!;
+      return v0 + ((v1 - v0) * (R - r0)) / (r1 - r0);
+    }
+  }
+  return 0;
 }
 
 /**
@@ -131,12 +164,15 @@ export function racingLine(track: Track, opts: LineOptions = DEFAULT_LINE): Raci
   // Speed from the curvature of the line as driven: three points
   // CURVE_SPAN metres apart.
   const speed = new Float64Array(n);
+  const driftSpeed = new Float64Array(n);
+  const curvature = new Float64Array(n);
   for (let i = 0; i < n; i++) {
-    const kappa = Math.abs(signedCurvature(X(i - CURVE_SPAN), Z(i - CURVE_SPAN), X(i), Z(i), X(i + CURVE_SPAN), Z(i + CURVE_SPAN)));
+    curvature[i] = signedCurvature(X(i - CURVE_SPAN), Z(i - CURVE_SPAN), X(i), Z(i), X(i + CURVE_SPAN), Z(i + CURVE_SPAN));
     // v^2 * kappa = a + b v, solved for v.
-    const R = 1 / Math.max(kappa, 1e-6);
+    const R = 1 / Math.max(Math.abs(curvature[i]!), 1e-6);
     const b = opts.lateralPerMs;
     speed[i] = Math.min(opts.topSpeed, (b * R + Math.sqrt(b * b * R * R + 4 * opts.lateral * R)) / 2);
+    driftSpeed[i] = Math.max(speed[i]!, driftSpeedFor(R));
   }
   // Jumps: a car can't steer in the air, and a lap shortened to 30 s puts a
   // bend soon after most landings. Flat out at 42 m/s Greenbelt's jump flew
@@ -146,6 +182,7 @@ export function racingLine(track: Track, opts: LineOptions = DEFAULT_LINE): Raci
     for (let s = r.s0 - 4; s <= r.s1; s += spacing) {
       const i = Math.floor(track.wrapS(s) / spacing) % n;
       speed[i] = Math.min(speed[i]!, RAMP_SPEED);
+      driftSpeed[i] = Math.min(driftSpeed[i]!, RAMP_SPEED);
     }
   }
 
@@ -154,6 +191,8 @@ export function racingLine(track: Track, opts: LineOptions = DEFAULT_LINE): Raci
     for (let i = n - 1; i >= 0; i--) {
       const next = speed[(i + 1) % n]!;
       speed[i] = Math.min(speed[i]!, Math.sqrt(next * next + 2 * opts.braking * spacing));
+      const nextD = driftSpeed[(i + 1) % n]!;
+      driftSpeed[i] = Math.min(driftSpeed[i]!, Math.sqrt(nextD * nextD + 2 * opts.braking * spacing));
     }
   }
 
@@ -168,7 +207,7 @@ export function racingLine(track: Track, opts: LineOptions = DEFAULT_LINE): Raci
     }
   }
 
-  const line = { offset, speed, parTime };
+  const line = { offset, speed, driftSpeed, curvature, parTime };
   if (opts === DEFAULT_LINE) cache.set(track, line);
   return line;
 }

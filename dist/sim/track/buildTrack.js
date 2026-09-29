@@ -169,13 +169,23 @@ export class Track {
         let best = -1;
         let bestD = Infinity;
         if (hint >= 0 && hint < n) {
-            for (let k = -12; k <= 12; k++) {
-                const i = (hint + k + n) % n;
-                const d = (px[i] - x) ** 2 + (pz[i] - z) ** 2;
-                if (d < bestD) {
+            // Downhill from the hint, up to 12 samples either way: the nearest
+            // sample of the window, found in two or three looks rather than 25
+            // (every car's every substep asks, and the bots' planner many times more).
+            const dist2 = (i) => (px[i] - x) ** 2 + (pz[i] - z) ** 2;
+            best = hint;
+            bestD = dist2(hint);
+            for (const dir of [-1, 1]) {
+                for (let k = 1; k <= 12; k++) {
+                    const i = (hint + dir * k + n) % n;
+                    const d = dist2(i);
+                    if (d >= bestD)
+                        break;
                     bestD = d;
                     best = i;
                 }
+                if (best !== hint)
+                    break;
             }
             // Stale hint (a teleport): the best local sample is far away.
             if (bestD > (this.wallOffset + 12) ** 2)

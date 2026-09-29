@@ -643,6 +643,38 @@ for (const def of TRACKS) {
 }
 
 {
+  // Corner technique (#5): the Expert bot plans its corners — power slides,
+  // handbrake turns, flicks (planner.ts) — and beats the neat driver, cleanly,
+  // in the same stock car as everyone else.
+  const defs = [...TRACKS, ...[1, 2, 3, 5, 8].map(generateTrack)];
+  const slower = [], unclean = [];
+  let slide = 0, handbrake = 0, sumE = 0, sumN = 0, stock = true;
+  for (const def of defs) {
+    const run = (skill, watch) => {
+      const w = new World(def, { laps: 1, countdown: 0, weapons: false });
+      const b = w.addBot('b', 0, skill, 1);
+      while (!b.lap.finished && w.time < 200) {
+        w.step();
+        if (!watch) continue;
+        if (b.intent.handbrake) handbrake++;
+        if (Math.abs(b.car.slip) > 0.3 && b.intent.throttle === 1) slide++;
+      }
+      stock &&= b.stats === STOCK;
+      return b;
+    };
+    const e = run(skillFor(0, 'expert'), true);
+    const n = run(SKILLS[0], false);
+    if (!e.lap.finished || e.respawns > 0 || e.car.impacts > 3) unclean.push(def.name);
+    if (!(e.lap.best < n.lap.best)) slower.push(def.name);
+    sumE += e.lap.best;
+    sumN += n.lap.best;
+  }
+  check('the Expert bot power-slides and handbrakes round the corners: quicker than the neat driver on every track, cleanly, in the stock car',
+    slower.length === 0 && unclean.length === 0 && slide > 0 && handbrake > 0 && stock && sumE < sumN * 0.95,
+    `${(100 * (1 - sumE / sumN)).toFixed(1)}% quicker over ${defs.length} tracks; ${slide} steps flat out in a slide, ${handbrake} on the handbrake${slower.length ? `; slower on ${slower.join(', ')}` : ''}${unclean.length ? `; unclean on ${unclean.join(', ')}` : ''}`);
+}
+
+{
   // Parked across the road facing a wall: the bot must back out and get going.
   const w = new World(TRACKS[0], { laps: 1, countdown: 0 });
   const bot = w.addBot('b', 0, SKILLS[0], 3);
