@@ -524,7 +524,11 @@ async function openRoom(code: string): Promise<void> {
   code = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
   if (code.length < 4) return;
   const broker = BROKERS.find((b) => b.id === settings.current.broker) ?? BROKERS[0]!;
-  const client = new RoomClient(code, makePlayerId(), playerName(), colourId, encodeLook(look));
+  // Direct links unless switched off (Settings, or ?nop2p); ?nostun keeps them
+  // to this network, which is what the test rig wants.
+  const direct = settings.current.direct && !params.has('nop2p');
+  const ice = direct ? (params.has('nostun') ? [] : NET.rtc.iceServers) : null;
+  const client = new RoomClient(code, makePlayerId(), playerName(), colourId, encodeLook(look), ice);
   client.net.botLevel = settings.current.botLevel;
   room = client;
   tally = new Tally();
@@ -560,6 +564,8 @@ async function openRoom(code: string): Promise<void> {
     show('screen-lobby');
     lobby?.render();
   });
+  // A link opening or falling back to the broker changes the lobby's badges.
+  client.mesh?.events.on('link', redraw);
   client.mqtt.events.on('status', ({ status }) => {
     const pill = $('net-status');
     pill.textContent = status;
@@ -808,6 +814,7 @@ function openSettings(fromPause: boolean): void {
   $<HTMLInputElement>('set-vibration').checked = settings.current.vibration;
   $<HTMLInputElement>('set-motion').checked = settings.current.reduceMotion;
   $<HTMLInputElement>('set-autopilot').checked = settings.current.autopilot;
+  $<HTMLInputElement>('set-direct').checked = settings.current.direct;
   brokerSelect.value = settings.current.broker;
   $<HTMLInputElement>('set-sfx').value = String(settings.current.sfxVolume);
   $<HTMLSelectElement>('set-ghost').value = String(settings.current.ghostLead);
@@ -847,6 +854,7 @@ $('set-touch').addEventListener('change', (e) =>
 $('set-vibration').addEventListener('change', (e) => settings.set('vibration', (e.target as HTMLInputElement).checked));
 $('set-motion').addEventListener('change', (e) => settings.set('reduceMotion', (e.target as HTMLInputElement).checked));
 $('set-autopilot').addEventListener('change', (e) => settings.set('autopilot', (e.target as HTMLInputElement).checked));
+$('set-direct').addEventListener('change', (e) => settings.set('direct', (e.target as HTMLInputElement).checked));
 brokerSelect.addEventListener('change', () => settings.set('broker', brokerSelect.value));
 
 window.addEventListener('keydown', (e) => {

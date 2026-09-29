@@ -65,9 +65,13 @@ export class Lobby {
                 older++;
             if (wire > WIRE)
                 newer++;
+            // How this client reaches their car: straight there, or through the
+            // broker (slower). Shown so nobody wonders why one rival looks jumpier.
+            const link = id === net.playerId ? null : net.links?.(id).link;
             list.appendChild(this.row(info.name, colours[id] ?? info.colour, [
                 id === room.hostId ? 'HOST' : '', id === net.playerId ? 'YOU' : '',
-                wire < WIRE ? 'OLD BUILD' : wire > WIRE ? 'NEWER BUILD' : '', score(id),
+                wire < WIRE ? 'OLD BUILD' : wire > WIRE ? 'NEWER BUILD' : '',
+                link === 'direct' ? 'DIRECT' : link === 'broker' ? 'VIA BROKER' : '', score(id),
             ], info.look));
         }
         const builds = $('lobby-builds');
@@ -138,7 +142,7 @@ export class Lobby {
         li.append(icon, n);
         for (const b of badges.filter(Boolean)) {
             const tag = document.createElement('span');
-            tag.className = `badge${b === 'HOST' ? ' host' : b.endsWith('BUILD') ? ' warn' : b.includes('PTS') ? ' score' : ''}`;
+            tag.className = `badge${b === 'HOST' ? ' host' : b.endsWith('BUILD') ? ' warn' : b.includes('PTS') ? ' score' : b === 'DIRECT' ? ' direct' : ''}`;
             tag.textContent = b;
             li.appendChild(tag);
         }

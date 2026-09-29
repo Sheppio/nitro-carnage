@@ -55,6 +55,8 @@ export class NetRace {
     drive = () => IDLE_INTENT;
     /** How good the bots this client drives are, as host: its own Settings. */
     botLevel = 'expert';
+    /** How this client reaches another player's car messages, when direct links are on (`RoomClient` sets it). */
+    links = null;
     net;
     clock;
     tracks;

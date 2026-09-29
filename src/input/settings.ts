@@ -41,6 +41,8 @@ export interface InputSettings {
   nameTags: NameTags;
   /** Which public MQTT broker rooms meet on; see `BROKERS`. */
   broker: string;
+  /** Race traffic over direct links to the other players where they open (WebRTC), not only the broker. */
+  direct: boolean;
   /** 'auto' is large on a console, which is on a TV across the room, and normal elsewhere. */
   uiSize: UiSize;
 }
@@ -71,6 +73,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   botLevel: 'hard',
   fov: 50,
   broker: BROKERS[0]!.id,
+  direct: true,
   uiSize: 'auto',
 };
 
@@ -154,6 +157,8 @@ function coerce(state: InputSettings): InputSettings {
   if (!BROKERS.some((b) => b.id === out.broker)) out.broker = BROKERS[0]!.id;
   if (!['auto', 'normal', 'tv'].includes(out.uiSize)) out.uiSize = 'auto';
   for (const key of ['vibration', 'reduceMotion', 'autopilot'] as const) out[key] = Boolean(out[key]);
+  // Missing from settings saved before it existed: on.
+  out.direct = out.direct !== false;
   return out;
 }
 

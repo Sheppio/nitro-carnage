@@ -120,11 +120,17 @@ try {
     const x = await reach(page);
     r.check('settings: every control is reachable with the arrow keys', x.ok, x.note);
   }
-  await goTo(page, 'set-quality');
+  // The select is hidden behind its arrow stepper, which is what takes focus.
+  const onQuality = await goTo(page, 'set-quality-pick');
   const q0 = await page.evaluate(() => document.getElementById('set-quality').value);
-  await page.keyboard.press('ArrowRight');
+  // Towards whichever end it isn't at: at the last option, right has nowhere to go.
+  const atEnd = await page.evaluate(() => {
+    const sel = document.getElementById('set-quality');
+    return sel.selectedIndex === sel.options.length - 1;
+  });
+  await page.keyboard.press(atEnd ? 'ArrowLeft' : 'ArrowRight');
   const q1 = await page.evaluate(() => document.getElementById('set-quality').value);
-  r.check('left/right on a dropdown changes its value', q0 !== q1, `${q0} -> ${q1}`);
+  r.check('left/right on a dropdown changes its value', onQuality && q0 !== q1, `${q0} -> ${q1}`);
   await goTo(page, 'set-motion');
   const m0 = await page.evaluate(() => document.getElementById('set-motion').checked);
   await page.keyboard.press('Space');

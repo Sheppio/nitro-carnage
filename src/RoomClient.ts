@@ -1,6 +1,8 @@
 import { PumpedClock, startTicker } from './clock.js';
 import { encodePresence } from './net/codec.js';
+import { HybridTransport } from './net/HybridTransport.js';
 import { MqttNet } from './net/MqttNet.js';
+import { browserPeers, PeerMesh } from './net/PeerMesh.js';
 import type { NetStatus } from './net/MqttNet.js';
 import { NetRace } from './net/NetRace.js';
 import { Topics } from './net/topics.js';
@@ -13,6 +15,10 @@ import { VERSION } from './version.js';
  * race logic (`NetRace`), and the clock that keeps both running when the tab
  * is hidden.
  *
+ * Car messages take a direct WebRTC link to each player where one opens
+ * (`PeerMesh`, through `HybridTransport`), and the broker where it doesn't.
+ * Everything else goes through the broker.
+ *
  * The race session calls `net.update()` every frame while the tab is in
  * front. When it is not, the page's own timers are throttled to a crawl and
  * rAF stops altogether, so a Worker ticker takes over: it pumps the room's
@@ -23,13 +29,23 @@ export class RoomClient {
   readonly clock = new PumpedClock();
   readonly mqtt = new MqttNet();
   readonly net: NetRace;
+  /** Direct links to the other players; null when they are switched off or the browser has no WebRTC. */
+  readonly mesh: PeerMesh | null;
   private stopTicker: (() => void) | null = null;
 
-  constructor(readonly roomId: RoomId, readonly playerId: PlayerId, name: string, colour: string, look = '') {
+  /**
+   * @param iceServers STUN servers for direct links, or null for no direct links at all
+   */
+  constructor(readonly roomId: RoomId, readonly playerId: PlayerId, name: string, colour: string, look = '', iceServers: readonly { urls: string }[] | null = null) {
+    const peers = iceServers ? browserPeers(iceServers) : null;
+    const mesh = peers ? new PeerMesh(this.mqtt, this.clock, roomId, playerId, peers) : null;
+    this.mesh = mesh;
     this.net = new NetRace({
-      transport: this.mqtt, clock: this.clock, roomId, playerId, name, colour, ver: VERSION, tracks: TRACKS,
+      transport: mesh ? new HybridTransport(this.mqtt, mesh, roomId) : this.mqtt,
+      clock: this.clock, roomId, playerId, name, colour, ver: VERSION, tracks: TRACKS,
     });
     this.net.room.look = look;
+    if (mesh) this.net.links = (pid) => ({ link: mesh.linkOf(pid), rtt: mesh.rttOf(pid) });
   }
 
   get status(): NetStatus {
@@ -49,6 +65,7 @@ export class RoomClient {
     );
     await this.mqtt.connect(url, `nc-${this.playerId}`);
     this.net.start();
+    this.mesh?.start(this.net.room);
     this.stopTicker = startTicker(() => {
       this.clock.pump();
       // Hidden, rAF stops; and with no race on screen (the lobby, the results
@@ -63,6 +80,7 @@ export class RoomClient {
     this.stopTicker?.();
     this.stopTicker = null;
     this.net.stop();
+    this.mesh?.stop();
     this.mqtt.disconnect();
   }
 }

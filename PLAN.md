@@ -721,7 +721,8 @@ long, descriptive names live in `topics.ts` as function names, not on the wire.
 | `hb` | host | 2 Hz | heartbeat: room + race state |
 | `hx` | host | on event, batched per 50 ms | race events: countdown, finish, grants, shop replies |
 | `ch` | host | on change + every 2 s | championship ledger |
-| `c/<pid>` | each client, for every car it drives (the host's bots too) | **20 Hz**, plus DR bursts (cap 30 Hz) and at once for shots, hits and bumps; racing only | car states, each with its events |
+| `c/<pid>` | each client, for every car it drives (the host's bots too) | **20 Hz**, plus DR bursts (cap 30 Hz) and at once for shots, hits and bumps; racing only; only while somebody in the room has no usable direct link | car states, each with its events |
+| `rtc/<to>/<from>` | each client | once per pair per attempt | direct-link set-up: `o\|epoch\|sdp` (offer) or `a\|epoch\|sdp` (answer) |
 | `kq/<pid>` | client | 2 Hz for 4 s, then 0.2 Hz | clock ping |
 | `ka/<pid>` | host | reply to each ping | clock pong |
 
@@ -732,6 +733,15 @@ under the same IDs, now on its own topic.
 Until wire protocol 2, each car had its own `c/<carId>` state topic and `e/<carId>`
 events topic. A host with three bots published eight streams, and the room ran at
 122 messages a second. It now runs at 69.
+
+**Direct links (`PeerMesh.ts`, `HybridTransport.ts`).** The same `c/<pid>` payloads also
+go player to player over WebRTC data channels, unordered and never retransmitted. The
+lower id offers. The offer and answer each go out once on `rtc/`, after ICE gathering
+(capped at 2 s), with public STUN and no TURN. A car message is published to MQTT only
+while some peer has no *usable* link, meaning none open or one quiet for over 1 s, and
+an MQTT copy from a peer whose link is usable is dropped. A link silent for 3 s is
+closed and reopened after 3 s. A pair that never opened one retries after 30 s.
+Presence, heartbeat, clock sync and the Last Will stay on MQTT.
 
 ### 5.9 Codecs and byte counts
 

@@ -660,6 +660,7 @@ input[type='text'] {
 .roster .name { font: 600 15px var(--display); letter-spacing: 0.04em; flex: 1; }
 .roster .badge { font: 700 10px var(--body); letter-spacing: 0.08em; color: var(--muted); border: 1px solid var(--edge); border-radius: 5px; padding: 2px 6px; }
 .roster .badge.host { color: var(--accent-2); border-color: rgba(255, 179, 0, 0.5); }
+.roster .badge.direct { color: var(--focus); border-color: rgba(0, 229, 255, 0.5); }
 .roster .badge.warn, .menu-note.warn { color: var(--accent); border-color: currentColor; }
 .roster li.bot { opacity: 0.6; }
 .roster .badge.score { color: var(--text); border-color: rgba(255, 255, 255, 0.3); font-variant-numeric: tabular-nums; }

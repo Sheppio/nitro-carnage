@@ -19,6 +19,7 @@ import { CarPublisher } from './CarPublisher.js';
 import { ClockSync } from './ClockSync.js';
 import type { Phase } from './codec.js';
 import { HostDirector } from './HostDirector.js';
+import type { Link } from './PeerMesh.js';
 import { RemoteFleet } from './RemoteFleet.js';
 import { LOBBY_STATE, RoomSession } from './RoomSession.js';
 import type { PeerRecord, RoomState } from './RoomSession.js';
@@ -109,6 +110,8 @@ export class NetRace {
   drive: () => DriveIntent = () => IDLE_INTENT;
   /** How good the bots this client drives are, as host: its own Settings. */
   botLevel: BotLevel = 'expert';
+  /** How this client reaches another player's car messages, when direct links are on (`RoomClient` sets it). */
+  links: ((pid: PlayerId) => { link: Link; rtt: number | null }) | null = null;
 
   private net: Transport;
   private clock: Clock;

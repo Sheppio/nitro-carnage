@@ -193,7 +193,7 @@ export class Hud {
     }
     $('hud-last').textContent = formatTime(hud.lastLap);
     $('hud-best').textContent = formatTime(hud.bestLap);
-    $('hud-debug').textContent = `${hud.fps.toFixed(0)} fps\n${hud.drawCalls} draws`;
+    $('hud-debug').textContent = `${hud.fps.toFixed(0)} fps\n${hud.drawCalls} draws${hud.links ? `\n${hud.links}` : ''}`;
   }
 
   /** React to a race event: lap banners, the final lap, the finish. */

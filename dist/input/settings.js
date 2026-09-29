@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS = {
     botLevel: 'hard',
     fov: 50,
     broker: BROKERS[0].id,
+    direct: true,
     uiSize: 'auto',
 };
 /**
@@ -104,6 +105,8 @@ function coerce(state) {
         out.uiSize = 'auto';
     for (const key of ['vibration', 'reduceMotion', 'autopilot'])
         out[key] = Boolean(out[key]);
+    // Missing from settings saved before it existed: on.
+    out.direct = out.direct !== false;
     return out;
 }
 function save(settings) {

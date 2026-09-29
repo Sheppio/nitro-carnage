@@ -26,11 +26,21 @@ export const Topics = {
   cars: (r: RoomId, p: PlayerId) => `${base(r)}/c/${p}`,
   carsAll: (r: RoomId) => `${base(r)}/c/+`,
 
+  /** WebRTC set-up for a direct link, one message each way: an offer or answer for `to`, from `from`. */
+  signal: (r: RoomId, to: PlayerId, from: PlayerId) => `${base(r)}/rtc/${to}/${from}`,
+  signalFor: (r: RoomId, me: PlayerId) => `${base(r)}/rtc/${me}/+`,
+
   /** Clock sync: a client's ping, and the host's answer to it. */
   clockPing: (r: RoomId, p: PlayerId) => `${base(r)}/kq/${p}`,
   clockPingAll: (r: RoomId) => `${base(r)}/kq/+`,
   clockPong: (r: RoomId, p: PlayerId) => `${base(r)}/ka/${p}`,
 } as const;
+
+/** The publisher of a car message, from its topic; null for any other topic. */
+export function carsFrom(r: RoomId, topic: string): PlayerId | null {
+  const prefix = `${base(r)}/c/`;
+  return topic.startsWith(prefix) ? topic.slice(prefix.length) : null;
+}
 
 /** The wildcard segment of a concrete topic, counted from the end. */
 export function segment(topic: string, indexFromEnd: number): string {

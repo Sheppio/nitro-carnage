@@ -9,6 +9,9 @@ import { FakeClock } from '../dist/clock.js';
 import { STEP, NET } from '../dist/config.js';
 import { MemoryBroker } from '../dist/net/MemoryBroker.js';
 import { NetRace } from '../dist/net/NetRace.js';
+import { PeerMesh } from '../dist/net/PeerMesh.js';
+import { Topics } from '../dist/net/topics.js';
+import { HybridTransport } from '../dist/net/HybridTransport.js';
 import { RoomSession } from '../dist/net/RoomSession.js';
 import {
   encodeCar, decodeCar, encodeEvents, decodeEvents, encodeCars, decodeCars, encodeHeartbeat, decodeHeartbeat,
@@ -46,8 +49,14 @@ class SkewClock {
   clearTimeout(id) { this.base.clearTimeout(id); }
 }
 
-/** Build a room of racing clients, each driving its own car on autopilot. */
-function makeRoom(n, { latency = 40, loss = 0, seed = 1 } = {}) {
+/**
+ * Build a room of racing clients, each driving its own car on autopilot.
+ *
+ * With `rtc` (a `FakeRtc`), each client also opens direct links to the others,
+ * except the clients listed in `plain` (an older build, or direct links off).
+ * Such a room must be driven with `runAsync`: link set-up is promise-based.
+ */
+function makeRoom(n, { latency = 40, loss = 0, seed = 1, rtc = null, plain = [] } = {}) {
   const base = new FakeClock();
   const broker = new MemoryBroker(base);
   broker.latency = latency;
@@ -59,14 +68,17 @@ function makeRoom(n, { latency = 40, loss = 0, seed = 1 } = {}) {
     const t = broker.connect(`c${i}`);
     // Time-prefixed ids, as makePlayerId makes them: a later joiner sorts later.
     const id = (1e12 + i * 1000 + base.now()).toString(36).padStart(9, '0') + String(i).padStart(4, '0');
-    const net = new NetRace({ transport: t, clock, roomId: 'TEST', playerId: id, name: `P${i}`, colour: 'vermilion', ver: 't', tracks: TRACKS });
+    const mesh = rtc && !plain.includes(i) ? new PeerMesh(t, clock, 'TEST', id, rtc.factory(id)) : null;
+    const transport = mesh ? new HybridTransport(t, mesh, 'TEST') : t;
+    const net = new NetRace({ transport, clock, roomId: 'TEST', playerId: id, name: `P${i}`, colour: 'vermilion', ver: 't', tracks: TRACKS });
     const pilot = createAutopilot(100 + i, SKILLS[i % SKILLS.length]);
     net.drive = () => {
       const w = net.world;
       return autopilot(pilot, net.me.car, w.track, racingLine(w.track), w.rivalsOf(net.me.id), w.time, STEP);
     };
     net.start();
-    const c = { net, t, clock, alive: true };
+    mesh?.start(net.room);
+    const c = { net, t, clock, alive: true, mesh, transport };
     clients.push(c);
     return c;
   };
@@ -79,7 +91,135 @@ function makeRoom(n, { latency = 40, loss = 0, seed = 1 } = {}) {
     }
     return false;
   };
-  return { base, broker, clients, add, run };
+  // The same, letting promises settle every step: the link set-up awaits them.
+  const runAsync = async (ms, until = null) => {
+    for (let k = 0; k < ms / 16; k++) {
+      base.tick(16);
+      for (const c of clients) if (c.alive) c.net.update();
+      await new Promise((r) => setImmediate(r));
+      if (until && until()) return true;
+    }
+    return false;
+  };
+  return { base, broker, clients, add, run, runAsync };
+}
+
+/**
+ * A stand-in for the browser's RTCPeerConnection, for `PeerMesh` in Node.
+ * Offers and answers carry an id in their SDP; when the offering side takes
+ * the answer the two meet, and their channels open after `latency` ms of
+ * the fake clock. `blocked(a, b)` keeps a pair from ever connecting (a NAT
+ * without a way through), and `cut(a, b)` silences a live one without closing
+ * it, as a network that goes away does.
+ */
+class FakeRtc {
+  constructor(clock, latency = 15) {
+    this.clock = clock;
+    this.latency = latency;
+    this.descs = new Map();
+    this.n = 0;
+    this.blocked = () => false;
+    this.cuts = new Set();
+  }
+
+  factory(owner) {
+    return () => new FakePeer(this, owner);
+  }
+
+  cut(a, b) {
+    this.cuts.add(`${a}|${b}`).add(`${b}|${a}`);
+  }
+
+  isCut(a, b) {
+    return this.cuts.has(`${a}|${b}`);
+  }
+
+  /** The offerer took the answer: open a channel pair, if the network lets them. */
+  meet(offerer, answerer) {
+    if (this.blocked(offerer.owner, answerer.owner)) return;
+    const mine = offerer.channel;
+    const theirs = new FakeChannel(this, answerer.owner);
+    answerer.channel = theirs;
+    mine.other = theirs;
+    theirs.other = mine;
+    this.clock.setTimeout(() => {
+      answerer.ondatachannel?.({ channel: theirs });
+      for (const ch of [mine, theirs]) {
+        ch.readyState = 'open';
+        ch.onopen?.();
+      }
+    }, this.latency);
+  }
+}
+
+class FakeChannel {
+  constructor(rtc, owner) {
+    this.rtc = rtc;
+    this.owner = owner;
+    this.readyState = 'connecting';
+    this.other = null;
+    this.onopen = this.onclose = this.onmessage = null;
+  }
+
+  send(data) {
+    if (this.readyState !== 'open') throw new Error('not open');
+    const o = this.other;
+    if (!o || this.rtc.isCut(this.owner, o.owner)) return;
+    this.rtc.clock.setTimeout(() => {
+      if (o.readyState === 'open' && !this.rtc.isCut(this.owner, o.owner)) o.onmessage?.({ data });
+    }, this.rtc.latency);
+  }
+
+  close() {
+    if (this.readyState === 'closed') return;
+    this.readyState = 'closed';
+    const o = this.other;
+    if (!o || this.rtc.isCut(this.owner, o.owner)) return;
+    this.rtc.clock.setTimeout(() => {
+      if (o.readyState === 'closed') return;
+      o.readyState = 'closed';
+      o.onclose?.();
+    }, this.rtc.latency);
+  }
+}
+
+class FakePeer {
+  constructor(rtc, owner) {
+    this.rtc = rtc;
+    this.owner = owner;
+    this.localDescription = null;
+    this.iceGatheringState = 'complete';
+    this.connectionState = 'new';
+    this.channel = null;
+    this.onicegatheringstatechange = this.onconnectionstatechange = this.ondatachannel = null;
+  }
+
+  createDataChannel() {
+    this.channel = new FakeChannel(this.rtc, this.owner);
+    return this.channel;
+  }
+
+  async createOffer() { return this.desc('offer'); }
+  async createAnswer() { return this.desc('answer'); }
+
+  desc(type) {
+    const id = ++this.rtc.n;
+    this.rtc.descs.set(id, this);
+    return { type, sdp: `fake ${id}` };
+  }
+
+  async setLocalDescription(d) { this.localDescription = d; }
+
+  async setRemoteDescription(d) {
+    const other = this.rtc.descs.get(Number(d.sdp.split(' ')[1]));
+    if (!other) throw new Error('unknown description');
+    if (d.type === 'answer') this.rtc.meet(this, other);
+  }
+
+  close() {
+    this.connectionState = 'closed';
+    this.channel?.close();
+  }
 }
 
 const hostOf = (room) => room.clients.find((c) => c.alive && c.net.isHost);
@@ -779,6 +919,171 @@ function dropFirst(room, ...tags) {
     room.clients.every((c) => c.net.phase === 'C' && c.net.state.goAt > firstGo && c.net.world !== null && c.net.me !== null));
   check('on the same track, with the same laps and cars', room.clients.every((c) => c.net.state.track === 2 && c.net.state.laps === 1 && c.net.state.grid.length === 4));
   check('and it runs to the results like any race', toResults(room));
+}
+
+/* ---------------------------------------------------------- direct links */
+
+console.log('\ndirect links');
+
+/** Car messages each client published to the broker since log index `from`, by client. */
+const brokerCars = (room, from) => room.clients.map((c) => room.broker.log.slice(from)
+  .filter((m) => m.topic === `nc/room/TEST/c/${c.net.playerId}`).length);
+const linkMap = (room) => room.clients.map((c) => room.clients.filter((o) => o !== c && c.mesh).map((o) => c.mesh.linkOf(o.net.playerId)).join('/')).join(' ');
+
+{
+  // Everyone linked directly: once the links open, not one car message goes
+  // to the broker, and a race with bots still reaches the same results everywhere.
+  const rtc = new FakeRtc(null);
+  const direct = makeRoom(3, { latency: 60, rtc });
+  rtc.clock = direct.base;
+  await direct.runAsync(3000);
+  const allDirect = direct.clients.every((c) => direct.clients.every((o) => o === c || c.mesh.linkOf(o.net.playerId) === 'direct'));
+  check('three clients open a direct link to each other', allDirect, linkMap(direct));
+  const host = hostOf(direct);
+  host.net.configure(5, 1);
+  host.net.startRace();
+  await direct.runAsync(NET.countdownMs + 1000);
+  const from = direct.broker.log.length;
+  const done = await direct.runAsync(200000, () => direct.clients.every((c) => c.net.phase === 'X'));
+  const onBroker = brokerCars(direct, from);
+  const orders = direct.clients.map((c) => c.net.results().map((r) => r.id).join());
+  check('and race to the same results with no car message on the broker', done && onBroker.every((n) => n === 0) && new Set(orders).size === 1,
+    `${onBroker.join('/')} broker car messages`);
+}
+
+{
+  // A bump reaches its car once: over the link, not over the broker as well.
+  const rtc = new FakeRtc(null);
+  const room = makeRoom(3, { latency: 30, rtc });
+  rtc.clock = room.base;
+  // Client 2 can't reach anyone directly, so the other two also publish to the broker.
+  rtc.blocked = (x, y) => [x, y].includes(room.clients[2].net.playerId);
+  await room.runAsync(10000);
+  const [a, b] = room.clients;
+  const sent = [];
+  const got = [];
+  const bumps = /(^|[|;])B:/;
+  const pub = b.transport.publish.bind(b.transport);
+  b.transport.publish = (topic, payload) => {
+    if (bumps.test(payload)) sent.push(payload);
+    pub(topic, payload);
+  };
+  a.transport.subscribe(Topics.carsAll('TEST'), (topic, payload) => {
+    if (topic.endsWith(b.net.playerId) && bumps.test(payload)) got.push(payload);
+  });
+  const host = hostOf(room);
+  host.net.configure(3, 1);
+  host.net.startRace();
+  await room.runAsync(NET.countdownMs + 3000);
+  const bme = b.net.me.car;
+  const fx = Math.sin(bme.yaw), fz = Math.cos(bme.yaw);
+  Object.assign(a.net.me.car, { x: bme.x + fx * 14, z: bme.z + fz * 14, yaw: bme.yaw, vx: 0, vz: 0, w: 0 });
+  a.net.drive = idle;
+  b.net.drive = () => ({ ...idle(), throttle: 1 });
+  await room.runAsync(2500);
+  const linked = a.mesh.linkOf(b.net.playerId) === 'direct' && a.mesh.linkOf(room.clients[2].net.playerId) === 'broker';
+  check('a bump sent while the room is on both paths arrives once, not once per path', linked && sent.length > 0 && got.length === sent.length,
+    `${sent.length} sent, ${got.length} received; links ${linkMap(room)}`);
+}
+
+{
+  // A pair that can't connect falls back to the broker for that pair only.
+  const rtc = new FakeRtc(null);
+  const room = makeRoom(3, { latency: 50, rtc });
+  rtc.clock = room.base;
+  const [a, b, c] = room.clients;
+  rtc.blocked = (x, y) => [x, y].includes(a.net.playerId) && [x, y].includes(c.net.playerId);
+  await room.runAsync(NET.rtc.openTimeoutMs + 1500);
+  const ok = a.mesh.linkOf(c.net.playerId) === 'broker' && c.mesh.linkOf(a.net.playerId) === 'broker'
+    && a.mesh.linkOf(b.net.playerId) === 'direct' && b.mesh.linkOf(c.net.playerId) === 'direct';
+  check('a pair that can\'t link directly falls back to the broker, and only that pair', ok, linkMap(room));
+  const host = hostOf(room);
+  host.net.configure(3, 1);
+  host.net.startRace();
+  await room.runAsync(NET.countdownMs + 12000);
+  const from = room.broker.log.length;
+  // Everyone's view of everyone's car, against the car itself.
+  let worst = 0;
+  await room.runAsync(4000, () => {
+    for (const o of room.clients) {
+      for (const v of room.clients) {
+        if (o === v) continue;
+        const seen = o.net.world.entrants.find((e) => e.id === v.net.playerId).car;
+        worst = Math.max(worst, Math.hypot(seen.x - v.net.me.car.x, seen.z - v.net.me.car.z));
+      }
+    }
+    return false;
+  });
+  const onBroker = brokerCars(room, from);
+  check('and every car is drawn where it is on every screen', worst < 3, `worst ${worst.toFixed(2)} m`);
+  check('the linked-to-everyone client keeps its cars off the broker; the other two use it', onBroker[1] === 0 && onBroker[0] > 0 && onBroker[2] > 0,
+    `${onBroker.join('/')} broker car messages`);
+  const done = await room.runAsync(200000, () => room.clients.every((x) => x.net.phase === 'X'));
+  check('and the race reaches the results', done);
+}
+
+{
+  // A link that dies mid-race without closing is noticed, and the race carries on over the broker.
+  const rtc = new FakeRtc(null);
+  const room = makeRoom(2, { latency: 40, rtc });
+  rtc.clock = room.base;
+  await room.runAsync(2500);
+  const host = hostOf(room);
+  host.net.configure(2, 3);
+  host.net.startRace();
+  const [a, b] = room.clients;
+  for (const x of [a, b]) x.net.drive = idle;
+  await room.runAsync(NET.countdownMs + SIM.weapons.startGrace * 1000 + 500);
+  const track = a.net.world.track;
+  const s0 = straightAt(track);
+  const put = (x, s) => {
+    const pose = track.poseAt(s);
+    Object.assign(x.net.me.car, { x: pose.x, z: pose.z, yaw: pose.yaw, vx: 0, vz: 0, w: 0, hint: pose.i });
+    Object.assign(x.net.me.prev, x.net.me.car);
+  };
+  put(a, s0);
+  put(b, s0 + 30);
+  await room.runAsync(600);
+  const wasDirect = a.mesh.linkOf(b.net.playerId) === 'direct';
+  rtc.cut(a.net.playerId, b.net.playerId);
+  const cutAt = room.base.now();
+  // Quiet for a second, the link is still up, but the broker already carries
+  // the traffic: a shot fired now lands.
+  await room.runAsync(NET.rtc.quietMs + 200);
+  const kept = a.mesh.linkOf(b.net.playerId) === 'direct';
+  let n = 0;
+  a.net.drive = () => (n++ === 0 ? { ...idle(), fireFront: true } : idle());
+  await room.runAsync(1200);
+  const hp = b.net.world.entrants.find((e) => e.id === b.net.playerId).hp;
+  check('a direct link that goes quiet hands its traffic to the broker at once: a shot fired then still lands', wasDirect && kept && hp === 80,
+    `victim at ${hp}`);
+  let noticed = null;
+  await room.runAsync(4000, () => {
+    if (a.mesh.linkOf(b.net.playerId) === 'broker' && b.mesh.linkOf(a.net.playerId) === 'broker') noticed = room.base.now() - cutAt;
+    return noticed !== null;
+  });
+  check('and the dead link is given up within 3.5 s, by both ends', noticed !== null && noticed <= 3500, `${noticed} ms`);
+  rtc.cuts.clear();
+  const back = await room.runAsync(NET.rtc.reopenMs + 3000, () => a.mesh.linkOf(b.net.playerId) === 'direct' && b.mesh.linkOf(a.net.playerId) === 'direct');
+  check('then, once the network is back, the pair links directly again within seconds', back);
+}
+
+{
+  // A player on an older build never answers an offer: its pairs time out to
+  // the broker, and the room races as it did before.
+  const rtc = new FakeRtc(null);
+  const room = makeRoom(3, { latency: 40, rtc, plain: [2] });
+  rtc.clock = room.base;
+  const [a, b, c] = room.clients;
+  await room.runAsync(NET.rtc.openTimeoutMs + 1500);
+  const ok = a.mesh.linkOf(b.net.playerId) === 'direct' && a.mesh.linkOf(c.net.playerId) === 'broker' && b.mesh.linkOf(c.net.playerId) === 'broker';
+  check('a player without direct links is reached over the broker, the others directly', ok, linkMap(room));
+  const host = hostOf(room);
+  host.net.configure(4, 1);
+  host.net.startRace();
+  const done = await room.runAsync(200000, () => room.clients.every((x) => x.net.phase === 'X'));
+  const orders = room.clients.map((x) => x.net.results().map((r) => r.id).join());
+  check('and the mixed room races to the same results everywhere', done && new Set(orders).size === 1);
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);

@@ -37,8 +37,13 @@ function chromePath() {
   return existsSync(bundled) ? bundled : undefined;
 }
 
-/** Build test/rig/index.html plus its local dependencies. */
+/**
+ * Build test/rig/index.html plus its local dependencies. `test/parallel.mjs`
+ * builds it once and sets RIG_READY, so suites running side by side never read
+ * a file another suite is halfway through rewriting.
+ */
 export async function buildRig() {
+  if (process.env.RIG_READY) return;
   await mkdir(RIG, { recursive: true });
   // three.module.js imports ./three.core.js, so both travel together.
   await copyFile(join(ROOT, 'node_modules/three/build/three.module.js'), join(RIG, 'three.module.js'));
@@ -80,7 +85,9 @@ export async function startServer(port = 8199) {
  * leave it off, because one uncapped tab starves the others.
  */
 export async function launch({ uncapped = false } = {}) {
-  const args = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
+  // Direct links between tabs use host candidates; headless, the mDNS names that hide them don't resolve.
+  const args = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+    '--disable-features=WebRtcHideLocalIpsWithMdns'];
   if (uncapped) args.push('--disable-frame-rate-limit');
   return chromium.launch({ executablePath: chromePath(), args });
 }

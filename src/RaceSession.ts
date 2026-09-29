@@ -10,7 +10,7 @@ import { crossingWarning, trainAt } from './sim/train.js';
 import { ghostAt, LapTrace } from './sim/ghost.js';
 import { SIM } from './config.js';
 import { autopilot, createAutopilot, skillFor, SKILLS } from './sim/autopilot.js';
-import { botNames } from './sim/bots.js';
+import { botNames, isBotId } from './sim/bots.js';
 import { createCar } from './sim/car.js';
 import type { CarState } from './sim/car.js';
 import { interpolateCar } from './sim/interpolate.js';
@@ -62,6 +62,8 @@ export interface HudSnapshot {
   turbo: number;
   fps: number;
   drawCalls: number;
+  /** For the debug readout: how each other player's car reaches us, and the round trip. Empty offline. */
+  links: string;
   /** Seconds until GO; 0 once racing. */
   countdown: number;
   /** Seconds since GO (negative during the countdown). */
@@ -541,6 +543,18 @@ export class RaceSession {
     );
   }
 
+  private linkLines(): string {
+    const links = this.net?.links;
+    if (!links) return '';
+    return this.world.entrants
+      .filter((e) => e.remote && !isBotId(e.id))
+      .map((e) => {
+        const { link, rtt } = links(e.id);
+        return `${this.cars.get(e.id)?.name ?? e.id}: ${link}${rtt !== null ? ` ${rtt.toFixed(0)} ms` : ''}`;
+      })
+      .join('\n');
+  }
+
   hud(): HudSnapshot {
     const w = this.world;
     const order = standings(w.entrants);
@@ -570,6 +584,7 @@ export class RaceSession {
       turbo: car.turbo,
       fps: this.fps,
       drawCalls: this.view.drawCalls,
+      links: this.linkLines(),
       countdown: w.countdown,
       raceTime: (e.lap.finishTime ?? w.time) - w.goTime,
       lap: displayLap(e.lap, w.laps),

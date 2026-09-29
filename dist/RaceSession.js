@@ -5,7 +5,7 @@ import { crossingWarning, trainAt } from './sim/train.js';
 import { ghostAt, LapTrace } from './sim/ghost.js';
 import { SIM } from './config.js';
 import { autopilot, createAutopilot, skillFor, SKILLS } from './sim/autopilot.js';
-import { botNames } from './sim/bots.js';
+import { botNames, isBotId } from './sim/bots.js';
 import { createCar } from './sim/car.js';
 import { interpolateCar } from './sim/interpolate.js';
 import { COLOUR_ORDER, colourOf } from './sim/palette.js';
@@ -459,6 +459,18 @@ export class RaceSession {
     results() {
         return standings(this.world.entrants).map((e, i) => this.row(i + 1, e.id, e.lap.finishTime === null ? null : e.lap.finishTime - this.world.goTime, Math.max(0, e.lap.completed)));
     }
+    linkLines() {
+        const links = this.net?.links;
+        if (!links)
+            return '';
+        return this.world.entrants
+            .filter((e) => e.remote && !isBotId(e.id))
+            .map((e) => {
+            const { link, rtt } = links(e.id);
+            return `${this.cars.get(e.id)?.name ?? e.id}: ${link}${rtt !== null ? ` ${rtt.toFixed(0)} ms` : ''}`;
+        })
+            .join('\n');
+    }
     hud() {
         const w = this.world;
         const order = standings(w.entrants);
@@ -488,6 +500,7 @@ export class RaceSession {
             turbo: car.turbo,
             fps: this.fps,
             drawCalls: this.view.drawCalls,
+            links: this.linkLines(),
             countdown: w.countdown,
             raceTime: (e.lap.finishTime ?? w.time) - w.goTime,
             lap: displayLap(e.lap, w.laps),

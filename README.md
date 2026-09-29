@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.57**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.58**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -60,7 +60,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 829 checks: simulation and networking (Node), and real browsers
+npm test           # 855 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -572,6 +572,35 @@ old code failed all three.
 an older cached build can't race with a newer one. Presence now carries the wire
 protocol's number. The lobby marks a player on another build and says who has to
 reload.
+
+### Direct links
+
+Every car message used to go from one player to the broker and on to the others. The
+public brokers are often on another continent, so that was two long trips, typically
+80–200 ms. Now each pair of players also opens a **direct WebRTC link** where their
+networks allow one, and car states and shots go straight across. For players in the
+same region that is typically 20–60 ms.
+
+- **Only car messages go direct.** Presence, the heartbeat, clock sync and the link
+  set-up itself stay on the broker. So does everything the room's election rests on.
+- **There's no relay server.** A pair whose networks can't reach each other (some
+  corporate or mobile networks) stays on the broker. So does a player on an older
+  build, or one who switches direct links off in Settings. The rest of the room still
+  links directly among themselves.
+- **The lobby shows how you reach each player:** `DIRECT` or `VIA BROKER`. `?debug`
+  adds each link and its round trip to the race readout. In a mixed room, one rival
+  may look a little jumpier than another. Latency is per pair and the same both ways,
+  and lap times and the finish order run on the room clock, so nobody gains from it.
+- **A quiet link hands over at once.** Each end pings every 500 ms. A link that has
+  been silent for a second still stays open, because the far tab may just be busy
+  building its scene. Meanwhile the car messages go by the broker too, and a copy that
+  came both ways is only acted on once. After 3 s of silence the link is closed and
+  reopened.
+- **What play-testing found:** a tab building a race scene under SwiftShader stalls
+  for more than a second. The first version gave a link up after 1.5 s of silence,
+  so it dropped healthy links at every race start, and the browser test failed.
+  A network test now cuts a live link without closing it. A shot fired a second
+  later still lands, and the pair links again once the network is back.
 
 ## Weapons
 
@@ -1229,7 +1258,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-796 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+855 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1289,7 +1318,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     line-follower lapping cleanly and taking the ramp.
   - **Helpers:** interpolation, deadzones, framerate-independent smoothing, colour
     clash resolution.
-- **`net.test.mjs`** (69, Node, an in-memory broker and a fake clock): the heartbeat
+- **`net.test.mjs`** (92, Node, an in-memory broker and a fake clock): the heartbeat
   carries the seed and the weapons switch, and an older one decodes as a built-in track
   with weapons on; a race-only room on a seed builds the same track everywhere with no
   shots on the wire;
@@ -1317,6 +1346,13 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     credits the kill on every screen; a lost fire, hit or wreck message is made good
     by its repeats, once; an armed six-car race on a 3% lossy link reaches
     the results with every screen agreeing on every car's health.
+  - **Direct links** (a fake WebRTC on the fake clock): three clients link directly
+    and race to the same results with no car message on the broker; a bump sent while
+    the room uses both paths arrives once; a pair that can't link uses the broker for
+    that pair only, and every car is still drawn where it is; a link cut without
+    closing hands its traffic to the broker at once, is given up within 3.5 s, and
+    links again when the network is back; a player without direct links races with
+    the rest.
 - **`smoke.test.mjs`** (57, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
@@ -1347,14 +1383,15 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
-- **`multiplayer.test.mjs`** (28, browser, up to four tabs): a room forms from a code
+- **`multiplayer.test.mjs`** (30, browser, up to four tabs): a room forms from a code
   and a share link; one host; colour clashes; a look chosen in one tab's Garage shows
   in the other's lobby; only the host can start; a missile fired
   in one tab flies in the other; a race to the
   same results on both screens and back to the lobby; the host's tab closed mid-race;
   a late joiner spectating; a hidden host with no frames still heartbeating; a tab
   frozen for 20 s waking without splitting the room; a player on an older build is
-  marked in the lobby with a note to reload.
+  marked in the lobby with a note to reload; the tabs open a real WebRTC link, both
+  lobbies say DIRECT, and the missile crosses it.
 - **`gamepad.test.mjs`** (18, browser, a virtual pad and nothing else): the Garage by
   pad (RB changes the body, the D-pad the livery) and at 1280×800; the lock prompt;
   Xbox and PlayStation prompts; the on-screen keyboard; menu to race by way of the

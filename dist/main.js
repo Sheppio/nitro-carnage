@@ -491,7 +491,11 @@ async function openRoom(code) {
     if (code.length < 4)
         return;
     const broker = BROKERS.find((b) => b.id === settings.current.broker) ?? BROKERS[0];
-    const client = new RoomClient(code, makePlayerId(), playerName(), colourId, encodeLook(look));
+    // Direct links unless switched off (Settings, or ?nop2p); ?nostun keeps them
+    // to this network, which is what the test rig wants.
+    const direct = settings.current.direct && !params.has('nop2p');
+    const ice = direct ? (params.has('nostun') ? [] : NET.rtc.iceServers) : null;
+    const client = new RoomClient(code, makePlayerId(), playerName(), colourId, encodeLook(look), ice);
     client.net.botLevel = settings.current.botLevel;
     room = client;
     tally = new Tally();
@@ -530,6 +534,8 @@ async function openRoom(code) {
         show('screen-lobby');
         lobby?.render();
     });
+    // A link opening or falling back to the broker changes the lobby's badges.
+    client.mesh?.events.on('link', redraw);
     client.mqtt.events.on('status', ({ status }) => {
         const pill = $('net-status');
         pill.textContent = status;
@@ -770,6 +776,7 @@ function openSettings(fromPause) {
     $('set-vibration').checked = settings.current.vibration;
     $('set-motion').checked = settings.current.reduceMotion;
     $('set-autopilot').checked = settings.current.autopilot;
+    $('set-direct').checked = settings.current.direct;
     brokerSelect.value = settings.current.broker;
     $('set-sfx').value = String(settings.current.sfxVolume);
     $('set-ghost').value = String(settings.current.ghostLead);
@@ -812,6 +819,7 @@ $('set-touch').addEventListener('change', (e) => settings.set('touchControls', e
 $('set-vibration').addEventListener('change', (e) => settings.set('vibration', e.target.checked));
 $('set-motion').addEventListener('change', (e) => settings.set('reduceMotion', e.target.checked));
 $('set-autopilot').addEventListener('change', (e) => settings.set('autopilot', e.target.checked));
+$('set-direct').addEventListener('change', (e) => settings.set('direct', e.target.checked));
 brokerSelect.addEventListener('change', () => settings.set('broker', brokerSelect.value));
 window.addEventListener('keydown', (e) => {
     if (e.code !== 'Escape' || keyboard.isOpen || choices.isOpen)

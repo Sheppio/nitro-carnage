@@ -238,4 +238,30 @@ export const NET = {
   keepaliveSec: 30,
   connectTimeoutMs: 8000,
   reconnectMs: 2000,
+  /**
+   * Direct links between players (WebRTC data channels) for car messages; see
+   * `net/PeerMesh.ts`. A pair that can't open one stays on the broker.
+   */
+  rtc: {
+    /** Public STUN, to learn our outside address. No TURN: a pair that needs a relay uses the broker. */
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] as { urls: string }[],
+    /** Longest the offer or answer waits for ICE candidates before going out with what it has. */
+    gatherMs: 2000,
+    /** No open channel this long after starting: the pair uses the broker. */
+    openTimeoutMs: 8000,
+    /** Each side pings an open channel this often, and times the round trip. */
+    pingMs: 500,
+    /**
+     * Nothing heard on an open channel for this long: until it speaks again,
+     * car messages to and from that player take the broker as well. A tab
+     * building its scene can stall this long; the link is kept.
+     */
+    quietMs: 1000,
+    /** Nothing heard for this long: the link has died, and is closed. */
+    staleMs: 3000,
+    /** A pair that never opened a link tries again after this long... */
+    retryMs: 30000,
+    /** ...and one whose link died after opening, after this long. */
+    reopenMs: 3000,
+  },
 };

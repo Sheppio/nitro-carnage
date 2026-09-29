@@ -23,7 +23,8 @@ async function open(name, query = '') {
   // The name is read from storage at startup; a share link skips the menu,
   // so it has to be in place before the page's own script runs.
   await page.addInitScript((n) => localStorage.setItem('nitrocarnage.name', n), name);
-  await page.goto(`${url}?quality=potato&autopilot${query}`);
+  // nostun: direct links between the tabs over this machine only (there is no STUN offline).
+  await page.goto(`${url}?quality=potato&autopilot&nostun${query}`);
   await page.waitForSelector('#screen-menu:not([hidden]), #screen-connecting:not([hidden]), #screen-lobby:not([hidden]), #screen-hud:not([hidden])');
   return page;
 }
@@ -61,6 +62,13 @@ try {
   await oldPresence(0);
   const cleared = await until(() => b.evaluate(() => (document.getElementById('lobby-builds').hidden ? true : null)));
   r.check('a player on an older build is marked in the lobby, with a note to reload, gone when they leave', warned === true && cleared === true);
+
+  // The two tabs open a real WebRTC link, and each lobby says so.
+  const linked = await until(async () => {
+    const badge = (p) => p.evaluate(() => [...document.querySelectorAll('#lobby-roster li')].filter((li) => li.textContent.includes('DIRECT')).length);
+    return (await badge(a)) === 1 && (await badge(b)) === 1 ? true : null;
+  }, { timeout: 20000 });
+  r.check('the two tabs link directly, and both lobbies show it', linked === true);
 
   const hosts = [await isHost(a), await isHost(b)];
   r.check('exactly one host: the first to arrive', hosts[0] === true && hosts[1] === false);
@@ -204,7 +212,8 @@ try {
     remoteShot = await until(() => b.evaluate((id) => window.nitro.session?.world.armoury.missiles.some((m) => m.owner === id && !m.live) || null, aliceId),
       { timeout: 1500, interval: 30 });
   }
-  r.check('a missile fired in one tab flies in the other', Boolean(remoteShot));
+  const via = await b.evaluate((id) => window.nitro.room.net.links?.(id).link ?? 'broker', aliceId);
+  r.check('a missile fired in one tab flies in the other, over the direct link', Boolean(remoteShot) && via === 'direct', `link ${via}`);
 
   const gridA = await a.evaluate(() => window.nitro.room.net.state.grid.join('.'));
   const gridB = await b.evaluate(() => window.nitro.room.net.state.grid.join('.'));
