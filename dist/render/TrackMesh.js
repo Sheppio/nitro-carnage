@@ -5,6 +5,8 @@ import { Surface } from '../sim/surfaces.js';
 const KERB = 0.8;
 const Y_ROAD = 0.02;
 const Y_MARK = 0.04;
+/** Ground grid size, metres. */
+const GROUND_TILE = 25;
 /**
  * The road surface, built straight from the centreline table: asphalt,
  * red-and-white kerbs, pavement out to the wall, lane markings and the start
@@ -179,7 +181,11 @@ export function buildTrackMesh(track, theme) {
         z1 = Math.max(z1, track.line.pz[i]);
     }
     const pad = 600;
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0 + pad * 2, z1 - z0 + pad * 2), new THREE.MeshLambertMaterial({ color: theme.ground }));
+    // Tiled, not two triangles: shadow lookups are interpolated across each
+    // triangle, and over a kilometre-wide one the GPU's interpolation error is
+    // big enough to band every shadow on it with lit stripes.
+    const w = x1 - x0 + pad * 2, d = z1 - z0 + pad * 2;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(w, d, Math.ceil(w / GROUND_TILE), Math.ceil(d / GROUND_TILE)), new THREE.MeshLambertMaterial({ color: theme.ground }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2);
     ground.receiveShadow = true;
