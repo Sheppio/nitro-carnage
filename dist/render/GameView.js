@@ -251,10 +251,11 @@ export class GameView {
         const focus = this.focusId ? states.get(this.focusId) : undefined;
         if (focus) {
             this.rig.update(focus, dt);
-            this.shadows.follow(focus.x, focus.z);
         }
         const cam = this.rig.camera;
         cam.updateMatrixWorld();
+        if (focus)
+            this.shadows.follow(cam);
         this.renderer.getDrawingBufferSize(this.size);
         this.fx.setPointScale(this.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)));
         this.updateCutaway(states);

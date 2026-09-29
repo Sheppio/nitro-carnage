@@ -92,7 +92,7 @@ src/
 │   ├── materials.ts          flat/gradient Lambert + emissive windows + cut-away chunk
 │   ├── CarMesh.ts            procedural low-poly car, steering/spinning wheels, roll/pitch
 │   ├── Fx.ts                 tyre-mark ring buffer, pooled particles, trails, explosions
-│   ├── ShadowRig.ts          directional light + shadow camera following the player
+│   ├── ShadowRig.ts          directional light + shadow camera fitted to the view
 │   └── Train.ts, Hazards.ts  train, crossing barriers, oil, mine lights
 ├── ui/               DOM overlay: menu, lobby, shop, results, championship, HUD, minimap
 ├── audio/            AudioBus/volume (ported), Engine synth, Sfx, Music
@@ -438,9 +438,10 @@ car. And per-instance raycasts cost CPU per building per car.
 
 - Low-poly and flat-shaded, using `MeshLambertMaterial` with vertex colours for gradients
   such as darker at the base of buildings and a sky-tinted roof edge.
-- One `DirectionalLight` with shadows. `ShadowRig` keeps its orthographic frustum (about
-  140 m) centred on the local car and **snapped to shadow-texel increments**, so shadows
-  don't shimmer as the camera moves. There's also a hemisphere fill light, and `Fog`
+- One `DirectionalLight` with shadows. `ShadowRig` fits its orthographic frustum to what
+  the race camera sees (60–240 m across, resized in 15 m steps) and **snaps it to
+  shadow-texel increments**, so shadows reach the screen edge and don't shimmer as the
+  camera moves. There's also a hemisphere fill light, and `Fog`
   tuned per theme so the draw-distance setting hides the far plane cleanly.
 - Building windows are emissive and procedural. A shader function of the building's UVs
   and instance seed lights a random subset of windows. There's no texture.
