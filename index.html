@@ -172,86 +172,112 @@
             <span class="pill" id="net-status">online</span>
           </div>
           <p class="menu-note share">Share: <span id="lobby-link" class="link"></span> <button class="btn small" id="btn-copy-link">Copy</button></p>
-          <ul class="roster" id="lobby-roster"></ul>
-          <div class="lobby-grid">
+          <!-- Who is here on one side, and every control in one column on the
+               other: each setting keeps left/right for itself, so a second
+               column of them could not be reached from a pad (as the Garage). -->
+          <div class="lobby-layout">
+            <div class="lobby-people">
+              <ul class="roster" id="lobby-roster"></ul>
+              <p class="menu-note warn" id="lobby-builds" hidden></p>
+              <p class="menu-note" id="lobby-wait">Waiting for the host to start the race.</p>
+            </div>
+            <div class="lobby-controls">
+              <!-- The room's track: for the host a button to its own screen, for everyone else a picture of it. -->
+              <button class="btn track-card host-only" id="btn-lobby-track" type="button" aria-label="Choose the track">
+                <canvas class="track-map" id="lobby-card-map" aria-hidden="true"></canvas>
+                <span class="track-info" id="lobby-card-info"></span>
+              </button>
+              <div class="track-card guest-only" id="lobby-guest-track">
+                <canvas class="track-map" id="lobby-guest-map" aria-hidden="true"></canvas>
+                <span class="track-info" id="lobby-guest-info"></span>
+              </div>
+              <div class="lobby-grid one-column host-only">
+                <label class="field">
+                  <span>Laps</span>
+                  <select id="lobby-laps">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="5">5</option>
+                    <option value="7">7</option>
+                    <option value="9">9</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Cars on the grid</span>
+                  <select id="lobby-cars">
+                    <option value="1">Humans only</option>
+                    <option value="2">2 (fill with bots)</option>
+                    <option value="3">3 (fill with bots)</option>
+                    <option value="4">4 (fill with bots)</option>
+                    <option value="5">5 (fill with bots)</option>
+                    <option value="6">6 (fill with bots)</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Weapons</span>
+                  <select id="lobby-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
+                </label>
+                <label class="field">
+                  <span>Power-ups</span>
+                  <select id="lobby-pickups"><option value="1">On</option><option value="0">Off</option></select>
+                </label>
+                <label class="field">
+                  <span>Turbo</span>
+                  <select id="lobby-turbo"><option value="1">On</option><option value="0">Off</option></select>
+                </label>
+                <label class="field">
+                  <span>Car type</span>
+                  <select id="lobby-body"></select>
+                </label>
+              </div>
+              <nav class="menu-actions">
+                <button class="btn primary host-only" id="btn-start-race" data-nav-default>Start race</button>
+                <div class="btn-row">
+                  <button class="btn" id="btn-lobby-garage">Garage</button>
+                  <button class="btn" id="btn-lobby-leave" data-nav-back>Leave room</button>
+                </div>
+              </nav>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ----------------------------------------------------- ROOM TRACK -->
+      <!-- The host's track and championship, off the lobby so it stays one column. -->
+      <section class="screen menu" id="screen-lobby-track" hidden>
+        <div class="menu-card wide">
+          <h2>Track</h2>
+          <div class="lobby-grid one-column">
             <label class="field">
-              <span>Your name</span>
-              <input type="text" id="lobby-name" maxlength="12" autocomplete="off" spellcheck="false" placeholder="DRIVER" />
-            </label>
-            <div class="field wide-row"><span id="lobby-colour-label">Your colour</span><div id="lobby-colour" aria-labelledby="lobby-colour-label"></div></div>
-            <label class="field host-only">
-              <span>Cars on the grid</span>
-              <select id="lobby-cars">
-                <option value="1">Humans only</option>
-                <option value="2">2 (fill with bots)</option>
-                <option value="3">3 (fill with bots)</option>
-                <option value="4">4 (fill with bots)</option>
-                <option value="5">5 (fill with bots)</option>
-                <option value="6">6 (fill with bots)</option>
-              </select>
-            </label>
-            <label class="field host-only">
               <span>Track</span>
-              <select id="lobby-track"></select>
+              <select id="lobby-track" data-nav-default></select>
             </label>
-            <div class="seed-row host-only" id="lobby-seed-row">
+            <div class="seed-row" id="lobby-seed-row">
               <label class="field">
                 <span>Seed</span>
                 <input type="text" id="lobby-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
               </label>
               <button class="btn dice" id="lobby-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
             </div>
-            <!-- The championship (#8): tracks the host lines up, raced in order for points. -->
+          </div>
+          <div class="track-preview big" id="lobby-track-preview" aria-live="polite">
+            <canvas class="track-map" id="lobby-track-map" aria-hidden="true"></canvas>
+            <p class="track-info" id="lobby-track-info"></p>
+          </div>
+          <!-- The championship (#8): tracks the host lines up, raced in order for points. -->
+          <div class="lobby-grid one-column">
             <div class="field cup-row" id="lobby-cup">
               <span>Championship</span>
-              <!-- One line, like every other setting: the chips scroll rather than push Start off a Deck's screen. -->
               <div class="cup-box">
                 <ol class="cup-list" id="lobby-cup-list"></ol>
-                <button class="btn small host-only" id="btn-cup-add" title="Add this track to the championship" aria-label="Add this track to the championship">+</button>
-                <button class="btn small host-only" id="btn-cup-end" hidden>End</button>
+                <button class="btn small" id="btn-cup-add" title="Add this track to the championship" aria-label="Add this track to the championship">+</button>
+                <button class="btn small" id="btn-cup-end" hidden>End</button>
               </div>
             </div>
-            <label class="field host-only">
-              <span>Weapons</span>
-              <select id="lobby-weapons"><option value="1">On</option><option value="0">Off: race only</option></select>
-            </label>
-            <label class="field host-only">
-              <span>Power-ups</span>
-              <select id="lobby-pickups"><option value="1">On</option><option value="0">Off</option></select>
-            </label>
-            <label class="field host-only">
-              <span>Turbo</span>
-              <select id="lobby-turbo"><option value="1">On</option><option value="0">Off</option></select>
-            </label>
-            <label class="field host-only">
-              <span>Car type</span>
-              <select id="lobby-body"></select>
-            </label>
-            <label class="field host-only">
-              <span>Laps</span>
-              <select id="lobby-laps">
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="5">5</option>
-                <option value="7">7</option>
-                <option value="9">9</option>
-              </select>
-            </label>
-            <!-- In the grid, beside Laps: its own row pushed Start off a Steam Deck's screen. -->
-            <div class="track-preview" id="lobby-track-preview" aria-live="polite">
-              <canvas class="track-map" id="lobby-track-map" aria-hidden="true"></canvas>
-              <p class="track-info" id="lobby-track-info"></p>
-            </div>
           </div>
-          <p class="menu-note warn" id="lobby-builds" hidden></p>
-          <p class="menu-note" id="lobby-wait">Waiting for the host to start the race.</p>
           <nav class="menu-actions">
-            <button class="btn primary host-only" id="btn-start-race" data-nav-default>Start race</button>
-            <div class="btn-row">
-              <button class="btn" id="btn-lobby-garage">Garage</button>
-              <button class="btn" id="btn-lobby-leave" data-nav-back>Leave room</button>
-            </div>
+            <button class="btn primary" id="btn-lobby-track-done" data-nav-back>Done</button>
           </nav>
         </div>
       </section>

@@ -12,9 +12,9 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getEl
  * tap changes any of them; only the race number, a hundred of them, is still
  * a dropdown. LB/RB cycle the body from anywhere on the screen.
  *
- * The body colour is chosen here for a quick race or a hotlap. From a room
- * it is only shown: there it is the room colour, picked in the lobby, which
- * must be unique because it is how cars are told apart.
+ * The body colour is chosen here too. In a room it is the room colour, which
+ * must be unique because it is how cars are told apart: other people's are
+ * marked (`taken`), and the room moves whoever asked second.
  */
 export class Garage {
   private look: CarLook;
@@ -73,11 +73,15 @@ export class Garage {
     this.changed();
   }
 
-  /** Open with the colour the car will wear, and whether it can be changed here. */
-  open(colourId: string, pickColour = false): void {
+  /** Mark the colours other people in the room have. */
+  taken(colours: ReadonlySet<string>): void {
+    this.colour.mark(colours, 'taken');
+  }
+
+  /** Open with the colour the car will wear. */
+  open(colourId: string): void {
     this.colourId = colourId;
     this.colour.value = colourId;
-    $('garage-colour-row').hidden = !pickColour;
     this.write();
     this.preview.show(this.look, colourOf(colourId).colour);
     this.preview.start();

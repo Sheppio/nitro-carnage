@@ -18,7 +18,8 @@ const focused = (page) => page.evaluate(() => document.activeElement?.id || docu
 const controls = (page) => page.evaluate(() => {
   const modal = [...document.querySelectorAll('[data-nav-modal]:not([hidden])')].filter((m) => m.getClientRects().length).pop();
   const scope = modal ?? document.querySelector('.screen:not([hidden])');
-  return [...scope.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled])')]
+  // [data-nav] too: the ‹ arrows › and colour squares that stand in for dropdowns.
+  return [...scope.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), [data-nav]')]
     .filter((el) => el.getClientRects().length && !el.hasAttribute('data-nav-skip') && getComputedStyle(el).visibility !== 'hidden')
     .map((el) => el.id || el.textContent.trim());
 });
@@ -42,7 +43,7 @@ async function walk(page) {
     for (const key of ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft']) {
       const owns = await page.evaluate((id) => {
         const el = document.getElementById(id);
-        return el && (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type === 'range'));
+        return el && (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type === 'range') || el.hasAttribute('data-nav-cycle'));
       }, from);
       if (owns && (key === 'ArrowLeft' || key === 'ArrowRight')) continue;
       await page.evaluate(([id, k]) => {
@@ -70,7 +71,7 @@ async function goTo(page, id) {
   for (const key of ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft']) {
     for (let k = 0; k < 14; k++) {
       if ((await focused(page)) === id) return true;
-      const onSelect = await page.evaluate(() => document.activeElement?.tagName === 'SELECT');
+      const onSelect = await page.evaluate(() => document.activeElement?.tagName === 'SELECT' || document.activeElement?.hasAttribute('data-nav-cycle'));
       await page.keyboard.press(onSelect && (key === 'ArrowLeft' || key === 'ArrowRight') ? 'ArrowDown' : key);
     }
   }
@@ -244,7 +245,28 @@ try {
     const x = await reach(page);
     r.check('lobby (as host): every control is reachable with the arrow keys', x.ok, x.note);
   }
-  await goTo(page, 'lobby-laps');
+  // One column: down from the track card walks every setting in turn to Start.
+  // In two columns of ‹ › steppers, which keep left/right, half were a detour away.
+  await goTo(page, 'btn-lobby-track');
+  const downs = [];
+  for (let k = 0; k < 7; k++) {
+    await page.keyboard.press('ArrowDown');
+    downs.push(await focused(page));
+  }
+  const column = ['lobby-laps-pick', 'lobby-cars-pick', 'lobby-weapons-pick', 'lobby-pickups-pick', 'lobby-turbo-pick', 'lobby-body-pick', 'btn-start-race'];
+  r.check('lobby: down from the track card walks every setting, one by one, to Start', downs.join() === column.join(), downs.join(' → '));
+  // The track has a screen of its own: Enter on the lobby's card, Esc back to it.
+  await goTo(page, 'btn-lobby-track');
+  await page.keyboard.press('Enter');
+  r.check('Enter on the track card opens the track screen', Boolean(await until(() => visible(page, 'screen-lobby-track'))));
+  {
+    const x = await reach(page);
+    r.check('track screen: every control is reachable with the arrow keys', x.ok, x.note);
+  }
+  await page.keyboard.press('Escape');
+  const backOnCard = await until(() => page.evaluate(() => (!document.getElementById('screen-lobby').hidden && document.activeElement?.id === 'btn-lobby-track') || null));
+  r.check('Esc on the track screen goes back to the lobby, on the track card', Boolean(backOnCard));
+  await goTo(page, 'lobby-laps-pick');
   const laps0 = await page.evaluate(() => window.nitro.room.net.state.laps);
   await page.keyboard.press('ArrowRight');
   const laps1 = await until(() => page.evaluate((l) => (window.nitro.room.net.state.laps !== l ? window.nitro.room.net.state.laps : null), laps0));

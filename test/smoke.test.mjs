@@ -823,13 +823,17 @@ try {
       await lp.waitForSelector('#screen-lobby:not([hidden])', { timeout: 20000 });
       await lp.waitForFunction(() => window.nitro.room?.net.isHost);
       await lp.selectOption('#lobby-cars', '6');
-      await lp.fill('#lobby-seed', 'EAR-DIN-EAT');
-      outside.push(...(await lp.evaluate((w) => {
-        const card = document.querySelector('#screen-lobby .menu-card').getBoundingClientRect();
-        return [...document.querySelectorAll('#screen-lobby select, #screen-lobby input, #screen-lobby button')]
+      const inside = (screen) => lp.evaluate(([w, screen]) => {
+        const card = document.querySelector(`#${screen} .menu-card`).getBoundingClientRect();
+        return [...document.querySelectorAll(`#${screen} select, #${screen} input, #${screen} button`)]
           .filter((el) => el.offsetParent && (el.getBoundingClientRect().right > card.right || el.getBoundingClientRect().left < card.left))
           .map((el) => `${el.id} at ${w}px`);
-      }, w)));
+      }, [w, screen]);
+      outside.push(...(await inside('screen-lobby')));
+      // The track and its seed are on their own screen.
+      await lp.click('#btn-lobby-track');
+      await lp.fill('#lobby-seed', 'EAR-DIN-EAT');
+      outside.push(...(await inside('screen-lobby-track')));
       await lp.evaluate(() => window.nitro.room?.leave());
       await lp.close();
     }

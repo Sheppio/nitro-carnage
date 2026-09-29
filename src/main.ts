@@ -70,7 +70,7 @@ choices.focus = (el) => nav.focusOn(el);
 
 const screens = [
   'screen-menu', 'screen-join', 'screen-connecting', 'screen-lobby', 'screen-full', 'screen-settings', 'screen-hud', 'screen-results',
-  'screen-garage', 'screen-track',
+  'screen-garage', 'screen-track', 'screen-lobby-track',
 ] as const;
 type ScreenId = (typeof screens)[number];
 let current = 'screen-menu' as ScreenId;
@@ -90,7 +90,6 @@ function show(id: ScreenId): void {
     nav.focusFirst();
   }
   if (id === 'screen-track') previewTrack();
-  if (id === 'screen-lobby') $<HTMLInputElement>('lobby-name').value = $<HTMLInputElement>('input-name').value;
 }
 
 /* --------------------------------------------------------- name and colour */
@@ -321,16 +320,20 @@ function openGarage(from: typeof garageFrom): void {
       store.set(LOOK_KEY, encodeLook(l));
       room?.net.room.setIdentity(playerName(), colourId, encodeLook(l));
     };
-    // Only offline: a room's colour is picked in its lobby.
     g.onColour = (c) => {
       colourId = c;
       store.set(COLOUR_KEY, c);
+      // In a room it's the room colour too: the room sorts out a clash.
+      room?.net.room.setIdentity(playerName(), c, encodeLook(look));
     };
     return g;
   })();
+  // In a room, the colour you actually have (a clash may have moved you off
+  // the one you asked for), with other people's marked.
   const colour = fromLobby && room ? (room.net.room.resolvedColours()[room.net.playerId] ?? colourId) : colourId;
+  garage.taken(fromLobby && lobby ? lobby.takenColours() : new Set());
   show('screen-garage');
-  garage.open(colour, !(fromLobby && room));
+  garage.open(colour);
 }
 $('btn-garage').addEventListener('click', () => openGarage('screen-track'));
 $('btn-lobby-garage').addEventListener('click', () => openGarage('screen-lobby'));
@@ -562,11 +565,13 @@ async function openRoom(code: string): Promise<void> {
 
   const net = client.net;
   const redraw = (): void => {
-    if (room === client && current === 'screen-lobby') lobby?.render();
+    if (room === client && (current === 'screen-lobby' || current === 'screen-lobby-track')) lobby?.render();
   };
   net.events.on('state', redraw);
   net.events.on('roster', redraw);
   net.events.on('hostChange', () => {
+    // The track screen is the host's: whoever stops being host goes back to the lobby.
+    if (room === client && current === 'screen-lobby-track' && !net.isHost) show('screen-lobby');
     redraw();
     // The host left during the results: Rematch moves to whoever took over.
     if (room === client && current === 'screen-results') rematchButton();
@@ -608,10 +613,12 @@ async function openRoom(code: string): Promise<void> {
     return;
   }
   if (room !== client) return;
-  lobby = new Lobby(net, code, tally!);
+  lobby = new Lobby(net, code, tally!, (l, c) => carPortrait(l, c, 80, 40));
   setUrl(`?room=${code}${params.has('quality') ? `&quality=${params.get('quality')}` : ''}`);
   show('screen-lobby');
   lobby.render();
+  // Again, now the render has said whether this is the host: Start is theirs.
+  nav.focusFirst();
 }
 
 function leaveRoom(): void {
@@ -785,21 +792,17 @@ $('btn-cup-add').addEventListener('click', () => {
 });
 $('btn-cup-end').addEventListener('click', () => room?.net.endCup());
 $('btn-copy-link').addEventListener('click', () => void navigator.clipboard?.writeText($('lobby-link').textContent ?? ''));
-// Your name, from the lobby as well as the menu: the two boxes are one setting.
-const lobbyName = $<HTMLInputElement>('lobby-name');
-lobbyName.addEventListener('input', () => {
-  lobbyName.value = lobbyName.value.toUpperCase().replace(/[^A-Z0-9_\- ]/g, '');
-  nameInput.value = lobbyName.value;
-  store.set(NAME_KEY, nameInput.value);
-  room?.net.room.setIdentity(playerName(), colourId, encodeLook(look));
+// The room's track and championship: the host's own screen, off the lobby.
+$('btn-lobby-track').addEventListener('click', () => {
+  if (!room?.net.isHost) return;
+  show('screen-lobby-track');
   lobby?.render();
 });
-$('lobby-colour').addEventListener('change', () => {
-  colourId = $('lobby-colour').dataset.value ?? colourId;
-  store.set(COLOUR_KEY, colourId);
-  room?.net.room.setIdentity(playerName(), colourId, encodeLook(look));
+$('btn-lobby-track-done').addEventListener('click', () => {
+  show('screen-lobby');
   lobby?.render();
-  showMenuCar();
+  // Back on the card that opened it, not on Start.
+  nav.focusOn($('btn-lobby-track'));
 });
 const lobbySettings = (): void => {
   const pick = $<HTMLSelectElement>('lobby-track').value;

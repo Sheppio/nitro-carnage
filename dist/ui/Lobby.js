@@ -6,27 +6,27 @@ import { TRACKS } from '../sim/track/index.js';
 import { daySeed, generateTrack, utcDay } from '../sim/track/generate.js';
 import { BODIES, BODY_NAMES } from '../sim/look.js';
 import { carIcon } from './carIcon.js';
-import { Picker } from './Picker.js';
 import { drawTrackPreview } from './trackPreview.js';
 const $ = (id) => document.getElementById(id);
 /**
- * The room's staging area: who is here, in which colour, and — for the host —
+ * The room's staging area: who is here, in which car, and — for the host —
  * how many cars and laps, and the Start button. Everyone else sees what the
- * host has chosen, because it rides on the heartbeat.
+ * host has chosen, because it rides on the heartbeat. The host's track and
+ * championship have a screen of their own (`screen-lobby-track`); your colour
+ * is picked in the Garage.
  */
 export class Lobby {
     net;
     tally;
-    constructor(net, roomId, tally = null) {
+    portrait;
+    constructor(net, roomId, tally = null, portrait = (l, c) => carIcon(l, c)) {
         this.net = net;
         this.tally = tally;
+        this.portrait = portrait;
         $('lobby-code').textContent = roomId;
         const link = `${location.origin}${location.pathname}?room=${roomId}`;
         $('lobby-link').textContent = link;
-        // Colour squares, not a dropdown: a colour is better seen than read.
-        this.colour = new Picker($('lobby-colour'), PALETTE.map((c) => ({ value: c.id, label: c.name, swatch: c.cssColour })));
     }
-    colour;
     /** The track the preview last drew, so a redraw only happens when it changes. */
     drawn = '';
     /** Why the host's typed seed can't be used: a future day's Track of the Day. */
@@ -96,12 +96,6 @@ export class Lobby {
             li.classList.add('bot');
             list.appendChild(li);
         }
-        // Colour picker: the colour you actually have (a clash may have moved
-        // you off the one you asked for), with other people's marked.
-        const mine = colours[net.playerId] ?? room.claimedColour;
-        this.colour.mark(new Set(Object.entries(colours).filter(([pid]) => pid !== net.playerId).map(([, c]) => c)), 'taken');
-        if (this.colour.value !== mine)
-            this.colour.value = mine;
         $('lobby-cars').value = String(net.state.cars);
         $('lobby-laps').value = String(net.state.laps);
         const st = net.state;
@@ -123,6 +117,8 @@ export class Lobby {
         this.renderCup();
         const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? `Track of the day ${utcDay(Date.now())} · ` : ''}${generateTrack(st.seed).name}`;
         // A map of the room's track, for everyone: a seed is only a word until it's seen.
+        // The track screen's own map shows a locked day while the host types it;
+        // the lobby's card keeps the track the room will actually race.
         const key = this.locked && net.isHost ? 'locked' : `${st.track}:${st.seed}`;
         if (key === 'locked' && key !== this.drawn) {
             this.drawn = key;
@@ -132,9 +128,9 @@ export class Lobby {
         }
         else if (key !== this.drawn) {
             this.drawn = key;
-            const def = st.seed === 0 ? TRACKS[st.track] ?? TRACKS[0] : generateTrack(st.seed);
-            drawTrackPreview($('lobby-track-map'), $('lobby-track-info'), def, track);
+            drawTrackPreview($('lobby-track-map'), $('lobby-track-info'), this.def(), track);
         }
+        this.renderCard(track);
         const on = cupOn(st);
         $('lobby-wait').textContent = room.hostId
             ? `${on ? `Championship race ${st.race + 1} of ${st.cup.length}` : 'Next race'}: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost ? '' : ', no turbo'}${BODIES[st.body - 1] ? `, everyone in a ${BODY_NAMES[BODIES[st.body - 1]]}` : ''}. Waiting for the host to start it.`
@@ -184,6 +180,37 @@ export class Lobby {
         // The next race in view, however far along the line it is.
         list.querySelector('.next')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
+    /** What the room's track is. */
+    def() {
+        const st = this.net.state;
+        return st.seed === 0 ? TRACKS[st.track] ?? TRACKS[0] : generateTrack(st.seed);
+    }
+    /** What the lobby's card said last. */
+    cardDrawn = '';
+    /**
+     * The lobby's track card: the room's map, its name, and where the
+     * championship is. The host's is the button to the track screen; everyone
+     * else's is only a picture.
+     */
+    renderCard(track) {
+        const st = this.net.state;
+        const on = cupOn(st);
+        const cup = on ? `Championship · race ${st.race + 1} of ${st.cup.length}` : st.cup.length ? `Championship · ${st.cup.length} race${st.cup.length === 1 ? '' : 's'} planned` : '';
+        const key = `${st.track}:${st.seed}:${cup}`;
+        if (key === this.cardDrawn)
+            return;
+        this.cardDrawn = key;
+        for (const [map, info] of [['lobby-card-map', 'lobby-card-info'], ['lobby-guest-map', 'lobby-guest-info']]) {
+            drawTrackPreview($(map), $(info), this.def(), track);
+            if (cup)
+                $(info).append(document.createElement('br'), Object.assign(document.createElement('b'), { textContent: cup }));
+        }
+    }
+    /** Colours other people in the room have: marked in the Garage, where yours is picked. */
+    takenColours() {
+        const colours = this.net.room.resolvedColours();
+        return new Set(Object.entries(colours).filter(([pid]) => pid !== this.net.playerId).map(([, c]) => c));
+    }
     cupName(c) {
         if (!c.seed)
             return TRACKS[c.track]?.name ?? '—';
@@ -196,12 +223,15 @@ export class Lobby {
     }
     row(name, colourId, badges, look) {
         const li = document.createElement('li');
-        // The car itself, in its colour and livery, rather than a plain swatch.
-        const icon = carIcon(look, colourId);
-        icon.classList.add('swatch-car');
+        // The car itself, in its colour and livery, and in the body it will race:
+        // the room's Car type, when the host has locked everyone into one.
+        const forced = BODIES[this.net.state.body - 1];
+        const car = forced ? { ...look, body: forced } : look;
+        const icon = this.portrait(car, colourId);
+        icon.classList.add('car-portrait');
         const n = document.createElement('span');
         n.className = 'name';
-        n.textContent = name;
+        n.append(name, Object.assign(document.createElement('small'), { textContent: BODY_NAMES[car.body] }));
         li.append(icon, n);
         for (const b of badges.filter(Boolean)) {
             const tag = document.createElement('span');

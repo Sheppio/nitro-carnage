@@ -80,19 +80,26 @@ try {
   });
   r.check('two players asking for the same colour get different ones', new Set(colours).size === 2, colours.join(' / '));
 
-  // Colour by squares: a click on one changes Bob's colour for everyone.
+  // Colour by squares, in the Garage: a click on one changes Bob's colour for everyone.
   const bob = await b.evaluate(() => window.nitro.room.net.playerId);
-  await b.click('#lobby-colour .swatch[title="Jade"]');
+  await b.click('#btn-lobby-garage');
+  const takenMarked = await b.evaluate(() => document.querySelectorAll('#garage-colour .swatch.taken').length);
+  await b.click('#garage-colour .swatch[title="Jade"]');
+  await b.click('#btn-garage-back');
   const jade = await until(() => a.evaluate((id) => (window.nitro.room.net.room.resolvedColours()[id] === 'jade' ? true : null), bob));
-  r.check('a colour square picks your colour, and the room sees it', Boolean(jade));
+  r.check('a colour square in the Garage picks your room colour, the others\' marked taken, and the room sees it', Boolean(jade) && takenMarked === 1, `${takenMarked} taken`);
 
+  // The track is the host's own screen, off the lobby; the guest has none.
+  const guestCard = await b.evaluate(() => [getComputedStyle(document.getElementById('btn-lobby-track')).display, getComputedStyle(document.getElementById('lobby-guest-track')).display]);
+  r.check('only the host gets the track button; the guest sees the track as a picture', guestCard[0] === 'none' && guestCard[1] !== 'none', guestCard.join(' / '));
+  await a.click('#btn-lobby-track');
   // The lobby's map shows the host's track on the guest's screen too.
   await a.selectOption('#lobby-track', 'seed');
   await a.fill('#lobby-seed', 'egg-cup-top');
   await a.dispatchEvent('#lobby-seed', 'change');
   const mapped = await until(() => b.evaluate(() => {
-    const info = document.getElementById('lobby-track-info').textContent;
-    const c = document.getElementById('lobby-track-map');
+    const info = document.getElementById('lobby-guest-info').textContent;
+    const c = document.getElementById('lobby-guest-map');
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
     let lit = 0;
     for (let i = 3; i < d.length; i += 4) if (d[i] > 0) lit++;
@@ -119,23 +126,34 @@ try {
   }));
   r.check('picking the Track of the Day puts its seed, today\'s date, in the seed box', Boolean(daySeedBox), daySeedBox ?? '');
   await a.selectOption('#lobby-track', '0');
+  await a.click('#btn-lobby-track-done');
+  const doneBack = await a.evaluate(() => !document.getElementById('screen-lobby').hidden && document.activeElement?.id);
+  r.check('Done on the track screen goes back to the lobby, on the track card', doneBack === 'btn-lobby-track', String(doneBack));
 
   // Bob's look, set in his Garage, reaches Alice's lobby.
-  const colourHidden = await b.evaluate(() => {
+  await b.evaluate(() => {
     document.getElementById('btn-lobby-garage').click();
     window.nitro.garage.set({ body: 'buggy', pattern: 'roundel', number: 42 });
-    const hidden = document.getElementById('garage-colour-row').hidden;
     document.getElementById('btn-garage-back').click();
-    return hidden;
   });
-  r.check('from a room, the Garage leaves the colour to the lobby', colourHidden);
   const bobId = await b.evaluate(() => window.nitro.room.net.playerId);
   const seen = await until(() => a.evaluate((id) => {
     const l = window.nitro.room.net.carInfo(id).look;
-    const icons = [...document.querySelectorAll('#lobby-roster canvas.car-icon')].map((c) => c.dataset.body);
-    return l.body === 'buggy' && l.number === 42 && icons.includes('buggy') ? `${l.body} #${l.number}` : null;
+    const row = [...document.querySelectorAll('#lobby-roster li')].find((li) => li.textContent.includes('BOB'));
+    const car = row?.querySelector('canvas.car-portrait');
+    return l.body === 'buggy' && l.number === 42 && car?.dataset.body === 'buggy' && /Buggy/.test(row.textContent) ? `${l.body} #${l.number}` : null;
   }, bobId), { timeout: 10000 });
-  r.check('a look chosen in one tab\'s Garage shows in the other tab\'s lobby', Boolean(seen), seen ?? '');
+  r.check('a look chosen in one tab\'s Garage shows in the other tab\'s lobby, the car drawn and its body named', Boolean(seen), seen ?? '');
+  // The host locks the grid to one body: every car in the roster shows it.
+  await a.selectOption('#lobby-body', '0');
+  const forcedBody = await a.evaluate(() => document.querySelector('#lobby-body option:nth-child(2)').value);
+  await a.selectOption('#lobby-body', forcedBody);
+  const allSame = await until(() => b.evaluate(() => {
+    const bodies = [...document.querySelectorAll('#lobby-roster canvas.car-portrait')].map((c) => c.dataset.body);
+    return bodies.length && new Set(bodies).size === 1 && !bodies.includes('buggy') ? bodies[0] : null;
+  }));
+  r.check('with the car type locked, every car in the roster shows that body', Boolean(allSame), allSame ?? '');
+  await a.selectOption('#lobby-body', '0');
 
   const hostOnly = await b.evaluate(() => getComputedStyle(document.getElementById('btn-start-race')).display);
   r.check('only the host gets the Start button', hostOnly === 'none');
@@ -247,12 +265,14 @@ try {
   r.check('both lobbies show the same points from the race', Boolean(shared), `${await pts(a)} / ${await pts(b)}`);
 
   // A championship (#8): the host lines up two tracks; the guest sees them.
+  await a.click('#btn-lobby-track');
   await a.click('#btn-cup-add');
   await a.selectOption('#lobby-track', '2');
   await a.click('#btn-cup-add');
   const planned = await until(() => b.evaluate(() => {
     const chips = [...document.querySelectorAll('#lobby-cup-list .cup-chip')].map((c) => c.textContent);
-    return chips.length === 2 && !document.getElementById('lobby-cup').hidden ? chips.join(' / ') : null;
+    const card = document.getElementById('lobby-guest-info').textContent;
+    return chips.length === 2 && /Championship · 2 races/.test(card) ? chips.join(' / ') : null;
   }));
   const startLabel = await a.evaluate(() => document.getElementById('btn-start-race').textContent);
   r.check('the host plans a championship in the lobby, and the guest sees its tracks', Boolean(planned) && /championship/i.test(startLabel), `${planned} · "${startLabel}"`);
@@ -261,11 +281,7 @@ try {
   r.check('and takes one out again with its ✕', Boolean(unplanned));
   await a.click('#lobby-cup-list button.cup-chip');
   await until(() => b.evaluate(() => (window.nitro.room.net.state.cup.length === 0 ? true : null)));
-
-  // A new name from the lobby reaches the other screen's roster.
-  await b.fill('#lobby-name', 'BOBBY');
-  const renamed = await until(() => a.evaluate(() => [...document.querySelectorAll('#lobby-roster li')].some((li) => li.textContent.includes('BOBBY')) || null));
-  r.check('a name changed in the lobby shows in everyone\'s roster', Boolean(renamed));
+  await a.click('#btn-lobby-track-done');
 
   /* ---------------------------------------------------- failover mid-race */
   const c = await open('CAROL', `&room=${code}`);
