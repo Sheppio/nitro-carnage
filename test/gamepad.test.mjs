@@ -28,12 +28,47 @@ function padScript(id) {
     buttons: Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 })),
     vibrationActuator: { playEffect: () => Promise.resolve('complete'), reset: () => Promise.resolve('complete') },
   };
-  navigator.getGamepads = () => [pad];
+  // A tap is down for exactly one frame's polls, however long that frame
+  // takes: the first read of the pad schedules the release for after the
+  // frame (a task, so every reader in that frame still sees it down), and the
+  // tap resolves once a later read has seen it up.
+  let tapping = null;
+  navigator.getGamepads = () => {
+    if (tapping) {
+      if (tapping.state === 'down') {
+        tapping.state = 'releasing';
+        const t = tapping;
+        setTimeout(() => {
+          window.__pad.set(t.button, false);
+          t.state = 'up';
+        }, 0);
+      } else if (tapping.state === 'up') {
+        const t = tapping;
+        tapping = null;
+        clearTimeout(t.timer);
+        setTimeout(t.done, 0);
+      }
+    }
+    return [pad];
+  };
   window.__pad = {
     pad,
     set(i, down) {
       pad.buttons[i] = { pressed: down, touched: down, value: down ? 1 : 0 };
       pad.timestamp++;
+    },
+    /** Press and release, seen down in one frame and up in a later one. */
+    tap(i) {
+      return new Promise((done) => {
+        window.__pad.set(i, true);
+        tapping = { button: i, state: 'down', done };
+        // Nothing reading the pad at all: let go rather than hang the test.
+        tapping.timer = setTimeout(() => {
+          window.__pad.set(i, false);
+          tapping = null;
+          done();
+        }, 3000);
+      });
     },
     rename(newId) {
       pad.id = newId;
@@ -56,18 +91,18 @@ async function open(viewport, id = XBOX, query = 'quality=potato') {
 }
 
 /**
- * Press and release a button, held until the page has drawn two frames.
+ * Press and release a button: down for exactly one frame's reads of the pad,
+ * then up for at least one (see `__pad.tap`).
  *
  * Not for a fixed time: the Gamepad API is polled once a frame, and just
  * after a race starts SwiftShader can take 300 ms over a frame while it
  * compiles shaders — a 120 ms tap fell between two frames and was never seen.
+ * Nor for a count of frames: held for two, a tap on a busy machine outlasted
+ * the 420 ms before a held direction repeats, and moved the focus twice.
  */
 const frames = (page) => page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res()))));
 async function tap(page, button) {
-  await page.evaluate((b) => window.__pad.set(b, true), button);
-  await frames(page);
-  await page.evaluate((b) => window.__pad.set(b, false), button);
-  await frames(page);
+  await page.evaluate((b) => window.__pad.tap(b), button);
 }
 
 /** Tap one direction until `id` has focus (at most `max` taps). */
@@ -110,18 +145,14 @@ try {
   r.check('A on the name field opens the on-screen keyboard', Boolean(onName) && Boolean(kb));
   // Type N, O, V, A: the grid is ten wide, A is the first key.
   const keyAt = (ch) => page.evaluate((c) => [...document.querySelectorAll('.keyboard-grid .key')].findIndex((k) => k.textContent === c), ch);
-  let at = 0;
+  // Where the focus really is, read after every tap rather than counted: a
+  // tap the page took twice would otherwise put every later letter one out.
+  const onKey = () => page.evaluate(() => [...document.querySelectorAll('.keyboard-grid .key')].indexOf(document.activeElement));
   for (const ch of 'NOVA') {
     const target = await keyAt(ch);
-    while (at < target) {
-      const step = target - at >= 10 ? B.DOWN : B.RIGHT;
+    for (let k = 0, at = await onKey(); at !== target && k < 40; k++, at = await onKey()) {
+      const step = at < target ? (target - at >= 10 ? B.DOWN : B.RIGHT) : (at - target >= 10 ? B.UP : B.LEFT);
       await tap(page, step);
-      at += step === B.DOWN ? 10 : 1;
-    }
-    while (at > target) {
-      const step = at - target >= 10 ? B.UP : B.LEFT;
-      await tap(page, step);
-      at -= step === B.UP ? 10 : 1;
     }
     await tap(page, B.A);
   }
