@@ -23,7 +23,7 @@ import { autopilot, createAutopilot, SKILLS } from '../dist/sim/autopilot.js';
 import { racingLine } from '../dist/sim/racingLine.js';
 import { World } from '../dist/sim/World.js';
 import { RaceLog } from '../dist/sim/raceLog.js';
-import { mulberry32, wrapAngle } from '../dist/util.js';
+import { hashString, mulberry32, shuffled, wrapAngle } from '../dist/util.js';
 import { SIM } from '../dist/config.js';
 import { trainAt } from '../dist/sim/train.js';
 import { generateTrack, seedOf } from '../dist/sim/track/generate.js';
@@ -539,7 +539,12 @@ const toResults = (room, ms = 200000) => room.run(ms, () => room.clients.filter(
   host.net.startRace();
   room.run(1500);
   const grids = room.clients.map((c) => c.net.state.grid.join('.'));
-  check('the host freezes one grid for everyone: humans first, bots to fill', new Set(grids).size === 1 && host.net.state.grid.length === 5 && host.net.state.grid.slice(3).every((g) => g.startsWith('b')));
+  const humansIn = room.clients.every((c) => host.net.state.grid.includes(c.net.playerId));
+  check('the host freezes one grid for everyone: every human on it, and bots to fill', new Set(grids).size === 1 && host.net.state.grid.length === 5 && humansIn && host.net.state.grid.filter((g) => g.startsWith('b')).length === 2,
+    host.net.state.grid.join());
+  // And shuffled (#21): over a few starts, the host isn't always in the same slot.
+  const slots = new Set(Array.from({ length: 12 }, (_, k) => shuffled(['h0', 'h1', 'h2', 'b3', 'b4'], hashString(`ROOM:${k}:grid`)).indexOf('h0')));
+  check('the start order is shuffled for every race: nobody keeps the same grid slot', slots.size >= 3 && JSON.stringify(shuffled([1, 2, 3, 4, 5], 9)) === JSON.stringify(shuffled([1, 2, 3, 4, 5], 9)), [...slots].join());
   const goAts = room.clients.map((c) => c.net.state.goAt);
   const gos = room.clients.map((c) => c.net.roomAt(c.net.world.goTime));
   check('and one GO: every client\'s world starts at the same room time', new Set(goAts).size === 1 && Math.max(...gos) - Math.min(...gos) < 20,

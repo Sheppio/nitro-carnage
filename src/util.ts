@@ -72,6 +72,17 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
+/** A copy of a list in a random order, from a seed: every client given the seed shuffles alike. */
+export function shuffled<T>(list: readonly T[], seed: number): T[] {
+  const rnd = mulberry32(seed);
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
 /** Deterministic 32-bit hash of a string (FNV-1a). */
 export function hashString(text: string): number {
   let hash = 0x811c9dc5;

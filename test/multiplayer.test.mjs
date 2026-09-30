@@ -268,7 +268,8 @@ try {
 
   const gridA = await a.evaluate(() => window.nitro.room.net.state.grid.join('.'));
   const gridB = await b.evaluate(() => window.nitro.room.net.state.grid.join('.'));
-  r.check('the grid is the same on both screens: two humans and a bot', gridA === gridB && gridA.split('.').length === 3 && /\.b2$/.test(gridA));
+  // In a shuffled start order (#21): the bot anywhere on it.
+  r.check('the grid is the same on both screens: two humans and a bot', gridA === gridB && gridA.split('.').length === 3 && gridA.split('.').filter((g) => g === 'b2').length === 1, gridA);
 
   await Promise.all([a, b].map((p) => p.waitForSelector('#screen-results:not([hidden])', { timeout: 240000 })));
   const orderA = await a.evaluate(() => [...document.querySelectorAll('#results-body tr td:nth-child(2)')].map((t) => t.textContent).join(','));

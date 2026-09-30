@@ -218,10 +218,10 @@ export class RaceSession {
         flyingStart: race ? 0 : 0.25,
       });
       this.playerId = 'you';
-      // The player starts mid-grid in a race — there is somebody to catch and
-      // somebody to hold off — and on pole in a free drive.
+      // The player starts anywhere on a race's grid, and on pole in a free drive.
       const bots = race ? Math.min(5, opts.bots) : 0;
-      const playerSlot = race ? Math.min(bots, 3) : 0;
+      // Anywhere on the grid, afresh every race (#21): Race again is not the same start.
+      const playerSlot = race ? Math.floor(Math.random() * (bots + 1)) : 0;
       const colours = COLOUR_ORDER.filter((c) => c !== opts.colourId);
       this.player = this.world.addCar('you', playerSlot, () => this.playerIntent());
       // The Car type: the player is the senior car, whose body a Single grid copies.

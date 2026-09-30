@@ -60,6 +60,16 @@ export function mulberry32(seed) {
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
 }
+/** A copy of a list in a random order, from a seed: every client given the seed shuffles alike. */
+export function shuffled(list, seed) {
+    const rnd = mulberry32(seed);
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+}
 /** Deterministic 32-bit hash of a string (FNV-1a). */
 export function hashString(text) {
     let hash = 0x811c9dc5;

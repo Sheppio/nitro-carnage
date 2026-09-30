@@ -9,7 +9,7 @@ import { assignBodies, BODIES, bodyCode, botLook, CAR_MODES, carModeOf, decodeLo
 import { racingLine } from '../sim/racingLine.js';
 import { World } from '../sim/World.js';
 import { IDLE_INTENT } from '../types.js';
-import { Emitter, hashString } from '../util.js';
+import { Emitter, hashString, shuffled } from '../util.js';
 import { CarPublisher } from './CarPublisher.js';
 import { ClockSync } from './ClockSync.js';
 import { HostDirector } from './HostDirector.js';
@@ -197,14 +197,22 @@ export class NetRace {
     }
     launch(change) {
         const humans = this.room.aliveIds.slice(0, NET.maxPlayers);
-        const grid = [...humans];
-        for (let slot = grid.length; slot < Math.max(this.state.cars, humans.length); slot++)
-            grid.push(`b${slot}`);
+        // Most senior first: humans in join order, then the bots.
+        const seniors = [...humans];
+        for (let slot = seniors.length; slot < Math.max(this.state.cars, humans.length); slot++)
+            seniors.push(`b${slot}`);
         this.director.reset();
         const goAt = Math.round(this.roomNow + NET.countdownMs);
+        // A fresh start order every race (#21): nobody is stuck in the same grid slot race after race.
+        const grid = shuffled(seniors, hashString(`${this.room.roomId}:${goAt}:grid`));
         // The Car type settled once, here, for the whole race: every client races the bodies the host dealt.
         const mode = carModeOf(this.state.ctype);
-        const dealt = mode === 'any' ? null : assignBodies(grid.map((id) => this.ownLook(id).body), mode, hashString(`${this.room.roomId}:${goAt}`), grid.indexOf(this.playerId));
+        const byId = new Map();
+        if (mode !== 'any') {
+            const dealt = assignBodies(seniors.map((id) => this.ownLook(id).body), mode, hashString(`${this.room.roomId}:${goAt}`), seniors.indexOf(this.playerId));
+            seniors.forEach((id, i) => byId.set(id, dealt[i]));
+        }
+        const dealt = mode === 'any' ? null : grid.map((id) => byId.get(id));
         const bodies = dealt ? dealt.map((b) => BODIES.indexOf(b).toString(36)).join('') : '';
         // Older builds read `body`: the one body of a Single grid, and their own car otherwise.
         const body = mode === 'single' && dealt ? bodyCode(dealt[0]) : 0;
