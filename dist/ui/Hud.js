@@ -120,6 +120,7 @@ export class Hud {
                 cd.classList.add('pop');
         }
         const bannerEl = $('hud-banner');
+        bannerEl.classList.toggle('over', this.over);
         if (this.over) {
             bannerEl.textContent = 'RACE OVER';
             bannerEl.classList.remove('warn');

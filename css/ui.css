@@ -32,7 +32,7 @@ html, body {
 
 /* The race's end: the track and the HUD fade out, then the results fade in
    (see `onOver` in main.ts). The next race fades back in the same way. */
-#game-root, .screen.hud { transition: opacity 0.5s ease; }
+#game-root, .screen.hud { transition: opacity 1s ease; }
 body.race-out #game-root, body.race-out .screen.hud { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { #game-root, .screen.hud { transition: none; } }
 
@@ -174,6 +174,12 @@ select {
 }
 
 /* -------------------------------------------------------------------- HUD */
+
+/* The HUD's scale, set from the window's size (main.ts): 1 up to a laptop's
+   window, up to about 1.8 on a QHD desktop. The TV layout zooms the overlay instead. */
+:root { --hud: 1; }
+body.tv { --hud: 1; }
+.hud-top, .hud-race, .hud-bottom, .hud-feed { zoom: var(--hud); }
 
 .hud-top, .hud-bottom {
   position: absolute;
@@ -466,9 +472,15 @@ select {
   white-space: nowrap;
   pointer-events: none;
   transition: opacity 0.4s;
+  font-size: calc(30px * var(--hud));
 }
 
 .hud-banner.warn { color: #ff5a4a; }
+/* RACE OVER: across the middle of the screen, over half its width. */
+.hud-banner.over { top: 30%; transform: translate(-50%, -50%); font-size: 8vw; font-style: italic; color: var(--accent-2); }
+body.tv .hud-banner.over { font-size: 5.7vw; }
+/* A phone held sideways has the lap box where RACE OVER would be: lower, clear of it. */
+@media (pointer: coarse) { .hud-banner.over { top: 50%; } }
 .hud-banner:empty { opacity: 0; }
 
 .hud-auto {
@@ -514,7 +526,7 @@ select {
 .menu-card.wide { width: min(560px, 100%); }
 
 /* An animation restarts whenever `hidden` comes off, and only a race's end shows the results. */
-.screen.results { animation: results-in 0.5s ease both; }
+.screen.results { animation: results-in 1s ease both; }
 @keyframes results-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .screen.results { animation: none; } }
 

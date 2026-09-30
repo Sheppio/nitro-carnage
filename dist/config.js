@@ -208,8 +208,11 @@ export const NET = {
     countdownMs: 4000,
     /** After the first car finishes, how long the rest get. */
     finishGraceMs: 60000,
-    /** How long the results stay up before the room returns to the lobby. */
-    resultsMs: 12000,
+    /**
+     * How long after the race ends the room returns to the lobby: RACE OVER and
+     * the fade to the results take 7 s of it (main.ts), the results the other 12.
+     */
+    resultsMs: 19000,
     /** A car silent this long mid-race is treated as gone (did not finish). */
     carSilenceMs: 5000,
     keepaliveSec: 30,

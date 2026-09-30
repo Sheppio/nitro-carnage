@@ -84,9 +84,9 @@ let podium: PodiumView | null = null;
  * moment under RACE OVER, the cars rolling over the line, then the track
  * and the HUD fade out, and the results fade in (css: `body.race-out`).
  */
-const RACE_HOLD_MS = 3000;
-/** Each half of the fade: the race out, then the results in (css: 0.5s each). */
-const RACE_FADE_MS = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500;
+const RACE_HOLD_MS = 5000;
+/** Each half of the fade: the race out, then the results in (css: 1s each). */
+const RACE_FADE_MS = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1000;
 let raceOutTimer = 0;
 
 function show(id: ScreenId): void {
@@ -998,6 +998,17 @@ const applyUiSize = (): void => {
 };
 applyUiSize();
 settings.events.on('change', applyUiSize);
+/**
+ * The race HUD grows with the window (css: `--hud`): laid out for a laptop,
+ * it was small print on a big desktop screen. Never smaller than as designed,
+ * so phones and the Deck are unchanged; the TV layout has its own zoom.
+ */
+const hudScale = (): void => {
+  const k = Math.max(1, Math.min(2.2, innerWidth / 1150, innerHeight / 720));
+  document.documentElement.style.setProperty('--hud', k.toFixed(3));
+};
+hudScale();
+addEventListener('resize', hudScale);
 $('set-names').addEventListener('change', (e) => settings.set('nameTags', (e.target as HTMLSelectElement).value as NameTags));
 $('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number((e.target as HTMLInputElement).value)));
 $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number((e.target as HTMLInputElement).value)));
