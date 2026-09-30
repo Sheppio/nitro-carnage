@@ -96,14 +96,18 @@ try {
     const scr = document.getElementById('screen-track');
     const shown = (id) => scr.contains(document.getElementById(id)) && document.getElementById(id).getClientRects().length > 0;
     return {
-      has: ['menu-track', 'menu-seed', 'menu-seed-random', 'menu-track-map', 'menu-keys', 'btn-track-go'].every(shown),
+      // The kind of track, then its list or its seed (#18), a map and the controls.
+      has: ['menu-cat-pick', 'menu-track-map', 'menu-keys', 'btn-track-go'].every(shown)
+        && (['menu-list', 'menu-list-random', 'menu-fav'].every(shown) || ['menu-seed', 'menu-seed-random', 'menu-seed-fav'].every(shown)),
+      kinds: [...document.getElementById('menu-cat').options].map((o) => o.textContent).join(),
       weapons: shown('menu-weapons') || shown('menu-pickups') || shown('menu-turbo') || shown('menu-body'),
       title: document.getElementById('track-mode').textContent,
       keys: document.getElementById('menu-keys').textContent,
     };
   });
   r.check('the menu keeps to the modes and settings; Hotlap opens a track screen with the seed, a map and the controls, and no weapons, power-ups, turbo or car-type switch',
-    onMenu.length === 0 && trackScreen.has && !trackScreen.weapons && trackScreen.title === 'Hotlap' && /Steer/.test(trackScreen.keys),
+    onMenu.length === 0 && trackScreen.has && !trackScreen.weapons && trackScreen.title === 'Hotlap' && /Steer/.test(trackScreen.keys)
+      && trackScreen.kinds === 'Track of the day,Favourites,Real world,Built in,Seeded',
     `${onMenu.length ? `still on the menu: ${onMenu.join(' ')}; ` : ''}${trackScreen.title}, weapons ${trackScreen.weapons ? 'shown' : 'hidden'}`);
 
   /* ------------------------------------------------------------- driving */
@@ -901,6 +905,8 @@ try {
       outside.push(...(await inside('screen-lobby')));
       // The track and its seed are on their own screen.
       await lp.click('#btn-lobby-track');
+      // Seeded, with the seed box, its dice and star (#18): the widest the chooser gets.
+      await lp.selectOption('#lobby-track', 'seed');
       await lp.fill('#lobby-seed', 'EAR-DIN-EAT');
       outside.push(...(await inside('screen-lobby-track')));
       await lp.evaluate(() => window.nitro.room?.leave());

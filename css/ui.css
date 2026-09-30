@@ -155,8 +155,16 @@ h2 {
 .seed-row { display: flex; align-items: stretch; gap: 8px; margin: 0 0 12px; }
 .seed-row .field { flex: 1 1 auto; min-width: 0; margin: 0; }
 .seed-row input { min-width: 0; }
-/* As tall as the seed box beside it, and square, with the dice filling it (#15). */
-.btn.dice { flex: none; align-self: stretch; aspect-ratio: 1; display: grid; place-items: center; font-size: 28px; line-height: 1; padding: 0; }
+/* As tall as the seed box beside it (44 px), and as wide, with the dice filling it (#15). */
+.btn.dice { flex: none; align-self: stretch; width: 44px; display: grid; place-items: center; font-size: 28px; line-height: 1; padding: 0; }
+
+/* The track chooser's star (#14): a favourite is a gold one. */
+.btn.fav { flex: none; align-self: stretch; width: 44px; display: grid; place-items: center; font-size: 24px; line-height: 1; padding: 0; }
+.btn.fav.on { color: #ffc93c; }
+/* The Track of the Day has no second choice: its row keeps its place, empty, so nothing below jumps. */
+.pick-row.blank { visibility: hidden; }
+.track-pick { min-width: 0; }
+.track-pick .seed-row { margin: 0 0 12px; }
 
 /* The name and the Garage button beside it, drawn as your car: the button is the box's height. */
 .name-row { display: flex; align-items: flex-end; gap: 8px; margin: 0 0 12px; }
@@ -748,6 +756,7 @@ button.track-card::after { content: '›'; margin-left: auto; padding-left: 6px;
 .swatch.taken { opacity: 0.35; background-image: linear-gradient(135deg, transparent 45%, rgba(0, 0, 0, 0.7) 45%, rgba(0, 0, 0, 0.7) 55%, transparent 55%); }
 .lobby-grid .field select, .lobby-grid .field input { min-width: 0; max-width: 62%; }
 .lobby-grid .seed-row .field input { max-width: none; flex: 1 1 auto; }
+.lobby-grid .pick-row .field select { max-width: none; flex: 1 1 auto; }
 body:not(.is-host) .host-only { display: none !important; }
 /* A setting the room has fixed for now: the championship's track while it runs. */
 .lobby-grid .field:has(select:disabled), .seed-row:has(input:disabled) { opacity: 0.45; }
@@ -1009,6 +1018,10 @@ body[data-pad="none"] .pad-only { display: none; }
 }
 
 .track-preview.big .track-map { width: 150px; height: 150px; }
+/* A phone on its side: the room's map at the menu's size, so Done stays on the screen under the chooser (#18). */
+@media (max-height: 500px) {
+  .track-preview.big .track-map { width: 92px; height: 92px; }
+}
 
 .track-info { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
 .track-info b { color: var(--text); font-family: var(--display); letter-spacing: 0.04em; }

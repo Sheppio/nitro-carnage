@@ -82,18 +82,32 @@
         <div class="menu-card wide">
           <h2 id="track-mode">Quick race</h2>
           <nav class="menu-actions">
-            <div class="lobby-grid">
+            <!-- First which kind of track, then which one (#18): see TrackChooser. -->
+            <div class="lobby-grid track-chooser">
               <label class="field">
-                <span>Track</span>
-                <select id="menu-track"></select>
+                <span>Tracks</span>
+                <select id="menu-cat"></select>
               </label>
-              <div class="seed-row" id="menu-seed-row">
-                <label class="field">
-                  <span>Seed</span>
-                  <input type="text" id="menu-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
-                </label>
-                <button class="btn dice" id="menu-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
+              <div class="track-pick">
+                <div class="seed-row pick-row" id="menu-list-row">
+                  <label class="field">
+                    <span>Track</span>
+                    <select id="menu-list" data-nav-pass></select>
+                  </label>
+                  <button class="btn dice" id="menu-list-random" title="Random track" aria-label="Random track">🎲</button>
+                  <button class="btn fav" id="menu-fav" type="button">☆</button>
+                </div>
+                <div class="seed-row" id="menu-seed-row">
+                  <label class="field">
+                    <span>Seed</span>
+                    <input type="text" id="menu-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
+                  </label>
+                  <button class="btn dice" id="menu-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
+                  <button class="btn fav" id="menu-seed-fav" type="button">☆</button>
+                </div>
               </div>
+              <!-- What the page reads: '0'..'n' for a built-in, 'day', 'seed'. -->
+              <select id="menu-track" class="stepped" aria-hidden="true" tabindex="-1" data-nav-skip></select>
             </div>
             <div class="track-preview" id="menu-track-preview" aria-live="polite">
               <canvas class="track-map" id="menu-track-map" aria-hidden="true"></canvas>
@@ -266,18 +280,30 @@
       <section class="screen menu" id="screen-lobby-track" hidden>
         <div class="menu-card wide">
           <h2>Track</h2>
-          <div class="lobby-grid one-column">
+          <div class="lobby-grid one-column track-chooser">
             <label class="field">
-              <span>Track</span>
-              <select id="lobby-track" data-nav-default></select>
+              <span>Tracks</span>
+              <select id="lobby-cat"></select>
             </label>
-            <div class="seed-row" id="lobby-seed-row">
-              <label class="field">
-                <span>Seed</span>
-                <input type="text" id="lobby-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
-              </label>
-              <button class="btn dice" id="lobby-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
+            <div class="track-pick">
+              <div class="seed-row pick-row" id="lobby-list-row">
+                <label class="field">
+                  <span>Track</span>
+                  <select id="lobby-list" data-nav-pass></select>
+                </label>
+                <button class="btn dice" id="lobby-list-random" title="Random track" aria-label="Random track">🎲</button>
+                <button class="btn fav" id="lobby-fav" type="button">☆</button>
+              </div>
+              <div class="seed-row" id="lobby-seed-row">
+                <label class="field">
+                  <span>Seed</span>
+                  <input type="text" id="lobby-seed" maxlength="20" autocomplete="off" spellcheck="false" placeholder="any word" />
+                </label>
+                <button class="btn dice" id="lobby-seed-random" title="Random seed" aria-label="Random seed">🎲</button>
+                <button class="btn fav" id="lobby-seed-fav" type="button">☆</button>
+              </div>
             </div>
+            <select id="lobby-track" class="stepped" aria-hidden="true" tabindex="-1" data-nav-skip></select>
           </div>
           <div class="track-preview big" id="lobby-track-preview" aria-live="polite">
             <canvas class="track-map" id="lobby-track-map" aria-hidden="true"></canvas>

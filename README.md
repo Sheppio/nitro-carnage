@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.89**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.90**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -19,7 +19,12 @@ up to six players. Bots fill the empty grid slots.
 > - **Hotlap** has replaced free drive: you, the clock and your record on each track,
 >   with live splits at every checkpoint.
 > - **Race only.** Rooms and quick races can switch the weapons off.
-> - **Game night.** Pickup boxes on the road (ammo, repairs, turbo). A room keeps
+> - **Choosing a track.** First the kind, *Track of the day*, *Favourites*, *Real world*,
+>   *Built in* or *Seeded*, then the track itself, with a 🎲 for a random one of that kind
+>   and a ☆ to make it a favourite. The Car type puts everyone in the host's car
+>   (*Single*), their own (*Any*), no two alike (*Distinct*) or a fresh deal each race
+>   (*Random*). The turbo is switched off for now (`FEATURES.turbo` in `config.ts`).
+> - **Game night.** Pickup boxes on the road (ammo, repairs). A room keeps
 >   score across the evening, hands out awards, shows a kill feed and a podium, and
 >   the host can start a rematch straight from the results. A TV layout for consoles.
 > - **Championship.** The host lines up tracks in the lobby, built-in or seeded, and
@@ -63,7 +68,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 901 checks: simulation and networking (Node), and real browsers
+npm test           # 904 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -1314,7 +1319,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-901 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+904 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1450,7 +1455,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   frozen for 20 s waking without splitting the room; a player on an older build is
   marked in the lobby with a note to reload; the tabs open a real WebRTC link, both
   lobbies say DIRECT, and the missile crosses it.
-- **`gamepad.test.mjs`** (28, browser, a virtual pad and nothing else): the Garage by
+- **`gamepad.test.mjs`** (29, browser, a virtual pad and nothing else): the Garage by
   pad (RB changes the body, the D-pad the livery) and at 1280×800; the lock prompt;
   Xbox and PlayStation prompts; the on-screen keyboard; menu to race by way of the
   track screen, Start already focused; RT drives; Menu/Options pauses, A resumes;
@@ -1459,7 +1464,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   and the lobby fit with nothing off screen; each starts on its first setting, the host
   on Start race; B in the lobby asks before leaving the room, and B again stays; a
   controller disconnecting mid-race pauses it.
-- **`keyboard.test.mjs`** (37, browser, keys and nothing else): on the menu, track,
+- **`keyboard.test.mjs`** (39, browser, keys and nothing else): on the menu, track,
   settings, Garage, join, lobby, pause and results screens, a breadth-first search over the arrow
   keys reaches every control. It presses each arrow from every control reached so
   far, so it's exact, not a walk that might be lucky. The race number changes with the

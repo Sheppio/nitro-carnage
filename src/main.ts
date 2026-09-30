@@ -24,6 +24,7 @@ import type { CarLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
 import { GaragePreview } from './render/GaragePreview.js';
 import { carPortrait } from './render/carPortrait.js';
+import { Favourites, TrackChooser } from './ui/TrackChooser.js';
 import { PodiumView } from './render/PodiumView.js';
 import type { TrackDef } from './sim/track/TrackDef.js';
 import { applyGlyphs, padFamily } from './ui/glyphs.js';
@@ -243,6 +244,12 @@ menuTrack.addEventListener('change', () => {
   showMenuSeed();
 });
 menuSeed.addEventListener('input', useMenuSeed);
+/** The track screens' choosers (#18), and the favourites they share (#14). */
+const favourites = new Favourites(`${SLUG}.favs`, store);
+new TrackChooser('menu', TRACKS, favourites);
+new TrackChooser('lobby', TRACKS, favourites);
+// The room's track screen opens on the kind of track, as the old track list did.
+$('lobby-cat-pick').dataset.navDefault = '';
 const chosenTrack = (): TrackChoice => trackChoice(menuTrack.value, menuSeed.value);
 
 /** Draw the chosen track in the menu: redrawn as the choice changes, and as a seed is typed. */

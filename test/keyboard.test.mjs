@@ -43,7 +43,7 @@ async function walk(page) {
     for (const key of ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft']) {
       const owns = await page.evaluate((id) => {
         const el = document.getElementById(id);
-        return el && (el.tagName === 'SELECT' || (el.tagName === 'INPUT' && el.type === 'range') || el.hasAttribute('data-nav-cycle'));
+        return el && ((el.tagName === 'SELECT' && !el.hasAttribute('data-nav-pass')) || (el.tagName === 'INPUT' && el.type === 'range') || el.hasAttribute('data-nav-cycle'));
       }, from);
       if (owns && (key === 'ArrowLeft' || key === 'ArrowRight')) continue;
       await page.evaluate(([id, k]) => {
@@ -71,7 +71,7 @@ async function goTo(page, id) {
   for (const key of ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft']) {
     for (let k = 0; k < 14; k++) {
       if ((await focused(page)) === id) return true;
-      const onSelect = await page.evaluate(() => document.activeElement?.tagName === 'SELECT' || document.activeElement?.hasAttribute('data-nav-cycle'));
+      const onSelect = await page.evaluate(() => (document.activeElement?.tagName === 'SELECT' && !document.activeElement.hasAttribute('data-nav-pass')) || document.activeElement?.hasAttribute('data-nav-cycle'));
       await page.keyboard.press(onSelect && (key === 'ArrowLeft' || key === 'ArrowRight') ? 'ArrowDown' : key);
     }
   }
@@ -151,9 +151,11 @@ try {
     const x = await reach(page);
     r.check('Quick race opens the track screen with Start focused, and every control on it is reachable with the arrow keys', Boolean(onTrack) && startFocused && x.ok, x.note);
   }
-  // From a built-in track, type in the seed box: the track becomes Custom
-  // seed at the first letter, and the preview maps it and says what it is.
+  // From a built-in track, step the kind of track on to Seeded (#18) and type
+  // in the seed box: the preview maps the seed and says what it is.
   const trackBefore = await page.evaluate(() => document.getElementById('menu-track').value);
+  await goTo(page, 'menu-cat-pick');
+  for (let k = 0; k < 5 && (await page.evaluate(() => document.getElementById('menu-cat').value)) !== 'seed'; k++) await page.keyboard.press('ArrowRight');
   await goTo(page, 'menu-seed');
   await page.keyboard.press('Control+a');
   await page.keyboard.type('sheppio');
@@ -169,7 +171,7 @@ try {
     for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
     return n / (c.width * c.height);
   });
-  r.check('typing a seed switches the track to Custom seed and shows it on the menu: a map, a name, its style and layout',
+  r.check('Seeded, a typed seed is the track, shown on the menu: a map, a name, its style and layout',
     trackBefore !== 'seed' && switched === 'Custom seed' && Boolean(preview) && /Flowing loop|City grid|Long straights/.test(preview) && inked > 0.03, `${trackBefore} -> ${switched}; ${preview ?? ''}`);
   // Right from the end of the seed is the dice, sitting at the end of the box: Enter deals three words, and the preview follows.
   await page.keyboard.press('ArrowRight');
@@ -188,11 +190,37 @@ try {
   r.check('the dice sits at the end of the seed box, right-arrow reaches it, and it deals three hyphenated words', onDice && sameLine && Boolean(dealt), dealt ?? '');
   await page.keyboard.press('ArrowLeft');
   const backInSeed = (await focused(page)) === 'menu-seed';
+  // The star beside the dice makes the seed a favourite (#14).
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  const onStar = (await focused(page)) === 'menu-seed-fav';
+  await page.keyboard.press('Enter');
+  const starred = await page.evaluate(() => [document.getElementById('menu-seed-fav').textContent, localStorage.getItem('nitrocarnage.favs')]);
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
   // Picking a built-in track again keeps the seed typed, for later.
-  await goTo(page, 'menu-track');
-  for (let k = 0; k < 8 && (await page.evaluate(() => document.getElementById('menu-track').value)) !== '0'; k++) await page.keyboard.press('ArrowRight');
+  await goTo(page, 'menu-cat-pick');
+  for (let k = 0; k < 5 && (await page.evaluate(() => document.getElementById('menu-cat').value)) !== 'own'; k++) await page.keyboard.press('ArrowLeft');
   const kept = await page.evaluate(() => [document.getElementById('menu-track').value, document.getElementById('menu-seed').value]);
-  r.check('left from the dice is the seed again; a built-in track can be picked back, and the seed stays in the box', backInSeed && kept[0] === '0' && kept[1] === dealt, JSON.stringify(kept));
+  r.check('left from the dice is the seed again; a built-in track can be picked back, and the seed stays in the box', backInSeed && kept[0] === trackBefore && kept[1] === dealt, JSON.stringify(kept));
+  // Favourites: the starred seed is in its list, and picking it races that seed again.
+  for (let k = 0; k < 5 && (await page.evaluate(() => document.getElementById('menu-cat').value)) !== 'fav'; k++) await page.keyboard.press('ArrowLeft');
+  const fav = await until(() => page.evaluate(() => {
+    const list = [...document.getElementById('menu-list').options].map((o) => o.value);
+    const t = document.getElementById('menu-track').value, seed = document.getElementById('menu-seed').value;
+    return t === 'seed' && list.includes(`s:${seed}`) ? { list, seed, star: document.getElementById('menu-fav').textContent } : null;
+  }));
+  r.check('the star makes a seed a favourite: Favourites lists it, and picking Favourites races it, starred',
+    onStar && starred[0] === '★' && JSON.parse(starred[1] ?? '[]').includes(`s:${dealt}`) && fav?.seed === dealt && fav.star === '★', JSON.stringify({ onStar, starred, fav }));
+  // Unstarred again, it leaves the list. Right from the track dropdown is the
+  // star: its dice is off, with only one favourite to pick from.
+  await page.evaluate(() => document.getElementById('menu-list').focus());
+  const diceOff = await page.evaluate(() => document.getElementById('menu-list-random').disabled);
+  await page.keyboard.press('ArrowRight');
+  const onListStar = (await focused(page)) === 'menu-fav';
+  await page.keyboard.press('Enter');
+  const unstarred = await until(() => page.evaluate(() => (document.getElementById('menu-fav').textContent === '☆' && !JSON.parse(localStorage.getItem('nitrocarnage.favs')).length ? true : null)));
+  r.check('with one favourite its dice is off; right from the dropdown, the star again takes it out', diceOff && onListStar && Boolean(unstarred), await page.evaluate(() => JSON.stringify({ at: document.activeElement?.id, star: document.getElementById('menu-fav').textContent, dis: document.getElementById('menu-fav').disabled, favs: localStorage.getItem('nitrocarnage.favs'), cat: document.getElementById('menu-cat').value })));
   await page.keyboard.press('Escape');
   const trackBack = await until(() => visible(page, 'screen-menu'));
   r.check('Esc goes back from the track screen to the menu', Boolean(trackBack));

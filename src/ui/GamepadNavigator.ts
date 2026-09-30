@@ -289,7 +289,8 @@ export class GamepadNavigator {
         this.nudgeRange(from, step);
         return;
       }
-      if (from instanceof HTMLSelectElement) {
+      // A dropdown with buttons beside it (`data-nav-pass`, the track chooser's) lets left/right walk on to them; A still opens it.
+      if (from instanceof HTMLSelectElement && !from.hasAttribute('data-nav-pass')) {
         this.cycleSelect(from, step);
         return;
       }

@@ -170,28 +170,36 @@ try {
   const onRace = await padTo(page, 'btn-race', B.DOWN);
   await tap(page, B.A);
   const onStart = await until(() => page.evaluate(() => (!document.getElementById('screen-track').hidden && document.activeElement?.id === 'btn-track-go') || null));
-  // A on the Track dropdown lists every track under its group; down reaches
-  // the Track of the day, and A picks it. (Xbox Edge shows no native popup.)
+  // A on the Track dropdown lists the kind's tracks (#18), on the current
+  // one; down and A pick the next. (Xbox Edge shows no native popup.)
   {
     const before = await page.evaluate(() => document.getElementById('menu-track').value);
-    const onTrackSel = await padTo(page, 'menu-track', B.UP);
+    const onTrackSel = await padTo(page, 'menu-list', B.UP);
     await tap(page, B.A);
     const listed = await until(() => page.evaluate(() => {
       const v = document.getElementById('choice-veil');
       return v.hidden ? null : {
-        groups: [...v.querySelectorAll('h3')].map((h) => h.textContent),
         items: v.querySelectorAll('.choice').length,
+        want: document.getElementById('menu-list').options.length,
         on: document.activeElement?.classList.contains('current'),
       };
     }));
-    const reached = await padTo(page, 'Track of the day', B.DOWN, 40);
+    await tap(page, B.DOWN);
     await tap(page, B.A);
     const picked = await until(() => page.evaluate(() => (document.getElementById('choice-veil').hidden ? {
-      value: document.getElementById('menu-track').value, focus: document.activeElement?.id,
+      value: document.getElementById('menu-track').value, list: document.getElementById('menu-list').value, focus: document.activeElement?.id,
     } : null)));
-    r.check('A on a dropdown opens a list of its options by group, on the current one; down and A pick the Track of the day',
-      onTrackSel && listed?.groups.length === 3 && listed.items > 20 && listed.on && reached && picked?.value === 'day' && picked.focus === 'menu-track',
-      JSON.stringify({ listed, reached, picked }));
+    r.check('A on the track dropdown opens a list of the kind\'s tracks, on the current one; down and A pick the next, and the race takes it',
+      onTrackSel && listed?.items === listed.want && listed.items > 3 && listed.on && picked?.value === picked.list && picked.value !== before && picked.focus === 'menu-list',
+      JSON.stringify({ listed, picked }));
+    // Up to the kind of track: right steps it on to Seeded, and the seed box takes the dropdown's place.
+    await padTo(page, 'menu-cat-pick', B.UP);
+    await tap(page, B.RIGHT);
+    const kind = await until(() => page.evaluate(() => {
+      const t = document.getElementById('menu-track').value;
+      return t === 'seed' && !document.getElementById('menu-seed-row').hidden && document.getElementById('menu-list-row').hidden ? t : null;
+    }));
+    r.check('right on the kind of track steps on to Seeded: the seed box shows and the race is on the seed', Boolean(kind));
     await page.evaluate((v) => { const s = document.getElementById('menu-track'); s.value = v; s.dispatchEvent(new Event('change')); }, before);
     await padTo(page, 'btn-track-go', B.DOWN);
   }
