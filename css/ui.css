@@ -343,6 +343,18 @@ body.tv { --hud: 1; --hud-big: 1; }
   pointer-events: auto;
 }
 
+/* Steering by buttons (#26): a left and a right under the left thumb, apart enough to rock between. */
+.touch-steer-buttons {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 18px;
+  pointer-events: auto;
+}
+.touch-steer-buttons[hidden], .touch-steer[hidden] { display: none; }
+.touch-btn.steer { width: 78px; height: 78px; font-size: 26px; }
+
 .touch-steer-base {
   position: fixed;
   left: 22%;
@@ -1047,3 +1059,9 @@ body.tv .menu-note, body.tv .track-info, body.tv .version, body.tv .console-bann
 body.tv .roster .badge { font-size: 12px; }
 body.tv .hud-splits { font-size: 15px; }
 body.tv .ammo { font-size: 15px; }
+
+/* A phone upright: the settings list is long, so its rows sit closer, and it fits without scrolling. */
+@media (max-width: 500px) {
+  #screen-settings .field { margin-bottom: 7px; }
+  #screen-settings h2 { margin-bottom: 10px; }
+}

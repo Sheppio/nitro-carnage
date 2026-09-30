@@ -98,6 +98,7 @@ export class InputManager {
     syncTouch() {
         const mode = this.settings.current.touchControls;
         const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+        this.touch.setSteerMode(this.settings.current.touchSteer);
         this.touch.setEnabled(this.inRace && !this.paused && (mode === 'on' || (mode === 'auto' && coarse)));
     }
     /** Debounced so a drifting stick can't fight the keyboard for control. */

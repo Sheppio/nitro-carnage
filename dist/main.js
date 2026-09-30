@@ -279,7 +279,7 @@ for (const id of [
     'menu-laps', 'menu-weapons', 'menu-pickups', 'menu-turbo', 'menu-body',
     'lobby-cars', 'lobby-laps', 'lobby-weapons', 'lobby-pickups', 'lobby-turbo', 'lobby-body',
     'garage-number',
-    'set-quality', 'set-touch', 'set-bots', 'set-ghost', 'set-uisize', 'set-names', 'set-broker',
+    'set-quality', 'set-touch', 'set-steer', 'set-bots', 'set-ghost', 'set-uisize', 'set-names', 'set-broker',
 ])
     stepperFor($(id));
 const menuBody = $('menu-body');
@@ -1013,8 +1013,10 @@ function openSettings(fromPause) {
     settingsFromPause = fromPause;
     // A console has a controller and a TV, and no touchscreen to put buttons on.
     $('set-touch-row').hidden = isConsole();
+    showSteerRow(settings.current.touchControls);
     $('set-quality').value = settings.current.quality === 'potato' ? 'low' : settings.current.quality;
     $('set-touch').value = settings.current.touchControls;
+    $('set-steer').value = settings.current.touchSteer;
     $('set-vibration').checked = settings.current.vibration;
     $('set-fullscreen').checked = settings.current.fullscreen;
     $('set-motion').checked = settings.current.reduceMotion;
@@ -1058,6 +1060,13 @@ settings.events.on('change', () => {
         session.autopilot = settings.current.autopilot;
 });
 $('set-quality').addEventListener('change', (e) => settings.set('quality', e.target.value));
+$('set-steer').addEventListener('change', (e) => settings.set('touchSteer', e.target.value));
+/** Touch steering only where the touch controls will show: not with them off, nor on Automatic without a touch screen. */
+function showSteerRow(mode) {
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    $('set-steer-row').hidden = isConsole() || mode === 'off' || (mode === 'auto' && !coarse);
+}
+$('set-touch').addEventListener('change', (e) => showSteerRow(e.target.value));
 $('set-touch').addEventListener('change', (e) => settings.set('touchControls', e.target.value));
 $('set-vibration').addEventListener('change', (e) => settings.set('vibration', e.target.checked));
 /**

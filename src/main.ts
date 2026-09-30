@@ -304,7 +304,7 @@ for (const id of [
   'menu-laps', 'menu-weapons', 'menu-pickups', 'menu-turbo', 'menu-body',
   'lobby-cars', 'lobby-laps', 'lobby-weapons', 'lobby-pickups', 'lobby-turbo', 'lobby-body',
   'garage-number',
-  'set-quality', 'set-touch', 'set-bots', 'set-ghost', 'set-uisize', 'set-names', 'set-broker',
+  'set-quality', 'set-touch', 'set-steer', 'set-bots', 'set-ghost', 'set-uisize', 'set-names', 'set-broker',
 ]) stepperFor($<HTMLSelectElement>(id));
 const menuBody = $<HTMLSelectElement>('menu-body');
 menuBody.value = store.get(BODY_KEY);
@@ -1039,8 +1039,10 @@ function openSettings(fromPause: boolean): void {
   settingsFromPause = fromPause;
   // A console has a controller and a TV, and no touchscreen to put buttons on.
   $('set-touch-row').hidden = isConsole();
+  showSteerRow(settings.current.touchControls);
   $<HTMLSelectElement>('set-quality').value = settings.current.quality === 'potato' ? 'low' : settings.current.quality;
   $<HTMLSelectElement>('set-touch').value = settings.current.touchControls;
+  $<HTMLSelectElement>('set-steer').value = settings.current.touchSteer;
   $<HTMLInputElement>('set-vibration').checked = settings.current.vibration;
   $<HTMLInputElement>('set-fullscreen').checked = settings.current.fullscreen;
   $<HTMLInputElement>('set-motion').checked = settings.current.reduceMotion;
@@ -1079,6 +1081,13 @@ settings.events.on('change', () => {
   if (!params.has('autopilot')) session.autopilot = settings.current.autopilot;
 });
 $('set-quality').addEventListener('change', (e) => settings.set('quality', (e.target as HTMLSelectElement).value as QualityId));
+$('set-steer').addEventListener('change', (e) => settings.set('touchSteer', (e.target as HTMLSelectElement).value as 'slider' | 'buttons'));
+/** Touch steering only where the touch controls will show: not with them off, nor on Automatic without a touch screen. */
+function showSteerRow(mode: string): void {
+  const coarse = matchMedia('(pointer: coarse)').matches;
+  $('set-steer-row').hidden = isConsole() || mode === 'off' || (mode === 'auto' && !coarse);
+}
+$('set-touch').addEventListener('change', (e) => showSteerRow((e.target as HTMLSelectElement).value));
 $('set-touch').addEventListener('change', (e) =>
   settings.set('touchControls', (e.target as HTMLSelectElement).value as 'auto' | 'on' | 'off'),
 );

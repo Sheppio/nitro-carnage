@@ -18,6 +18,8 @@ export interface InputSettings {
   deadzone: number;
   /** 'auto' shows the touch layer only on a coarse-pointer device. */
   touchControls: 'auto' | 'on' | 'off';
+  /** Touch steering: the floating slider, or a left and a right button (#26). */
+  touchSteer: 'slider' | 'buttons';
   vibration: boolean;
   /** Scales camera shake down to a nudge, for anyone it makes queasy. */
   reduceMotion: boolean;
@@ -65,6 +67,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   quality: 'high',
   deadzone: 0.15,
   touchControls: 'auto',
+  touchSteer: 'slider',
   vibration: true,
   reduceMotion: false,
   autopilot: false,
@@ -155,6 +158,7 @@ function coerce(state: InputSettings): InputSettings {
   }
   if (!QUALITIES.includes(out.quality)) out.quality = DEFAULT_SETTINGS.quality;
   if (!['auto', 'on', 'off'].includes(out.touchControls)) out.touchControls = 'auto';
+  if (!['slider', 'buttons'].includes(out.touchSteer)) out.touchSteer = 'slider';
   if (!['easy', 'medium', 'hard', 'expert'].includes(out.botLevel)) out.botLevel = 'hard';
   if (!['rivals', 'all', 'off'].includes(out.nameTags)) out.nameTags = 'rivals';
   if (!BROKERS.some((b) => b.id === out.broker)) out.broker = BROKERS[0]!.id;

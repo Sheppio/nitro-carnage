@@ -125,6 +125,23 @@ try {
   r.check('a small thumb movement is a small correction', nudge > 0 && nudge < 0.15, `steer ${nudge.toFixed(3)} for 20 px`);
   await touch('touchEnd', []);
 
+  // Steering by buttons (#26): the slider goes, and holding ▶ with the pedal down winds in right lock.
+  await page.evaluate(() => window.nitro.settings.set('touchSteer', 'buttons'));
+  const swapped = await page.evaluate(() => document.querySelector('.touch-steer').getClientRects().length === 0
+    && document.querySelector('.touch-btn.steer[data-drive="right"]').getClientRects().length > 0);
+  const right = await centre('.touch-btn.steer[data-drive="right"]');
+  const gas2 = await centre('.touch-btn.gas');
+  await touch('touchStart', [gas2, right]);
+  const byButton = await until(() => page.evaluate(() => {
+    const i = window.nitro.session.player.intent;
+    return i.steer > 0.9 && i.throttle === 1 ? i.steer : null;
+  }), { timeout: 5000 });
+  await touch('touchEnd', []);
+  const released = await until(() => page.evaluate(() => (Math.abs(window.nitro.session.player.intent.steer) < 0.01 ? true : null)), { timeout: 5000 });
+  await page.evaluate(() => window.nitro.settings.set('touchSteer', 'slider'));
+  r.check('with steering on buttons, the slider gives way to ◀ ▶, held ▶ steers right, and letting go centres the wheel',
+    swapped && Boolean(byButton) && Boolean(released), `steer ${byButton?.toFixed(2)}`);
+
   // Past the start grace, the missile button fires.
   await until(() => page.evaluate(() => window.nitro.session.world.time - window.nitro.session.world.goTime > 4.3), { timeout: 20000 });
   const ammo0 = await page.evaluate(() => window.nitro.session.player.ammo.front);

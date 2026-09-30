@@ -2,7 +2,9 @@ import { FEATURES, SIM } from '../config.js';
 import { EMPTY_SAMPLE } from './sources.js';
 import type { DriveSample, InputSource } from './sources.js';
 
-type Action = 'throttle' | 'brake' | 'handbrake' | 'front' | 'rear' | 'turbo';
+type Action = 'throttle' | 'brake' | 'handbrake' | 'front' | 'rear' | 'turbo' | 'left' | 'right';
+/** Steering by the floating slider, or by a left and a right button (#26). */
+export type TouchSteer = 'slider' | 'buttons';
 
 /** Pixels of thumb travel from where it landed to full lock. */
 const STEER_TRAVEL = 110;
@@ -15,6 +17,9 @@ const STEER_CURVE = 1.7;
 /** Seconds for the wheel to follow the thumb from centre to full lock, and back. */
 const STEER_IN = 0.12;
 const STEER_OUT = 0.07;
+/** The steering buttons are digital, as keys are: they wind the wheel in at the keyboard's pace. */
+const BUTTON_STEER_IN = 0.14;
+const BUTTON_STEER_OUT = 0.08;
 
 /**
  * Touch driving: steer with the left thumb, pedals and weapons under the right.
@@ -46,6 +51,9 @@ export class TouchSource implements InputSource {
   private held = new Map<Action, Set<number>>();
   private dirty = false;
   private enabled = false;
+  private steerMode: TouchSteer = 'slider';
+  private steerZone: HTMLElement;
+  private steerButtons: HTMLElement;
 
   constructor(host: HTMLElement) {
     this.root = document.createElement('div');
@@ -54,6 +62,10 @@ export class TouchSource implements InputSource {
     this.root.innerHTML = `
       <div class="touch-steer" data-touch-steer>
         <div class="touch-steer-base"><div class="touch-steer-knob"></div></div>
+      </div>
+      <div class="touch-steer-buttons" hidden>
+        <button class="touch-btn steer" data-drive="left" aria-label="Steer left">◀</button>
+        <button class="touch-btn steer" data-drive="right" aria-label="Steer right">▶</button>
       </div>
       <div class="touch-pad">
         <button class="touch-btn weapon" data-drive="front" aria-label="Front weapon">▲</button>
@@ -67,8 +79,9 @@ export class TouchSource implements InputSource {
     this.base = this.root.querySelector('.touch-steer-base')!;
     this.knob = this.root.querySelector('.touch-steer-knob')!;
 
-    const steerZone = this.root.querySelector<HTMLElement>('[data-touch-steer]')!;
-    steerZone.addEventListener('pointerdown', this.onSteerDown);
+    this.steerZone = this.root.querySelector<HTMLElement>('[data-touch-steer]')!;
+    this.steerButtons = this.root.querySelector<HTMLElement>('.touch-steer-buttons')!;
+    this.steerZone.addEventListener('pointerdown', this.onSteerDown);
     for (const btn of this.root.querySelectorAll<HTMLElement>('[data-drive]')) {
       btn.addEventListener('pointerdown', (e) => this.onButton(e, btn.dataset.drive as Action));
     }
@@ -84,6 +97,15 @@ export class TouchSource implements InputSource {
     if (!on) this.reset();
   }
 
+  /** The slider, or the two steering buttons. */
+  setSteerMode(mode: TouchSteer): void {
+    if (mode === this.steerMode) return;
+    this.steerMode = mode;
+    this.steerZone.hidden = mode !== 'slider';
+    this.steerButtons.hidden = mode !== 'buttons';
+    this.reset();
+  }
+
   available(): boolean {
     return this.enabled;
   }
@@ -93,8 +115,9 @@ export class TouchSource implements InputSource {
     // Wind the wheel towards the thumb, as the keyboard does: glass has no
     // resistance, and a thumb flicked across it was full lock in one frame —
     // at speed, a car snapped sideways. (Touch had none of this until M7.)
-    const t = this.steerTarget;
-    const rate = t === 0 || Math.sign(t) !== Math.sign(this.steer) ? 1 / STEER_OUT : 1 / STEER_IN;
+    const buttons = this.steerMode === 'buttons';
+    const t = buttons ? (on('right') ? 1 : 0) - (on('left') ? 1 : 0) : this.steerTarget;
+    const rate = t === 0 || Math.sign(t) !== Math.sign(this.steer) ? 1 / (buttons ? BUTTON_STEER_OUT : STEER_OUT) : 1 / (buttons ? BUTTON_STEER_IN : STEER_IN);
     const step = rate * dt;
     this.steer += Math.max(-step, Math.min(step, t - this.steer));
     this.drawKnob();

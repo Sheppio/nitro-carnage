@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS = {
     quality: 'high',
     deadzone: 0.15,
     touchControls: 'auto',
+    touchSteer: 'slider',
     vibration: true,
     reduceMotion: false,
     autopilot: false,
@@ -96,6 +97,8 @@ function coerce(state) {
         out.quality = DEFAULT_SETTINGS.quality;
     if (!['auto', 'on', 'off'].includes(out.touchControls))
         out.touchControls = 'auto';
+    if (!['slider', 'buttons'].includes(out.touchSteer))
+        out.touchSteer = 'slider';
     if (!['easy', 'medium', 'hard', 'expert'].includes(out.botLevel))
         out.botLevel = 'hard';
     if (!['rivals', 'all', 'off'].includes(out.nameTags))
