@@ -30,6 +30,7 @@ export class InputManager {
   private frontWas = false;
   private rearWas = false;
   private inRace = false;
+  private paused = false;
 
   constructor(host: HTMLElement, private settings: SettingsStore) {
     this.keyboard = new KeyboardSource();
@@ -43,6 +44,16 @@ export class InputManager {
   /** Called when a race starts and ends. Gates the touch overlay. */
   setInRace(inRace: boolean): void {
     this.inRace = inRace;
+    this.paused = false;
+    this.syncTouch();
+  }
+
+  /**
+   * The pause menu is up (#28): the touch controls go, so their buttons can't
+   * sit over its options and take the taps meant for them.
+   */
+  setPaused(paused: boolean): void {
+    this.paused = paused;
     this.syncTouch();
   }
 
@@ -97,7 +108,7 @@ export class InputManager {
   private syncTouch(): void {
     const mode = this.settings.current.touchControls;
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-    this.touch.setEnabled(this.inRace && (mode === 'on' || (mode === 'auto' && coarse)));
+    this.touch.setEnabled(this.inRace && !this.paused && (mode === 'on' || (mode === 'auto' && coarse)));
   }
 
   /** Debounced so a drifting stick can't fight the keyboard for control. */

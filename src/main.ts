@@ -764,6 +764,7 @@ function openPause(why = ''): void {
     : 'The race is paused.');
   $('btn-pause-leave').textContent = online ? 'Leave room' : 'Leave race';
   $('pause-veil').hidden = false;
+  input.setPaused(true);
   nav.start();
   nav.focusFirst();
 }
@@ -773,6 +774,7 @@ function closePause(): void {
   confirm.dismiss();
   if (session) session.paused = false;
   $('pause-veil').hidden = true;
+  input.setPaused(false);
   if (current === 'screen-hud') nav.stop();
 }
 

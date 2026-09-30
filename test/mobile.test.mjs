@@ -140,9 +140,12 @@ try {
   const paused = await until(() => page.evaluate(() => (!document.getElementById('pause-veil').hidden && window.nitro.session.paused) || null));
   const pauseBad = await covered(page, '#pause-veil button');
   r.check('the pause button opens the pause menu, every button of it tappable', Boolean(paused) && pauseBad.length === 0, pauseBad.join(', '));
+  // The touch controls go while it is up (#28): none of them over its options.
+  const touchGone = await page.evaluate(() => document.querySelector('.touch-layer').hidden && document.querySelector('.touch-btn').getClientRects().length === 0);
+  r.check('the touch controls are hidden under the pause menu', touchGone);
   await page.tap('#btn-resume');
-  const resumed = await until(() => page.evaluate(() => (document.getElementById('pause-veil').hidden && !window.nitro.session.paused) || null));
-  r.check('and Resume carries on', Boolean(resumed));
+  const resumed = await until(() => page.evaluate(() => (document.getElementById('pause-veil').hidden && !window.nitro.session.paused && !document.querySelector('.touch-layer').hidden) || null));
+  r.check('and Resume carries on, with the touch controls back', Boolean(resumed));
 
   r.check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (err) {
