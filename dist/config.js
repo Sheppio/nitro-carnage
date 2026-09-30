@@ -37,8 +37,12 @@ export const SIM = {
         /** Share of the drive force at the rear axle. */
         driveRear: 0.6,
         topSpeed: 51,
-        reverseForce: 4200,
-        reverseTopSpeed: 12,
+        /**
+         * Reverse pulls like first gear (#25): the engine's full force, tapering as
+         * going forward does, but its one gear runs out at a far lower speed.
+         */
+        reverseForce: 9800,
+        reverseTopSpeed: 15,
         brakeForce: 16000,
         /** Off-throttle engine braking plus rolling resistance, as a deceleration. */
         coastDecel: 0.9,

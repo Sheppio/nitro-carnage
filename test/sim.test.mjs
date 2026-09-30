@@ -263,6 +263,11 @@ console.log('\ncar physics');
   run(car, new OpenGround(), intent({ brake: 1 }), () => false, 8);
   check('holding brake at a standstill reverses, at a capped speed', car.forward < -8 && car.forward > -SIM.car.reverseTopSpeed - 0.5,
     `${car.forward.toFixed(1)} m/s`);
+  // Reverse pulls away like first gear (#25): 10 m/s backwards as soon as 10 m/s forwards, give or take.
+  const timeTo = (i, v) => run(createCar(0, 0, 0), new OpenGround(), intent(i), (x) => Math.abs(x.forward) >= v, 10);
+  const back = timeTo({ brake: 1 }, 10), ahead = timeTo({ throttle: 1 }, 10);
+  check('reverse picks up like first gear: 10 m/s backwards takes no more than a fifth longer than forwards', back < ahead * 1.2,
+    `${back.toFixed(2)} s back, ${ahead.toFixed(2)} s forwards`);
 }
 
 check('steering lock tightens with speed', steerLimit(0) > steerLimit(20) && steerLimit(20) > steerLimit(45),

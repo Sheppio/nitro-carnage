@@ -247,7 +247,7 @@ function substep(car: CarState, intent: DriveIntent, env: CarEnv, h: number, sta
     car.braking = true;
   } else if (brake > 0) {
     const r = Math.min(1, Math.abs(Math.min(0, u)) / C.reverseTopSpeed);
-    drive = -C.reverseForce * brake * (1 - r * r);
+    drive = -C.reverseForce * stats.engine * brake * (1 - r * r * r);
   } else if (throttle > 0) {
     let top = C.topSpeed * (0.85 + 0.15 * stats.engine);
     let force = C.engineForce * stats.engine;
