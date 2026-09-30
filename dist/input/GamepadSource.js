@@ -162,7 +162,7 @@ export class GamepadSource {
         if (!pad) {
             this.navHeld.clear();
             this.navRepeat.clear();
-            return { up: false, down: false, left: false, right: false, confirm: false, back: false, menu: false, prev: false, next: false, connected: false };
+            return { up: false, down: false, left: false, right: false, confirm: false, back: false, menu: false, prev: false, next: false, x: false, connected: false };
         }
         const lx = filterAxis(pad.axes[AXIS_LEFT_X] ?? 0);
         const ly = filterAxis(pad.axes[AXIS_LEFT_Y] ?? 0);
@@ -178,6 +178,7 @@ export class GamepadSource {
             menu: this.edge(BTN.MENU, down(BTN.MENU), false),
             prev: this.edge(BTN.LB, down(BTN.LB), false),
             next: this.edge(BTN.RB, down(BTN.RB), false),
+            x: this.edge(BTN.X, down(BTN.X), false),
             connected: true,
         };
     }

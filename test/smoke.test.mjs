@@ -203,6 +203,30 @@ try {
   await page.waitForSelector('#screen-track:not([hidden])');
   const torn = await page.evaluate(() => ({ canvases: document.querySelectorAll('canvas.game-canvas').length, session: window.nitro.session }));
   r.check('leaving returns to the track screen and disposes the renderer', torn.canvases === 0 && torn.session === null);
+
+  // A room that can't be reached: Cancel goes back to the menu, not to the
+  // track screen of an offline race nobody asked for.
+  await page.evaluate(() => {
+    window.__brokerRefuses = true;
+    void window.nitro.openRoom('NOPE');
+  });
+  await until(() => page.evaluate(() => document.getElementById('connect-status').textContent.startsWith('Could not reach')));
+  await page.evaluate(() => {
+    window.__brokerRefuses = false;
+    document.getElementById('btn-connect-cancel').click();
+  });
+  const cancelled = await page.evaluate(() => [...document.querySelectorAll('.screen:not([hidden])')].map((x) => x.id).join());
+  r.check('Cancel after a failed connection goes back to the menu', cancelled === 'screen-menu', cancelled);
+
+  // A race that starts while the on-screen keyboard is open (the host pressed
+  // Start while a guest typed their name) takes the keyboard away with it.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('nc:text-entry', { detail: { id: 'input-name' } })));
+  const kbOpen = await page.evaluate(() => !document.getElementById('keyboard-veil').hidden);
+  await page.evaluate(() => window.nitro.start('hotlap'));
+  await page.waitForSelector('#screen-hud:not([hidden])');
+  const kbGone = await page.evaluate(() => document.getElementById('keyboard-veil').hidden);
+  r.check('a race starting under the on-screen keyboard closes it', kbOpen && kbGone);
+  await page.evaluate(() => window.nitro.leave());
   await page.close();
 
   /* ----------------------------------------------------------- occlusion */

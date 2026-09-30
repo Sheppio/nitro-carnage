@@ -54,6 +54,13 @@ export class Keyboard {
         field?.focus();
         this.onClose?.();
     }
+    /** Closed by a screen change: no focus handed back to a field that is going away. */
+    dismiss() {
+        if (!this.isOpen)
+            return;
+        this.veil.hidden = true;
+        this.target = null;
+    }
     /** `null` deletes the last character. */
     type(ch) {
         const field = this.target;

@@ -87,11 +87,17 @@ export class GamepadNavigator {
     this.raf = 0;
   }
 
-  /** Move focus onto the first control of a freshly shown screen. */
+  /**
+   * Move focus onto the first control of a freshly shown screen: its
+   * `data-nav-default`, or where that is not showing (the lobby's Start race,
+   * for a guest), its `data-nav-fallback`.
+   */
   focusFirst(): void {
     const items = this.focusables();
     if (!items.length) return;
-    const preferred = items.find((el) => el.hasAttribute('data-nav-default')) ?? items[0]!;
+    const preferred = items.find((el) => el.hasAttribute('data-nav-default'))
+      ?? items.find((el) => el.hasAttribute('data-nav-fallback'))
+      ?? items[0]!;
     this.focus(preferred);
   }
 
@@ -112,6 +118,7 @@ export class GamepadNavigator {
       if (nav.right) this.move('right');
       if (nav.confirm) this.confirm();
       if (nav.back) this.back();
+      if (nav.x) this.second();
       // Shoulders go to whatever screen wants them (the Garage cycles bodies).
       if (nav.prev || nav.next) document.dispatchEvent(new CustomEvent('nc:shoulder', { detail: { dir: nav.next ? 1 : -1 } }));
       // Start belongs to the pause control whenever a modal is up: in a match
@@ -175,6 +182,15 @@ export class GamepadNavigator {
       event.preventDefault();
       event.stopPropagation();
       this.move(direction);
+      return;
+    }
+
+    // Backspace deletes where the screen has a Delete (the on-screen keyboard,
+    // whose Delete says so); elsewhere it is a second Esc, below.
+    if (event.key === 'Backspace' && !typing && this.secondTarget()) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.second();
       return;
     }
 
@@ -440,6 +456,17 @@ export class GamepadNavigator {
       }
     }
     return false;
+  }
+
+  /** The screen's second action (`data-nav-x`), when it has one showing. */
+  private secondTarget(): HTMLElement | null {
+    return [...this.navScope().querySelectorAll<HTMLElement>('[data-nav-x]')].find((el) => !el.hidden && isVisible(el)) ?? null;
+  }
+
+  /** X / Square: the screen's second action, when it has one. */
+  private second(): void {
+    if (performance.now() < this.quietUntil) return;
+    this.secondTarget()?.click();
   }
 
   /**

@@ -72,12 +72,18 @@ export class GamepadNavigator {
             cancelAnimationFrame(this.raf);
         this.raf = 0;
     }
-    /** Move focus onto the first control of a freshly shown screen. */
+    /**
+     * Move focus onto the first control of a freshly shown screen: its
+     * `data-nav-default`, or where that is not showing (the lobby's Start race,
+     * for a guest), its `data-nav-fallback`.
+     */
     focusFirst() {
         const items = this.focusables();
         if (!items.length)
             return;
-        const preferred = items.find((el) => el.hasAttribute('data-nav-default')) ?? items[0];
+        const preferred = items.find((el) => el.hasAttribute('data-nav-default'))
+            ?? items.find((el) => el.hasAttribute('data-nav-fallback'))
+            ?? items[0];
         this.focus(preferred);
     }
     tick = () => {
@@ -103,6 +109,8 @@ export class GamepadNavigator {
                 this.confirm();
             if (nav.back)
                 this.back();
+            if (nav.x)
+                this.second();
             // Shoulders go to whatever screen wants them (the Garage cycles bodies).
             if (nav.prev || nav.next)
                 document.dispatchEvent(new CustomEvent('nc:shoulder', { detail: { dir: nav.next ? 1 : -1 } }));
@@ -165,6 +173,14 @@ export class GamepadNavigator {
             event.preventDefault();
             event.stopPropagation();
             this.move(direction);
+            return;
+        }
+        // Backspace deletes where the screen has a Delete (the on-screen keyboard,
+        // whose Delete says so); elsewhere it is a second Esc, below.
+        if (event.key === 'Backspace' && !typing && this.secondTarget()) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.second();
             return;
         }
         // Esc (and Backspace outside a text field) is the keyboard's B button:
@@ -419,6 +435,16 @@ export class GamepadNavigator {
             }
         }
         return false;
+    }
+    /** The screen's second action (`data-nav-x`), when it has one showing. */
+    secondTarget() {
+        return [...this.navScope().querySelectorAll('[data-nav-x]')].find((el) => !el.hidden && isVisible(el)) ?? null;
+    }
+    /** X / Square: the screen's second action, when it has one. */
+    second() {
+        if (performance.now() < this.quietUntil)
+            return;
+        this.secondTarget()?.click();
     }
     /**
      * "Lock gamepad focus to the browser window."

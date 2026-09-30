@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.71**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.72**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -63,7 +63,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 884 checks: simulation and networking (Node), and real browsers
+npm test           # 891 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -1316,11 +1316,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-884 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+891 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (570, Node; the per-track checks run on all 25 tracks):
+- **`sim.test.mjs`** (603, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
@@ -1376,7 +1376,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     line-follower lapping cleanly and taking the ramp.
   - **Helpers:** interpolation, deadzones, framerate-independent smoothing, colour
     clash resolution.
-- **`net.test.mjs`** (92, Node, an in-memory broker and a fake clock): the heartbeat
+- **`net.test.mjs`** (105, Node, an in-memory broker and a fake clock): the heartbeat
   carries the seed and the weapons switch, and an older one decodes as a built-in track
   with weapons on; a race-only room on a seed builds the same track everywhere with no
   shots on the wire;
@@ -1411,7 +1411,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     closing hands its traffic to the broker at once, is given up within 3.5 s, and
     links again when the network is back; a player without direct links races with
     the rest.
-- **`smoke.test.mjs`** (57, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (70, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
@@ -1421,7 +1421,8 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     drives and ← steers left; the HUD shows speed.
   - **Camera:** the car sits behind centre at speed, and the lens widens.
   - **Pause and teardown:** Esc pauses a solo drive (the world stops); leaving tears
-    the renderer down.
+    the renderer down; Cancel after a failed connection goes back to the menu; a race
+    starting under the on-screen keyboard closes it.
   - **Occlusion pixel test:** a car hidden by a tower shows 0 of 25 pixels without the
     cut-away and 19 of 25 with it.
   - **Race:** a countdown with every car held; after GO six cars race, with position
@@ -1441,7 +1442,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
-- **`multiplayer.test.mjs`** (30, browser, up to four tabs): a room forms from a code
+- **`multiplayer.test.mjs`** (34, browser, up to four tabs): a room forms from a code
   and a share link; one host; colour clashes; a look chosen in one tab's Garage shows
   in the other's lobby; only the host can start; a missile fired
   in one tab flies in the other; a race to the
@@ -1450,13 +1451,16 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   frozen for 20 s waking without splitting the room; a player on an older build is
   marked in the lobby with a note to reload; the tabs open a real WebRTC link, both
   lobbies say DIRECT, and the missile crosses it.
-- **`gamepad.test.mjs`** (18, browser, a virtual pad and nothing else): the Garage by
+- **`gamepad.test.mjs`** (28, browser, a virtual pad and nothing else): the Garage by
   pad (RB changes the body, the D-pad the livery) and at 1280×800; the lock prompt;
   Xbox and PlayStation prompts; the on-screen keyboard; menu to race by way of the
   track screen, Start already focused; RT drives; Menu/Options pauses, A resumes;
   leaving; every row of Settings by D-pad; the menu, track screen, lobby and HUD at
-  1280×800.
-- **`keyboard.test.mjs`** (31, browser, keys and nothing else): on the menu, track,
+  1280×800. Xbox Edge at 1080p: the TV layout is on, and the menu, Settings, the Garage
+  and the lobby fit with nothing off screen; each starts on its first setting, the host
+  on Start race; B in the lobby asks before leaving the room, and B again stays; a
+  controller disconnecting mid-race pauses it.
+- **`keyboard.test.mjs`** (37, browser, keys and nothing else): on the menu, track,
   settings, Garage, join, lobby, pause and results screens, a breadth-first search over the arrow
   keys reaches every control. It presses each arrow from every control reached so
   far, so it's exact, not a walk that might be lucky. The race number changes with the

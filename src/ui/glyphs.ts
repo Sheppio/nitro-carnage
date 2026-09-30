@@ -19,30 +19,30 @@ export function padFamily(id: string | null | undefined): PadFamily {
   return 'generic';
 }
 
-export type Action = 'confirm' | 'back' | 'menu' | 'move' | 'throttle' | 'brake' | 'handbrake' | 'turbo' | 'front' | 'rear' | 'steer' | 'prev' | 'next';
+export type Action = 'confirm' | 'back' | 'menu' | 'move' | 'throttle' | 'brake' | 'handbrake' | 'turbo' | 'front' | 'rear' | 'steer' | 'prev' | 'next' | 'delete';
 
 const LABELS: Record<Exclude<PadFamily, 'none'>, Record<Action, string>> = {
   xbox: {
     confirm: 'A', back: 'B', menu: '☰ Menu', move: 'D-pad', throttle: 'RT', brake: 'LT', handbrake: 'A',
-    turbo: 'B', front: 'Y / RB', rear: 'X / LB', steer: 'Left stick', prev: 'LB', next: 'RB',
+    turbo: 'B', front: 'Y / RB', rear: 'X / LB', steer: 'Left stick', prev: 'LB', next: 'RB', delete: 'X',
   },
   playstation: {
     confirm: '✕', back: '○', menu: 'Options', move: 'D-pad', throttle: 'R2', brake: 'L2', handbrake: '✕',
-    turbo: '○', front: '△ / R1', rear: '□ / L1', steer: 'Left stick', prev: 'L1', next: 'R1',
+    turbo: '○', front: '△ / R1', rear: '□ / L1', steer: 'Left stick', prev: 'L1', next: 'R1', delete: '□',
   },
   deck: {
     confirm: 'A', back: 'B', menu: '☰', move: 'D-pad', throttle: 'R2', brake: 'L2', handbrake: 'A',
-    turbo: 'B', front: 'Y / R1', rear: 'X / L1', steer: 'Left stick', prev: 'L1', next: 'R1',
+    turbo: 'B', front: 'Y / R1', rear: 'X / L1', steer: 'Left stick', prev: 'L1', next: 'R1', delete: 'X',
   },
   generic: {
     confirm: 'A', back: 'B', menu: 'Start', move: 'D-pad', throttle: 'RT', brake: 'LT', handbrake: 'A',
-    turbo: 'B', front: 'Y / RB', rear: 'X / LB', steer: 'Left stick', prev: 'LB', next: 'RB',
+    turbo: 'B', front: 'Y / RB', rear: 'X / LB', steer: 'Left stick', prev: 'LB', next: 'RB', delete: 'X',
   },
 };
 
 const KEYS: Record<Action, string> = {
   confirm: 'Enter', back: 'Esc', menu: 'Esc', move: 'Arrows', throttle: '↑ / W', brake: '↓ / S', handbrake: 'Space',
-  turbo: 'Shift', front: 'Z / J', rear: 'X / K', steer: '← → / A D', prev: '←', next: '→',
+  turbo: 'Shift', front: 'Z / J', rear: 'X / K', steer: '← → / A D', prev: '←', next: '→', delete: 'Backspace',
 };
 
 export function label(action: Action, family: PadFamily): string {
@@ -66,4 +66,6 @@ export function applyGlyphs(family: PadFamily): void {
   };
   line('menu-keys');
   line('hud-help');
+  // And in the pause menu: the hint at the start of a race is gone after nine seconds.
+  line('pause-keys');
 }

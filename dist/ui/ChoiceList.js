@@ -63,6 +63,11 @@ export class ChoiceList {
         }
         this.close();
     }
+    /** Closed by a screen change: no focus handed back to a dropdown that is going away. */
+    dismiss() {
+        this.veil.hidden = true;
+        this.target = null;
+    }
     close() {
         this.veil.hidden = true;
         const sel = this.target;

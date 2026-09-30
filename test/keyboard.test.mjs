@@ -271,8 +271,17 @@ try {
   await page.keyboard.press('ArrowRight');
   const laps1 = await until(() => page.evaluate((l) => (window.nitro.room.net.state.laps !== l ? window.nitro.room.net.state.laps : null), laps0));
   r.check('the host changes the laps from the keyboard', laps1 !== null, `${laps0} -> ${laps1}`);
+  // Esc asks first (leaving loses the room), Esc again stays, and Enter on Leave room leaves.
   await page.keyboard.press('Escape');
-  r.check('Esc leaves the room', Boolean(await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden && window.nitro.room === null))));
+  const asked = await until(() => page.evaluate(() => !document.getElementById('confirm-veil').hidden && document.activeElement?.id === 'btn-confirm-no'));
+  await page.keyboard.press('Escape');
+  const stayed = await until(() => page.evaluate(() => document.getElementById('confirm-veil').hidden && window.nitro.room !== null));
+  await page.keyboard.press('Escape');
+  await until(() => page.evaluate(() => !document.getElementById('confirm-veil').hidden));
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Enter');
+  const gone = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden && window.nitro.room === null));
+  r.check('Esc asks before leaving the room, Esc again stays, and Leave room leaves', Boolean(asked) && Boolean(stayed) && Boolean(gone), JSON.stringify({ asked, stayed, gone }));
 
   /* ------------------------------------------------------ race and pause */
   await goTo(page, 'btn-race');

@@ -128,9 +128,10 @@
                 <select id="menu-body"></select>
               </label>
             </div>
+            <!-- Back on the left and the way forward on the right, as on every screen. -->
             <div class="btn-row">
-              <button class="btn" id="btn-garage">Garage</button>
               <button class="btn" id="btn-track-back" data-nav-back>Back</button>
+              <button class="btn" id="btn-garage">Garage</button>
               <button class="btn primary" id="btn-track-go" data-nav-default>Start</button>
             </div>
           </nav>
@@ -233,8 +234,9 @@
               </div>
               <nav class="menu-actions">
                 <button class="btn primary host-only" id="btn-start-race" data-nav-default>Start race</button>
+                <!-- A guest has no Start race: the focus ring lands on the Garage instead. -->
                 <div class="btn-row">
-                  <button class="btn" id="btn-lobby-garage">Garage</button>
+                  <button class="btn" id="btn-lobby-garage" data-nav-fallback>Garage</button>
                   <button class="btn" id="btn-lobby-leave" data-nav-back>Leave room</button>
                 </div>
               </nav>
@@ -297,20 +299,24 @@
       <section class="screen menu" id="screen-garage" hidden>
         <div class="menu-card wide garage">
           <h2>Garage</h2>
+          <!-- The turntable beside the pickers on a landscape screen, so the Garage
+               fits a TV without scrolling. -->
+          <div class="garage-layout">
           <div class="garage-view" id="garage-view" aria-hidden="true"></div>
-          <p class="menu-note">Looks only: every car drives the same. <span class="pad-only"><span data-glyph="prev">LB</span> / <span data-glyph="next">RB</span> change the body.</span></p>
           <!-- One column on purpose: each picker keeps left/right for itself, so a
                second column of them could not be reached from keys or a pad. -->
           <div class="lobby-grid one-column">
-            <div class="field" id="garage-colour-row"><span id="garage-colour-label">Car colour</span><div id="garage-colour" aria-labelledby="garage-colour-label"></div></div>
-            <div class="field"><span id="garage-body-label">Body</span><div id="garage-body" aria-labelledby="garage-body-label"></div></div>
+            <div class="field swatch-row" id="garage-colour-row"><span id="garage-colour-label">Car colour</span><div id="garage-colour" aria-labelledby="garage-colour-label"></div></div>
+            <div class="field"><span id="garage-body-label">Body</span><div id="garage-body" aria-labelledby="garage-body-label" data-nav-default></div></div>
             <div class="field"><span id="garage-pattern-label">Livery</span><div id="garage-pattern" aria-labelledby="garage-pattern-label"></div></div>
-            <div class="field"><span id="garage-stripe-label">Stripe colour</span><div id="garage-stripe" aria-labelledby="garage-stripe-label"></div></div>
+            <div class="field swatch-row"><span id="garage-stripe-label">Stripe colour</span><div id="garage-stripe" aria-labelledby="garage-stripe-label"></div></div>
             <div class="field"><span id="garage-rims-label">Wheels</span><div id="garage-rims" aria-labelledby="garage-rims-label"></div></div>
             <label class="field"><span>Race number</span><select id="garage-number"></select></label>
           </div>
+          </div>
+          <p class="menu-note">Looks only: every car drives the same. <span class="pad-only"><span data-glyph="prev">LB</span> / <span data-glyph="next">RB</span> change the body.</span></p>
           <nav class="menu-actions">
-            <button class="btn primary" id="btn-garage-back" data-nav-back data-nav-default>Done</button>
+            <button class="btn primary" id="btn-garage-back" data-nav-back>Done</button>
           </nav>
         </div>
       </section>
@@ -321,13 +327,13 @@
           <h2>Settings</h2>
           <label class="field">
             <span>Graphics</span>
-            <select id="set-quality">
+            <select id="set-quality" data-nav-default>
               <option value="low">Low — phones</option>
               <option value="medium">Medium</option>
               <option value="high">High — laptop</option>
             </select>
           </label>
-          <label class="field">
+          <label class="field" id="set-touch-row">
             <span>Touch controls</span>
             <select id="set-touch">
               <option value="auto">Automatic</option>
@@ -395,7 +401,7 @@
           <label class="field check"><input type="checkbox" id="set-direct" /> <span>Direct links to other players (faster, where your network allows)</span></label>
           <p class="menu-note">Graphics changes apply from the next drive.</p>
           <nav class="menu-actions">
-            <button class="btn primary" id="btn-settings-back" data-nav-default data-nav-back>Back</button>
+            <button class="btn primary" id="btn-settings-back" data-nav-back>Back</button>
           </nav>
         </div>
       </section>
@@ -450,6 +456,7 @@
               <button class="btn" id="btn-pause-settings">Settings</button>
               <button class="btn" id="btn-pause-leave">Leave race</button>
             </nav>
+            <p class="menu-note keys" id="pause-keys"></p>
           </div>
         </div>
       </section>
@@ -502,8 +509,18 @@
           <div class="keyboard-preview" id="keyboard-preview">—</div>
           <div class="keyboard-grid" id="keyboard-grid"></div>
           <nav class="btn-row">
-            <button class="btn" id="btn-key-del" type="button">Delete</button>
+            <button class="btn" id="btn-key-del" type="button" data-nav-x>Delete <span class="glyph" data-glyph="delete">X</span></button>
             <button class="btn primary" id="btn-key-done" type="button" data-nav-back>Done</button>
+          </nav>
+        </div>
+      </div>
+      <div class="keyboard-veil confirm-veil" id="confirm-veil" data-nav-modal hidden>
+        <div class="menu-card">
+          <h2 id="confirm-title">Are you sure?</h2>
+          <p class="menu-note" id="confirm-note"></p>
+          <nav class="btn-row">
+            <button class="btn" id="btn-confirm-yes" type="button">Leave</button>
+            <button class="btn primary" id="btn-confirm-no" type="button" data-nav-back data-nav-default>Stay</button>
           </nav>
         </div>
       </div>

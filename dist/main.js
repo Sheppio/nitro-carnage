@@ -1,7 +1,7 @@
 import { GAME_NAME, SLUG } from './brand.js';
 import { BROKERS, NET } from './config.js';
 import { InputManager } from './input/InputManager.js';
-import { SettingsStore } from './input/settings.js';
+import { isConsole, SettingsStore } from './input/settings.js';
 import { tvLayout } from './input/settings.js';
 import { sanitizeName } from './net/codec.js';
 import { RaceSession } from './RaceSession.js';
@@ -24,6 +24,7 @@ import { GamepadNavigator } from './ui/GamepadNavigator.js';
 import { formatTime, Hud } from './ui/Hud.js';
 import { Keyboard } from './ui/Keyboard.js';
 import { ChoiceList } from './ui/ChoiceList.js';
+import { Confirm } from './ui/Confirm.js';
 import { stepperFor } from './ui/Picker.js';
 import { Lobby } from './ui/Lobby.js';
 import { awards, Tally } from './sim/raceLog.js';
@@ -55,6 +56,8 @@ const nav = new GamepadNavigator(input.gamepad, $('ui-root'));
 const keyboard = new Keyboard();
 const choices = new ChoiceList();
 choices.focus = (el) => nav.focusOn(el);
+const confirm = new Confirm();
+confirm.focus = (el) => nav.focusOn(el);
 /* ---------------------------------------------------------------- screens */
 const screens = [
     'screen-menu', 'screen-join', 'screen-connecting', 'screen-lobby', 'screen-full', 'screen-settings', 'screen-hud', 'screen-results',
@@ -67,6 +70,11 @@ function show(id) {
     // A race can start while the host's guest is in the Garage: stop its turntable.
     if (id !== 'screen-garage')
         garage?.close();
+    // Or while they type their name, or browse a list: the overlay belongs to the
+    // screen being left, and in a race the pad could not close it.
+    keyboard.dismiss();
+    choices.dismiss();
+    confirm.dismiss();
     current = id;
     if (id !== 'screen-results')
         podium?.stop();
@@ -81,6 +89,9 @@ function show(id) {
     }
     if (id === 'screen-track')
         previewTrack();
+    // The code may have been filled in without typing (a ?room= link).
+    if (id === 'screen-join')
+        joinReady();
 }
 /* --------------------------------------------------------- name and colour */
 const NAME_KEY = `${SLUG}.name`;
@@ -390,6 +401,9 @@ function begin(mode, s, track, label = track.name, bestKey = recordKey(track)) {
         if (online)
             countDownToLobby();
         $('btn-results-menu').textContent = online ? 'Leave room' : 'Back';
+        // B is the turbo a moment ago: in a room it goes back to the lobby, never out of the room.
+        $('btn-again').toggleAttribute('data-nav-back', online);
+        $('btn-results-menu').toggleAttribute('data-nav-back', !online);
         if (!online)
             stopSession();
         closePause();
@@ -533,9 +547,20 @@ async function openRoom(code) {
     $('connect-status').textContent = `Reaching ${broker.label}…`;
     show('screen-connecting');
     const net = client.net;
+    let wasHost = false;
     const redraw = () => {
-        if (room === client && (current === 'screen-lobby' || current === 'screen-lobby-track'))
-            lobby?.render();
+        if (room !== client || (current !== 'screen-lobby' && current !== 'screen-lobby-track'))
+            return;
+        lobby?.render();
+        // Start race appears (or goes) with the host's crown. The ring was placed
+        // before the room knew who was host, so it moves to the screen's default
+        // now, unless the player has already moved it somewhere of their own.
+        if (current === 'screen-lobby' && net.isHost !== wasHost) {
+            wasHost = net.isHost;
+            const at = document.activeElement?.id;
+            if (!at || ['btn-copy-link', 'btn-lobby-garage', 'btn-start-race'].includes(at))
+                nav.focusFirst();
+        }
     };
     net.events.on('state', redraw);
     net.events.on('roster', redraw);
@@ -592,9 +617,7 @@ async function openRoom(code) {
     lobby = new Lobby(net, code, tally, (l, c) => carPortrait(l, c, 80, 40));
     setUrl(`?room=${code}${params.has('quality') ? `&quality=${params.get('quality')}` : ''}`);
     show('screen-lobby');
-    lobby.render();
-    // Again, now the render has said whether this is the host: Start is theirs.
-    nav.focusFirst();
+    redraw();
 }
 function leaveRoom() {
     if (!room)
@@ -661,20 +684,22 @@ function notice(text) {
  * stops the world. Online it cannot (a race with other people in it does not
  * stop for one of them), so it holds your car on the brakes and says so.
  */
-function openPause() {
+function openPause(why = '') {
     if (!session)
         return;
     session.paused = true;
     const online = session.mode === 'net';
-    $('pause-note').textContent = online
+    $('pause-note').textContent = (why ? `${why} ` : '') + (online
         ? 'The race goes on without you: your car is held on the brakes until you resume.'
-        : 'The race is paused.';
+        : 'The race is paused.');
     $('btn-pause-leave').textContent = online ? 'Leave room' : 'Leave race';
     $('pause-veil').hidden = false;
     nav.start();
     nav.focusFirst();
 }
 function closePause() {
+    // "Leave the room?" belongs to the pause menu: it goes with it, not left over the race.
+    confirm.dismiss();
     if (session)
         session.paused = false;
     $('pause-veil').hidden = true;
@@ -687,9 +712,31 @@ function togglePause() {
     else
         closePause();
 }
+/**
+ * The race stops by itself when the player can't be driving: the controller
+ * went (a flat battery, a cable), or the game lost the screen (the Xbox Guide
+ * button, alt-tab). Online the race can't stop, but the car is held on the
+ * brakes rather than driving into a wall.
+ */
+const racing = () => current === 'screen-hud' && session !== null && $('pause-veil').hidden;
+window.addEventListener('gamepaddisconnected', () => {
+    // Only when no pad is left: a second, idle pad switching itself off is no reason to stop.
+    const left = [...(navigator.getGamepads?.() ?? [])].some((p) => p?.connected);
+    if (racing() && !left)
+        openPause('Controller disconnected. Reconnect it to carry on.');
+});
+const lostFocus = () => {
+    if (racing() && session?.mode !== 'net')
+        openPause();
+};
+window.addEventListener('blur', lostFocus);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden)
+        lostFocus();
+});
 // The pad's Menu/Options, on its own latch so the menu navigator can read the same button.
 (function pollPause() {
-    if (input.gamepad.readPause() && current === 'screen-hud' && session)
+    if (input.gamepad.readPause() && current === 'screen-hud' && session && !confirm.isOpen)
         togglePause();
     requestAnimationFrame(pollPause);
 })();
@@ -707,15 +754,31 @@ $('btn-create').addEventListener('click', () => void openRoom(makeRoomCode()));
 $('btn-join').addEventListener('click', () => show('screen-join'));
 $('btn-join-go').addEventListener('click', () => void openRoom($('input-room').value));
 $('btn-join-back').addEventListener('click', () => show('screen-menu'));
+/** Join waits for a whole code: four characters. */
+const joinReady = () => {
+    $('btn-join-go').disabled = $('input-room').value.length < 4;
+};
+joinReady();
 $('input-room').addEventListener('input', (e) => {
     const el = e.target;
     el.value = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    joinReady();
 });
+// A code typed on the on-screen keyboard: Done lands on Join, one press from the room.
+keyboard.onClose = () => {
+    if (current === 'screen-join' && $('input-room').value.length === 4)
+        nav.focusOn($('btn-join-go'));
+};
 $('input-room').addEventListener('keydown', (e) => {
     if (e.key === 'Enter')
         void openRoom(e.target.value);
 });
-$('btn-connect-cancel').addEventListener('click', toMenu);
+// Not toMenu: a failed connection has already dropped the room, and toMenu
+// would take that for an offline race and open the track screen.
+$('btn-connect-cancel').addEventListener('click', () => {
+    leaveRoom();
+    show('screen-menu');
+});
 $('btn-full-back').addEventListener('click', () => show('screen-menu'));
 $('btn-race').addEventListener('click', () => chooseTrack('race'));
 $('btn-free-drive').addEventListener('click', () => chooseTrack('hotlap'));
@@ -753,10 +816,20 @@ function countDownToLobby() {
 }
 $('btn-rematch').addEventListener('click', () => room?.net.rematch());
 $('btn-results-menu').addEventListener('click', toMenu);
-$('btn-pause').addEventListener('click', openPause);
+$('btn-pause').addEventListener('click', () => openPause());
 $('btn-resume').addEventListener('click', closePause);
-$('btn-pause-leave').addEventListener('click', toMenu);
-$('btn-lobby-leave').addEventListener('click', toMenu);
+/** Leaving a room loses it (and tonight's scores): asked first. Offline, a race just ends. */
+async function leave() {
+    if (room) {
+        const code = room.net.room.roomId;
+        const yes = await confirm.ask(`Leave room ${code}?`, 'You can come back with the same code, but tonight\'s scores stay behind.', 'Leave room');
+        if (!yes)
+            return;
+    }
+    toMenu();
+}
+$('btn-pause-leave').addEventListener('click', () => void leave());
+$('btn-lobby-leave').addEventListener('click', () => void leave());
 $('btn-start-race').addEventListener('click', () => room?.net.startRace());
 // The lobby's track, as chosen, onto the end of the championship.
 $('btn-cup-add').addEventListener('click', () => {
@@ -768,7 +841,18 @@ $('btn-cup-add').addEventListener('click', () => {
     net.planCup([...net.state.cup, { track: choice.seed ? 0 : Number(pick), seed: choice.seed }]);
 });
 $('btn-cup-end').addEventListener('click', () => room?.net.endCup());
-$('btn-copy-link').addEventListener('click', () => void navigator.clipboard?.writeText($('lobby-link').textContent ?? ''));
+let copiedTimer = 0;
+$('btn-copy-link').addEventListener('click', () => {
+    const btn = $('btn-copy-link');
+    const said = (text) => {
+        btn.textContent = text;
+        clearTimeout(copiedTimer);
+        copiedTimer = window.setTimeout(() => (btn.textContent = 'Copy'), 2000);
+    };
+    // A console's browser may have no clipboard: say so rather than nothing.
+    (navigator.clipboard?.writeText($('lobby-link').textContent ?? '') ?? Promise.reject(new Error('no clipboard')))
+        .then(() => said('Copied'), () => said('No clipboard'));
+});
 // The room's track and championship: the host's own screen, off the lobby.
 $('btn-lobby-track').addEventListener('click', () => {
     if (!room?.net.isHost)
@@ -865,6 +949,8 @@ $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Numb
 let settingsFromPause = false;
 function openSettings(fromPause) {
     settingsFromPause = fromPause;
+    // A console has a controller and a TV, and no touchscreen to put buttons on.
+    $('set-touch-row').hidden = isConsole();
     $('set-quality').value = settings.current.quality === 'potato' ? 'low' : settings.current.quality;
     $('set-touch').value = settings.current.touchControls;
     $('set-vibration').checked = settings.current.vibration;
@@ -916,7 +1002,7 @@ $('set-autopilot').addEventListener('change', (e) => settings.set('autopilot', e
 $('set-direct').addEventListener('change', (e) => settings.set('direct', e.target.checked));
 brokerSelect.addEventListener('change', () => settings.set('broker', brokerSelect.value));
 window.addEventListener('keydown', (e) => {
-    if (e.code !== 'Escape' || keyboard.isOpen || choices.isOpen)
+    if (e.code !== 'Escape' || keyboard.isOpen || choices.isOpen || confirm.isOpen)
         return;
     if (current === 'screen-hud' && session)
         togglePause();
@@ -948,6 +1034,7 @@ if (params.has('race'))
 const linked = params.get('room');
 if (linked) {
     $('input-room').value = linked.toUpperCase();
+    joinReady();
     void openRoom(linked);
 }
 window.nitro = {

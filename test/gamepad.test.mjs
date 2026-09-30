@@ -81,8 +81,8 @@ function padScript(id) {
   });
 }
 
-async function open(viewport, id = XBOX, query = 'quality=potato') {
-  const page = await browser.newPage({ viewport });
+async function open(viewport, id = XBOX, query = 'quality=potato', userAgent = undefined) {
+  const page = await browser.newPage({ viewport, userAgent });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.addInitScript(padScript, id);
   await page.goto(`${url}?${query}`);
@@ -353,6 +353,73 @@ try {
   });
   r.check('and so does the race HUD', hudBad.length === 0, hudBad.join(', '));
   await deck.close();
+
+  /* --------------------------------------------------- Xbox on a TV */
+  // Xbox Edge at 1080p: the user agent turns the TV layout on, which zooms
+  // the overlay 1.4x. Every screen must still fit, the ring must start on
+  // each screen's way forward, and B must never throw anyone out of a room.
+  const XBOX_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; Xbox; Xbox Series X) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0';
+  const tv = await open({ width: 1920, height: 1080 }, XBOX, 'quality=potato', XBOX_UA);
+  const offscreen = (screen) => tv.evaluate((sel) => {
+    const bad = [];
+    for (const el of document.querySelector(sel).querySelectorAll('button, input, select:not(.stepped), [data-nav]')) {
+      if (!el.getClientRects().length) continue;
+      const b = el.getBoundingClientRect();
+      if (b.left < 0 || b.top < 0 || b.right > innerWidth || b.bottom > innerHeight) bad.push(el.id || el.textContent.trim());
+    }
+    return bad;
+  }, screen);
+  const tvOn = await tv.evaluate(() => document.body.classList.contains('tv'));
+  const tvBad = {};
+  tvBad.menu = await offscreen('#screen-menu');
+  await tv.evaluate(() => document.getElementById('btn-settings').click());
+  await tv.waitForSelector('#screen-settings:not([hidden])');
+  const setFocus = await until(() => tv.evaluate(() => document.activeElement?.id === 'set-quality-pick'));
+  const touchRow = await tv.evaluate(() => document.getElementById('set-touch-row').hidden);
+  tvBad.settings = await offscreen('#screen-settings');
+  await tap(tv, B.B);
+  await tv.waitForSelector('#screen-menu:not([hidden])');
+  // The Garage from the main menu, and Done (B) back to the menu.
+  await tv.evaluate(() => document.getElementById('btn-menu-garage').click());
+  await tv.waitForSelector('#screen-garage:not([hidden])');
+  const garageFocus = await until(() => tv.evaluate(() => document.activeElement?.id === 'garage-body'));
+  tvBad.garage = await offscreen('#screen-garage');
+  await tap(tv, B.B);
+  const garageOut = await until(() => tv.evaluate(() => !document.getElementById('screen-menu').hidden));
+  r.check('Xbox at 1080p: the TV layout is on, the menu, Settings and the Garage fit, and they start on their first setting',
+    tvOn && !tvBad.menu.length && !tvBad.settings.length && !tvBad.garage.length && Boolean(setFocus) && Boolean(garageFocus) && touchRow && Boolean(garageOut),
+    JSON.stringify({ tvOn, tvBad, setFocus, garageFocus, touchRow, garageOut }));
+
+  await tv.evaluate(() => window.nitro.openRoom('TVTV'));
+  await tv.waitForSelector('#screen-lobby:not([hidden])', { timeout: 20000 });
+  const hostStart = await until(() => tv.evaluate(() => window.nitro.room?.net.isHost && document.activeElement?.id === 'btn-start-race'));
+  const tvLobbyBad = await offscreen('#screen-lobby');
+  r.check('Xbox lobby: Start race is on screen, and the host lands on it', Boolean(hostStart) && !tvLobbyBad.length, tvLobbyBad.join(', '));
+
+  await tap(tv, B.B);
+  const asked = await until(() => tv.evaluate(() => (!document.getElementById('confirm-veil').hidden && document.activeElement?.id === 'btn-confirm-no') || null));
+  await tap(tv, B.B);
+  const stayed = await until(() => tv.evaluate(() => (document.getElementById('confirm-veil').hidden && !document.getElementById('screen-lobby').hidden && window.nitro.room !== null) || null));
+  r.check('B in the lobby asks before leaving the room, and B again stays', Boolean(asked) && Boolean(stayed));
+  await tap(tv, B.B);
+  await until(() => tv.evaluate(() => !document.getElementById('confirm-veil').hidden));
+  await padTo(tv, 'btn-confirm-yes', B.LEFT, 3);
+  await tap(tv, B.A);
+  const left = await until(() => tv.evaluate(() => (!document.getElementById('screen-menu').hidden && window.nitro.room === null) || null));
+  r.check('and Leave room in the question leaves it', Boolean(left));
+
+  // The pad goes (a flat battery) mid-race: the race pauses.
+  await tv.evaluate(() => window.nitro.start('race'));
+  await tv.waitForSelector('#screen-hud:not([hidden])');
+  await tv.evaluate(() => {
+    window.__pad.pad.connected = false;
+    window.dispatchEvent(Object.assign(new Event('gamepaddisconnected'), { gamepad: window.__pad.pad }));
+  });
+  const dropped = await until(() => tv.evaluate(() => (!document.getElementById('pause-veil').hidden && window.nitro.session.paused
+    && document.getElementById('pause-note').textContent.includes('Controller disconnected')) || null));
+  r.check('a controller disconnecting mid-race pauses it and says why', Boolean(dropped));
+  await tv.evaluate(() => window.nitro.leave());
+  await tv.close();
 
   r.check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (err) {

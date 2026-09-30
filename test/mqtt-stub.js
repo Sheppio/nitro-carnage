@@ -28,7 +28,12 @@ class StubClient {
     this.handlers = new Map();
     this.will = opts?.will ?? null;
     clients.add(this);
-    setTimeout(() => { this.connected = true; this.emit('connect', {}); }, 5);
+    // `window.__brokerRefuses = true` makes the next connections fail, as an unreachable broker does.
+    setTimeout(() => {
+      if (globalThis.__brokerRefuses) return this.emit('error', new Error('connection refused'));
+      this.connected = true;
+      this.emit('connect', {});
+    }, 5);
   }
   on(e, fn) { const a = this.handlers.get(e) ?? []; a.push(fn); this.handlers.set(e, a); return this; }
   once(e, fn) { const w = (...args) => { this.off(e, w); fn(...args); }; return this.on(e, w); }

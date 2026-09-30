@@ -121,6 +121,8 @@ h2 {
 }
 
 .btn:hover { background: rgba(255, 255, 255, 0.12); }
+/* Join before the code is whole: plainly not ready, and skipped by the focus ring. */
+.btn:disabled { opacity: 0.45; cursor: default; }
 .btn.primary { background: linear-gradient(90deg, var(--accent), #e8336a); border-color: transparent; }
 .btn.small { font-size: 12px; padding: 8px 12px; }
 
@@ -138,6 +140,8 @@ h2 {
 }
 
 .field.check { justify-content: flex-start; }
+/* Big enough to read across a room: the browser's own box is 13px. */
+.field.check input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
 /* A row's display: flex would otherwise beat the hidden attribute. */
 .field[hidden], .seed-row[hidden] { display: none; }
 
@@ -150,7 +154,7 @@ h2 {
 /* The name and the Garage button beside it, drawn as your car: the button is the box's height. */
 .name-row { display: flex; align-items: flex-end; gap: 8px; margin: 0 0 12px; }
 .name-row .field { flex: 1 1 auto; min-width: 0; margin: 0; }
-.name-row input { min-width: 0; }
+.name-row input { min-width: 0; width: 100%; }
 .btn.car-btn { flex: none; display: grid; place-items: center; align-self: stretch; margin-top: 24px; padding: 0 10px; }
 .btn.car-btn .car-icon { margin: 0; }
 
@@ -863,6 +867,8 @@ button.cup-chip::after { content: ' ✕'; color: var(--muted); }
 .choice.current::after { content: ' ✓'; color: var(--accent, #3ee6ff); }
 
 /* Steam Deck and other 1280x800 screens: everything fits without scrolling. */
+/* The TV layout (at the end) repeats these: it zooms a 1080p screen to lay out
+   like 1370x770, but media queries still see 1920x1080 and never fire. */
 @media (max-height: 820px) and (min-width: 1000px) {
   .menu-card { padding: 20px 22px; }
   .title { font-size: 44px; }
@@ -882,6 +888,21 @@ button.cup-chip::after { content: ' ✕'; color: var(--muted); }
 }
 
 .garage-canvas { width: 100%; height: 100%; display: block; }
+
+/* Landscape: the turntable on the left, the pickers on the right (still one
+   column of them), so the Garage fits a TV or a Deck without scrolling. */
+@media (min-width: 720px) {
+  .garage-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 22px; align-items: stretch; }
+  .garage-layout .garage-view { height: auto; min-height: 240px; margin-bottom: 0; }
+  /* Eleven colour squares need the row's width: the label goes above them. */
+  .garage-layout .swatch-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .garage-layout .swatch-row .picker.swatches { justify-content: flex-start; }
+}
+.menu-card.garage > .menu-note { margin: 10px 0 8px; }
+
+/* The question before leaving a room. */
+.confirm-veil .menu-card { width: min(460px, 100%); }
+.confirm-veil .menu-note { margin: 0 0 18px; }
 
 /* Pickers: ‹ arrows › and colour squares, in place of dropdowns. */
 .picker { display: flex; align-items: center; outline-offset: 2px; border-radius: 8px; }
@@ -910,6 +931,8 @@ select.stepped { position: absolute; width: 1px; height: 1px; opacity: 0; pointe
 .select-stepper .picker-value { overflow: hidden; text-overflow: ellipsis; }
 /* In two columns there is half the room: the arrows take what the dropdown had. */
 .lobby-grid .select-stepper { min-width: 0; max-width: 62%; flex-basis: 62%; }
+/* One column (the Garage): the race number as wide as the pickers above it. */
+.garage .lobby-grid.one-column .select-stepper { flex: 0 1 auto; min-width: 190px; }
 .picker.swatches { gap: 6px; flex-wrap: wrap; justify-content: flex-end; padding: 3px; }
 .swatch {
   width: 26px;
@@ -966,5 +989,16 @@ body[data-pad="none"] .pad-only { display: none; }
    The HUD maps car positions into the zoomed overlay itself. */
 body.tv .ui-root { zoom: 1.4; }
 body.tv .screen.hud { inset: 3vh 3vw; }
-body.tv .screen.menu { padding: 4vh 3vw; }
+body.tv .screen.menu { padding: 3vh 3vw; }
 body.tv .name-tag { font-size: 14px; }
+/* The Deck's fitting rules, which the zoom keeps from firing (see above). */
+body.tv .menu-card { padding: 20px 22px; }
+body.tv .title { font-size: 44px; }
+body.tv .tagline { margin-bottom: 14px; }
+/* :where() keeps this at .btn's weight, so .btn.small, the dice and the car keep their own. */
+body.tv :where(.btn) { padding: 11px 16px; }
+/* The small print, read from the sofa: nothing under about 21px on the screen. */
+body.tv .menu-note, body.tv .track-info, body.tv .version, body.tv .console-banner { font-size: 15px; }
+body.tv .roster .badge { font-size: 12px; }
+body.tv .hud-splits { font-size: 15px; }
+body.tv .ammo { font-size: 15px; }

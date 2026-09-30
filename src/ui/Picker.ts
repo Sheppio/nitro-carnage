@@ -178,6 +178,8 @@ export function stepperFor(select: HTMLSelectElement): HTMLElement {
     });
   }
   // Kept for the value and for tests, but out of sight and out of the focus ring.
+  // Where the focus ring starts on its screen: the arrows now, since the select can't be reached.
+  if (select.hasAttribute('data-nav-default')) el.setAttribute('data-nav-default', '');
   select.classList.add('stepped');
   select.tabIndex = -1;
   select.dataset.navSkip = '';

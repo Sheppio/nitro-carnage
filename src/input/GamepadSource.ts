@@ -56,6 +56,8 @@ export interface NavPulse {
   /** Shoulder buttons: LB and RB, for cycling tabs and pickers (the Garage's bodies). */
   prev: boolean;
   next: boolean;
+  /** X / Square: a second action where a screen has one (the on-screen keyboard's Delete, as on the Xbox's own). */
+  x: boolean;
   /** True while any pad is connected, so the UI can show controller hints. */
   connected: boolean;
 }
@@ -197,7 +199,7 @@ export class GamepadSource implements InputSource {
     if (!pad) {
       this.navHeld.clear();
       this.navRepeat.clear();
-      return { up: false, down: false, left: false, right: false, confirm: false, back: false, menu: false, prev: false, next: false, connected: false };
+      return { up: false, down: false, left: false, right: false, confirm: false, back: false, menu: false, prev: false, next: false, x: false, connected: false };
     }
 
     const lx = filterAxis(pad.axes[AXIS_LEFT_X] ?? 0);
@@ -217,6 +219,7 @@ export class GamepadSource implements InputSource {
       menu: this.edge(BTN.MENU, down(BTN.MENU), false),
       prev: this.edge(BTN.LB, down(BTN.LB), false),
       next: this.edge(BTN.RB, down(BTN.RB), false),
+      x: this.edge(BTN.X, down(BTN.X), false),
       connected: true,
     };
   }
