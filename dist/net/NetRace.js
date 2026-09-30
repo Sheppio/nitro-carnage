@@ -146,7 +146,7 @@ export class NetRace {
             ({ track, seed } = this.state);
         track = Math.max(0, Math.min(this.tracks.length - 1, Math.round(track) || 0));
         this.state = {
-            ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(9, laps)), track,
+            ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(100, laps)), track,
             seed: seed >>> 0, arms: arms ? 1 : 0, pick: pick ? 1 : 0, boost: boost ? 1 : 0,
             body: BODIES[body - 1] ? body : 0,
         };
