@@ -70,7 +70,7 @@ export class HostDirector {
       this.reset();
       // Mid-championship, the lobby shows the next track; after its last race, the championship is over.
       const next = nextCupRace(s);
-      return { ...s, phase: 'L', goAt: 0, grid: [], finish: [], ...(next ?? { race: 0 }) };
+      return { ...s, phase: 'L', goAt: 0, grid: [], finish: [], bodies: '', ...(next ?? { race: 0 }) };
     }
     return null;
   }

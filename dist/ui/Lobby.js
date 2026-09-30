@@ -5,7 +5,11 @@ import { CUP_MAX, cupOn } from '../sim/championship.js';
 import { PALETTE } from '../sim/palette.js';
 import { TRACKS } from '../sim/track/index.js';
 import { daySeed, generateTrack, utcDay } from '../sim/track/generate.js';
-import { BODIES, BODY_NAMES } from '../sim/look.js';
+import { BODY_NAMES, carModeOf } from '../sim/look.js';
+/** The lobby's "Next race: …" line on the Car type (#17). */
+const CAR_TYPE_NOTE = {
+    any: '', single: ', everyone in the host\'s car', distinct: ', no two cars alike', random: ', random cars',
+};
 import { carIcon } from './carIcon.js';
 import { drawTrackPreview } from './trackPreview.js';
 const $ = (id) => document.getElementById(id);
@@ -113,7 +117,7 @@ export class Lobby {
         $('lobby-weapons').value = String(st.arms);
         $('lobby-pickups').value = String(st.pick);
         $('lobby-turbo').value = String(st.boost);
-        $('lobby-body').value = String(st.body);
+        $('lobby-body').value = String(st.ctype);
         $('lobby-wait').hidden = net.isHost;
         this.renderCup();
         const track = st.seed === 0 ? (TRACKS[st.track]?.name ?? '') : `${today ? `Track of the day ${utcDay(Date.now())} · ` : ''}${generateTrack(st.seed).name}`;
@@ -134,7 +138,7 @@ export class Lobby {
         this.renderCard(track);
         const on = cupOn(st);
         $('lobby-wait').textContent = room.hostId
-            ? `${on ? `Championship race ${st.race + 1} of ${st.cup.length}` : 'Next race'}: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost || !FEATURES.turbo ? '' : ', no turbo'}${BODIES[st.body - 1] ? `, everyone in a ${BODY_NAMES[BODIES[st.body - 1]]}` : ''}. Waiting for the host to start it.`
+            ? `${on ? `Championship race ${st.race + 1} of ${st.cup.length}` : 'Next race'}: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost || !FEATURES.turbo ? '' : ', no turbo'}${CAR_TYPE_NOTE[carModeOf(st.ctype)]}. Waiting for the host to start it.`
             : 'Looking for the room…';
     }
     /**
@@ -224,15 +228,16 @@ export class Lobby {
     }
     row(name, colourId, badges, look) {
         const li = document.createElement('li');
-        // The car itself, in its colour and livery, and in the body it will race:
-        // the room's Car type, when the host has locked everyone into one.
-        const forced = BODIES[this.net.state.body - 1];
-        const car = forced ? { ...look, body: forced } : look;
+        // The car itself, in its colour and livery, and in the body it will race
+        // under the room's Car type (`carInfo` has worked that out).
+        const car = look;
         const icon = this.portrait(car, colourId);
         icon.classList.add('car-portrait');
         const n = document.createElement('span');
         n.className = 'name';
-        n.append(name, Object.assign(document.createElement('small'), { textContent: BODY_NAMES[car.body] }));
+        // A Random grid is dealt at the start: until then nobody knows their body.
+        const random = carModeOf(this.net.state.ctype) === 'random' && this.net.state.phase === 'L';
+        n.append(name, Object.assign(document.createElement('small'), { textContent: random ? 'Random' : BODY_NAMES[car.body] }));
         li.append(icon, n);
         for (const b of badges.filter(Boolean)) {
             const tag = document.createElement('span');

@@ -27,7 +27,7 @@ import { mulberry32, wrapAngle } from '../dist/util.js';
 import { SIM } from '../dist/config.js';
 import { trainAt } from '../dist/sim/train.js';
 import { generateTrack, seedOf } from '../dist/sim/track/generate.js';
-import { encodeLook, decodeLook, botLook, DEFAULT_LOOK, BODIES, PATTERNS, bodyCode, lockedLook } from '../dist/sim/look.js';
+import { encodeLook, decodeLook, botLook, DEFAULT_LOOK, BODIES, PATTERNS, bodyCode, lockedLook, assignBodies } from '../dist/sim/look.js';
 
 let pass = 0;
 let fail = 0;
@@ -286,7 +286,7 @@ console.log('\nnet.test\n\ncodecs');
 
   const grid = Array.from({ length: 6 }, (_, i) => 'mfy2k3x9a' + String(i).padStart(4, '0'));
   const hb = { hostId: grid[0], seq: 1295, roomT: 36 ** 6 - 1, phase: 'F', race: 9, of: 9, track: 2, laps: 9, goAt: 36 ** 6 - 1, grid,
-    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1, pick: 1, boost: 1, body: 0, cup: [], score: [] };
+    finish: grid.map((_, slot) => ({ slot, t: STAMP_WRAP - 1 })), cars: 6, seed: 0xffffffff, arms: 1, pick: 1, boost: 1, body: 0, ctype: 3, bodies: '701234', cup: [], score: [] };
   const enc2 = encodeHeartbeat(hb);
   const d2 = decodeHeartbeat(enc2);
   const withSeed = decodeHeartbeat(encodeHeartbeat({ ...hb, seed: 0xffffffff, arms: 0 }));
@@ -301,6 +301,20 @@ console.log('\nnet.test\n\ncodecs');
   const oldBody = decodeHeartbeat(encodeHeartbeat(hb).split(',').slice(0, 16).join(','));
   check('it carries the car-type lock; an older one means everybody in their own car',
     lockedLook(DEFAULT_LOOK, locked.body).body === 'f1' && oldBody.body === 0 && lockedLook(DEFAULT_LOOK, oldBody.body).body === DEFAULT_LOOK.body);
+  const typed = decodeHeartbeat(encodeHeartbeat({ ...hb, ctype: 2, bodies: '012345' }));
+  const oldType = decodeHeartbeat(encodeHeartbeat({ ...hb, body: bodyCode('f1') }).split(',').slice(0, 19).join(','));
+  check('it carries the Car type and the bodies the host dealt (#17); from an older one, a lock reads as Single and none as Any',
+    typed.ctype === 2 && typed.bodies === '012345' && d2.ctype === 3 && d2.bodies === '701234' && oldType.ctype === 1 && oldType.bodies === '' && oldBody.ctype === 0);
+  // The Car types: bodies wanted, most senior first.
+  const want = ['coupe', 'coupe', 'f1', 'coupe', 'f1', 'hatch'];
+  const any = assignBodies(want, 'any', 7);
+  const single = assignBodies(want, 'single', 7, 2);
+  const distinct = assignBodies(want, 'distinct', 7);
+  const random = assignBodies(want, 'random', 7);
+  check('Car types: Any keeps everyone\'s own, Single gives all the lead\'s, Distinct keeps the senior\'s and gives the rest free ones, Random deals all different',
+    any.join() === want.join() && single.every((b) => b === 'f1') && distinct[0] === 'coupe' && distinct[2] === 'f1' && distinct[5] === 'hatch' &&
+    new Set(distinct).size === 6 && new Set(random).size === 6 && random.join() === assignBodies(want, 'random', 7).join() &&
+    random.join() !== assignBodies(want, 'random', 8).join(), JSON.stringify({ distinct, random }));
   const mine = { body: 'buggy', pattern: 'roundel', stripe: 'jade', rims: 'gold', number: 42 };
   check('a locked car keeps its own livery, rims and number; only the body changes',
     JSON.stringify(lockedLook(mine, bodyCode('tractor'))) === JSON.stringify({ ...mine, body: 'tractor' }) && lockedLook(mine, 0) === mine && lockedLook(mine, 99) === mine);
@@ -311,12 +325,13 @@ console.log('\nnet.test\n\ncodecs');
   check('the heartbeat carries the championship\'s tracks and the room\'s points; an older one has neither',
     JSON.stringify(d3.cup) === JSON.stringify(cup) && JSON.stringify(d3.score) === JSON.stringify(score) && legacy.cup.length === 0 && oldBody.score.length === 0);
   const enc3 = encodeHeartbeat(full);
-  // The worst case: 429 bytes, twice a second, only in a room that has planned ten seeds.
-  check('a heartbeat with ten seeded tracks planned and twelve cars scored stays under 440 bytes', enc3.length <= 440, `${enc3.length} bytes`);
+  // The worst case: 439 bytes, twice a second, only in a room that has planned ten seeds.
+  check('a heartbeat with ten seeded tracks planned and twelve cars scored stays under 450 bytes', enc3.length <= 450, `${enc3.length} bytes`);
   check('a full heartbeat (six humans, all finished) round-trips', d2.grid.length === 6 && d2.finish.length === 6 && d2.finish[5].t === STAMP_WRAP - 1 && d2.phase === 'F');
   // 184 since M7: a track seed (up to 7 characters) and the weapons switch joined the heartbeat;
-  // 190 once the power-ups and turbo switches and the car-type lock did.
-  check('and is at most 190 bytes, as budgeted', enc2.length <= 190, `${enc2.length} bytes`);
+  // 190 once the power-ups and turbo switches and the car-type lock did;
+  // 200 with the Car type and the bodies it dealt (#17).
+  check('and is at most 200 bytes, as budgeted', enc2.length <= 200, `${enc2.length} bytes`);
 
   const pres = encodePresence({ name: 'A LONG NAME,WITH,COMMAS', colour: 'vermilion', host: 1, alive: 1, ready: 0, ver: '0.1.99', look: '000000' });
   const dp = decodePresence(pres);

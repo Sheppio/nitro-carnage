@@ -14,7 +14,7 @@ import { dateSeed, daySeed, generateTrack, seedOf, utcDay } from './sim/track/ge
 import { validTrace } from './sim/ghost.js';
 import { drawTrackPreview } from './ui/trackPreview.js';
 import { randomSeedText } from './sim/track/seedWords.js';
-import { BODIES, BODY_NAMES, bodyCode, decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
+import { CAR_MODE_NAMES, CAR_MODES, carModeOf, decodeLook, DEFAULT_LOOK, encodeLook } from './sim/look.js';
 import { Garage } from './ui/Garage.js';
 import { GaragePreview } from './render/GaragePreview.js';
 import { carPortrait } from './render/carPortrait.js';
@@ -139,7 +139,8 @@ const SEED_KEY = `${SLUG}.seed`;
 const WEAPONS_KEY = `${SLUG}.weapons`;
 const PICKUPS_KEY = `${SLUG}.pickups`;
 const TURBO_KEY = `${SLUG}.turbo`;
-const BODY_KEY = `${SLUG}.body`;
+/** The quick race's Car type (#17); `.body` held the lock it replaced. */
+const BODY_KEY = `${SLUG}.cartype`;
 for (const sel of [$('menu-track'), $('lobby-track')]) {
     const opt = (value, text) => {
         const o = document.createElement('option');
@@ -258,9 +259,9 @@ $('menu-turbo-row').hidden = !FEATURES.turbo;
 const menuTurbo = $('menu-turbo');
 menuTurbo.value = store.get(TURBO_KEY) === '0' ? '0' : '1';
 menuTurbo.addEventListener('change', () => store.set(TURBO_KEY, menuTurbo.value));
-/** The car-type lock's choices: everybody's own, or one body for the whole grid. Values are `bodyCode`s. */
+/** The Car types (#17), in the issue's order: Single, Any, Distinct, Random. Values are `CAR_MODES` indexes. */
 for (const id of ['menu-body', 'lobby-body']) {
-    $(id).replaceChildren(new Option('Own cars', '0'), ...BODIES.map((b) => new Option(`All ${BODY_NAMES[b]}`, String(bodyCode(b)))));
+    $(id).replaceChildren(...['single', 'any', 'distinct', 'random'].map((m) => new Option(CAR_MODE_NAMES[m], String(CAR_MODES.indexOf(m)))));
 }
 /**
  * The Garage's ‹ arrows › in place of dropdowns, for the short lists: the
@@ -276,8 +277,9 @@ for (const id of [
     stepperFor($(id));
 const menuBody = $('menu-body');
 menuBody.value = store.get(BODY_KEY);
+// Nothing stored, or the old lock's value: Any.
 if (!menuBody.value)
-    menuBody.value = '0';
+    menuBody.value = String(CAR_MODES.indexOf('any'));
 menuBody.addEventListener('change', () => store.set(BODY_KEY, menuBody.value));
 /* ---------------------------------------------------------------- records */
 /** Hotlap bests, per track (a generated one by its seed), kept on this device. */
@@ -337,6 +339,7 @@ function openGarage(from) {
     // the one you asked for), with other people's marked.
     const colour = fromLobby && room ? (room.net.room.resolvedColours()[room.net.playerId] ?? colourId) : colourId;
     garage.taken(fromLobby && lobby ? lobby.takenColours() : new Set());
+    garage.takenBodies(fromLobby && room ? room.net.takenBodies() : new Set());
     show('screen-garage');
     garage.open(colour);
 }
@@ -514,7 +517,7 @@ function startOffline(mode) {
         weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0',
         // A hotlap has its turbo; the Track of the Day is driven without.
         turbo: FEATURES.turbo && (race ? menuTurbo.value !== '0' : !daily),
-        body: race ? BODIES[Number(menuBody.value) - 1] : undefined }, input, settings);
+        carMode: race ? carModeOf(Number(menuBody.value)) : undefined }, input, settings);
     const bestKey = daily ? dailyKey(track) : hotlapKey(track);
     if (!race)
         s.record = loadRecord(bestKey);
@@ -584,6 +587,9 @@ async function openRoom(code) {
     const net = client.net;
     let wasHost = false;
     const redraw = () => {
+        // In the Garage from the lobby: the bodies a Distinct room has given others move as they pick.
+        if (room === client && current === 'screen-garage' && garageFrom === 'screen-lobby')
+            garage?.takenBodies(net.takenBodies());
         if (room !== client || (current !== 'screen-lobby' && current !== 'screen-lobby-track'))
             return;
         lobby?.render();

@@ -144,15 +144,42 @@ try {
     return l.body === 'buggy' && l.number === 42 && car?.dataset.body === 'buggy' && /Buggy/.test(row.textContent) ? `${l.body} #${l.number}` : null;
   }, bobId), { timeout: 10000 });
   r.check('a look chosen in one tab\'s Garage shows in the other tab\'s lobby, the car drawn and its body named', Boolean(seen), seen ?? '');
-  // The host locks the grid to one body: every car in the roster shows it.
-  await a.selectOption('#lobby-body', '0');
-  const forcedBody = await a.evaluate(() => document.querySelector('#lobby-body option:nth-child(2)').value);
-  await a.selectOption('#lobby-body', forcedBody);
-  const allSame = await until(() => b.evaluate(() => {
+  // The Car type (#17). Single: every car in the roster in the host's body.
+  const aliceBody = await a.evaluate(() => window.nitro.room.net.carInfo(window.nitro.room.net.playerId).look.body);
+  await a.selectOption('#lobby-body', '1');
+  const allSame = await until(() => b.evaluate((want) => {
     const bodies = [...document.querySelectorAll('#lobby-roster canvas.car-portrait')].map((c) => c.dataset.body);
-    return bodies.length && new Set(bodies).size === 1 && !bodies.includes('buggy') ? bodies[0] : null;
+    return bodies.length && new Set(bodies).size === 1 && bodies[0] === want ? bodies[0] : null;
+  }, aliceBody));
+  r.check('Single car type: every car in the roster shows the host\'s body', Boolean(allSame), allSame ?? '');
+  // Distinct: no two alike in the roster, and in Bob's Garage the host's body is taken and stepped past.
+  await b.evaluate(() => { document.getElementById('btn-lobby-garage').click(); window.nitro.garage.set({ body: 'coupe' }); document.getElementById('btn-garage-back').click(); });
+  await a.evaluate(() => { document.getElementById('btn-lobby-garage').click(); window.nitro.garage.set({ body: 'coupe' }); document.getElementById('btn-garage-back').click(); });
+  await a.selectOption('#lobby-body', '2');
+  const distinct = await until(() => b.evaluate(() => {
+    const bodies = [...document.querySelectorAll('#lobby-roster canvas.car-portrait')].map((c) => c.dataset.body);
+    return bodies.length >= 2 && new Set(bodies).size === bodies.length ? bodies : null;
   }));
-  r.check('with the car type locked, every car in the roster shows that body', Boolean(allSame), allSame ?? '');
+  const skipped = await b.evaluate(() => {
+    document.getElementById('btn-lobby-garage').click();
+    const pick = document.getElementById('garage-body');
+    const was = { taken: pick.classList.contains('taken'), text: pick.textContent };
+    const seen = [];
+    for (let k = 0; k < 8; k++) {
+      pick.dispatchEvent(new CustomEvent('nc:cycle', { detail: { dir: 1 } }));
+      seen.push(pick.dataset.value);
+    }
+    window.nitro.garage.set({ body: 'buggy' });
+    document.getElementById('btn-garage-back').click();
+    return { was, seen };
+  });
+  r.check('Distinct car type: both on a coupé, the roster still shows no two alike, and Bob\'s Garage marks the host\'s coupé taken and steps past it',
+    Boolean(distinct) && skipped.was.taken && /taken/.test(skipped.was.text) && !skipped.seen.includes('coupe') && new Set(skipped.seen).size === 7,
+    JSON.stringify({ distinct, skipped }));
+  // Random: dealt at the start, so the roster names no body until then.
+  await a.selectOption('#lobby-body', '3');
+  const random = await until(() => b.evaluate(() => [...document.querySelectorAll('#lobby-roster li small')].every((s) => s.textContent === 'Random') || null));
+  r.check('Random car type: the lobby says Random until the race deals the bodies', Boolean(random));
   await a.selectOption('#lobby-body', '0');
 
   const hostOnly = await b.evaluate(() => getComputedStyle(document.getElementById('btn-start-race')).display);
@@ -162,10 +189,16 @@ try {
   await a.selectOption('#lobby-cars', '3');
   await a.selectOption('#lobby-laps', '1');
   await until(() => b.evaluate(() => window.nitro.room.net.state.cars === 3 && window.nitro.room.net.state.laps === 1));
+  // Distinct for this race: the host deals the bodies, and both screens race the same, all different.
+  await a.selectOption('#lobby-body', '2');
+  await until(() => b.evaluate(() => window.nitro.room.net.state.ctype === 2));
   await a.click('#btn-start-race');
   await Promise.all([a, b].map((p) => p.waitForSelector('#screen-hud:not([hidden])', { timeout: 20000 })));
   const grid = await b.evaluate(() => window.nitro.session.world.entrants.map((e) => (e.remote ? 'R' : 'L')).join(''));
   r.check('both tabs race: own car local, the rest remote', grid.split('').filter((x) => x === 'L').length === 1 && grid.length === 3, grid);
+  const dealt = await Promise.all([a, b].map((p) => p.evaluate(() => window.nitro.room.net.state.grid.map((id) => window.nitro.room.net.carInfo(id).look.body).join())));
+  r.check('a Distinct race: the host deals the bodies, both tabs race the same ones, and no two alike',
+    dealt[0] === dealt[1] && new Set(dealt[0].split(',')).size === 3, dealt.join(' / '));
 
   // Every tab's world keeps to the room clock. Stepping by frame time, a tab
   // lost every long frame for good (the scene build at the start, a hitch):

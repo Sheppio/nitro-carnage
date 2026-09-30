@@ -4,6 +4,9 @@ export class Picker {
     index = 0;
     text = null;
     squares = [];
+    /** Values the arrows pass over (say, bodies somebody else has), and the class the control wears on one. */
+    blocked = new Set();
+    blockedClass = 'taken';
     onChange = null;
     constructor(el, items) {
         this.el = el;
@@ -64,7 +67,23 @@ export class Picker {
         this.show();
     }
     step(dir) {
-        this.pick((this.index + dir + this.items.length) % this.items.length);
+        const n = this.items.length;
+        for (let k = 1; k <= n; k++) {
+            const i = (((this.index + dir * k) % n) + n) % n;
+            if (!this.blocked.has(this.items[i].value) || k === n) {
+                this.pick(i);
+                return;
+            }
+        }
+    }
+    /**
+     * Values the arrows skip, shown as `cls` should one be the value anyway (it
+     * was picked before somebody else took it): for bodies in a Distinct room.
+     */
+    block(values, cls = 'taken') {
+        this.blocked = values;
+        this.blockedClass = cls;
+        this.show();
     }
     pick(i) {
         this.index = i;
@@ -81,8 +100,10 @@ export class Picker {
         const item = this.items[this.index];
         this.el.dataset.value = item.value;
         this.el.setAttribute('aria-valuetext', item.label);
+        const blocked = this.blocked.has(item.value);
+        this.el.classList.toggle(this.blockedClass, blocked);
         if (this.text)
-            this.text.textContent = item.label;
+            this.text.textContent = blocked ? `${item.label} · taken` : item.label;
         this.squares.forEach((sq, i) => {
             sq.classList.toggle('on', i === this.index);
             sq.setAttribute('aria-checked', String(i === this.index));

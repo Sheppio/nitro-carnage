@@ -48,11 +48,8 @@ export class Garage {
         document.addEventListener('nc:shoulder', (e) => {
             if ($('screen-garage').hidden)
                 return;
-            const dir = e.detail.dir;
-            const i = BODIES.indexOf(this.look.body);
-            this.look = { ...this.look, body: BODIES[(i + dir + BODIES.length) % BODIES.length] };
-            this.write();
-            this.changed();
+            // As the arrows would: past any body a Distinct room has given someone else.
+            this.body.step(e.detail.dir);
         });
     }
     /** The turntable, for tests. */
@@ -71,6 +68,10 @@ export class Garage {
     /** Mark the colours other people in the room have. */
     taken(colours) {
         this.colour.mark(colours, 'taken');
+    }
+    /** Keep the body off the ones other people have: a room whose Car type is Distinct (#17). */
+    takenBodies(bodies) {
+        this.body.block(bodies);
     }
     /** Open with the colour the car will wear. */
     open(colourId) {

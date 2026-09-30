@@ -68,6 +68,69 @@ export function lockedLook(look, code) {
     const body = BODIES[code - 1];
     return body ? { ...look, body } : look;
 }
+/**
+ * A race's Car type (#17): how the grid's bodies are chosen. Its index is
+ * what travels and is stored, so new ones go on the end.
+ * - any: everybody drives the body they picked;
+ * - single: every car in the host's body (offline, the player's);
+ * - distinct: everybody's own, but no two alike: a body already taken goes to
+ *   whoever is senior (joined the room first), and the other gets a free one;
+ * - random: all different, dealt out afresh for every race.
+ */
+export const CAR_MODES = ['any', 'single', 'distinct', 'random'];
+export const CAR_MODE_NAMES = { any: 'Any', single: 'Single', distinct: 'Distinct', random: 'Random' };
+/** A Car type from its index, as it travels; anything else is `any`. */
+export function carModeOf(code) {
+    return CAR_MODES[code] ?? 'any';
+}
+/**
+ * Every car's body under a Car type. `wanted` is each car's own body, most
+ * senior first (humans in join order, then bots); `lead` is the car whose
+ * body `single` gives everyone. `seed` deals `random`, and the free bodies
+ * `distinct` hands out, so every client that is given it deals the same.
+ * With more cars than bodies, `distinct` and `random` start again from the top.
+ */
+export function assignBodies(wanted, mode, seed, lead = 0) {
+    if (mode === 'any')
+        return [...wanted];
+    if (mode === 'single') {
+        const body = wanted[lead] ?? wanted[0] ?? DEFAULT_LOOK.body;
+        return wanted.map(() => body);
+    }
+    // A shuffle of every body, from the seed.
+    let h = seed >>> 0 || 1;
+    const next = (n) => {
+        h ^= h << 13;
+        h ^= h >>> 17;
+        h ^= h << 5;
+        h >>>= 0;
+        return h % n;
+    };
+    const deck = [...BODIES];
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = next(i + 1);
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    if (mode === 'random')
+        return wanted.map((_, i) => deck[i % deck.length]);
+    // Distinct: the senior car keeps a body; the rest take what is left, in the deck's order.
+    const taken = new Set();
+    const out = wanted.map((b) => {
+        if (taken.has(b) || taken.size >= BODIES.length)
+            return null;
+        taken.add(b);
+        return b;
+    });
+    return out.map((b) => {
+        if (b)
+            return b;
+        const free = deck.find((d) => !taken.has(d));
+        if (!free)
+            return deck[next(deck.length)];
+        taken.add(free);
+        return free;
+    });
+}
 /** Coerce anything (stored JSON, a URL) into a valid look. */
 export function sanitizeLook(look) {
     const l = look ?? {};

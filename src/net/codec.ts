@@ -312,8 +312,15 @@ export interface Heartbeat {
   pick: number;
   /** Turbo on (1) or off (0). */
   boost: number;
-  /** Every car in one body (`bodyCode`), or 0 for everybody's own. */
+  /**
+   * Every car in one body (`bodyCode`), or 0. Older builds' car-type lock:
+   * the host sends its own body for the Single car type, so they show it.
+   */
   body: number;
+  /** The Car type (#17), `CAR_MODES`' index. From an older build, Single for a lock and Any without. */
+  ctype: number;
+  /** Once the grid is set, each car's body in grid order (`BODIES`' index, one character each); '' for everybody's own. */
+  bodies: string;
   /** The championship's tracks, in order (#8). Empty from older builds. */
   cup: CupRace[];
   /** The room's points so far. Empty from older builds. */
@@ -342,6 +349,8 @@ export function encodeHeartbeat(h: Heartbeat): string {
     // A seed is marked `s`; a bare number is a built-in track.
     h.cup.map((c) => (c.seed ? `s${b36(c.seed)}` : b36(c.track))).join(LIST),
     h.score.map((s) => `${s.id}:${b36(s.points)}:${b36(s.wins)}`).join(LIST),
+    b36(h.ctype),
+    h.bodies,
   ].join(FLD);
 }
 
@@ -382,6 +391,8 @@ export function decodeHeartbeat(payload: string): Heartbeat | null {
           return id ? [{ id, points: un36(points), wins: un36(wins) }] : [];
         })
       : [],
+    ctype: f[19] === undefined ? (un36(f[16]) ? 1 : 0) : un36(f[19]),
+    bodies: f[20] ?? '',
   };
 }
 

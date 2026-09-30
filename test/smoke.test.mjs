@@ -565,6 +565,20 @@ try {
   }
 
   /* -------------------------------------------------------------- garage */
+  // A quick race's Car type (#17): Distinct puts no two cars in one body, Single all in yours.
+  for (const [mode, want] of [['2', 'distinct'], ['1', 'single']]) {
+    const ct = await openPage('quality=potato&bots=5');
+    await ct.click('#btn-race');
+    await ct.evaluate((m) => { const s = document.getElementById('menu-body'); s.value = m; s.dispatchEvent(new Event('change')); }, mode);
+    await ct.click('#btn-track-go');
+    await ct.waitForSelector('#screen-hud:not([hidden])');
+    const cars = await ct.evaluate(() => [...window.nitro.session.cars.values()].map((c) => c.look.body));
+    const own = await ct.evaluate(() => window.nitro.garage?.current.body ?? JSON.parse(localStorage.getItem('nitrocarnage.look') ?? 'null')?.body ?? null);
+    r.check(`a quick race with the ${want} car type: ${want === 'distinct' ? 'no two cars alike' : 'every car in the player\'s body'}`,
+      cars.length === 6 && (want === 'distinct' ? new Set(cars).size === 6 : new Set(cars).size === 1), `${cars.join()} (own ${own})`);
+    await ct.close();
+  }
+
   // Every body in every livery: built without error, inside the shared
   // collision footprint (4.4 m by 2.0 m, a few centimetres of bumper
   // allowed), within the triangle budget, and wearing its stripe.

@@ -8,8 +8,8 @@ import type { CupRace } from '../sim/championship.js';
 import { COLOUR_ORDER, DEFAULT_COLOUR } from '../sim/palette.js';
 import { standings } from '../sim/race.js';
 import { generateTrack } from '../sim/track/generate.js';
-import { BODIES, botLook, decodeLook, lockedLook } from '../sim/look.js';
-import type { CarLook } from '../sim/look.js';
+import { assignBodies, BODIES, bodyCode, botLook, CAR_MODES, carModeOf, decodeLook } from '../sim/look.js';
+import type { BodyId, CarLook } from '../sim/look.js';
 import { racingLine } from '../sim/racingLine.js';
 import type { TrackDef } from '../sim/track/TrackDef.js';
 import { World } from '../sim/World.js';
@@ -200,10 +200,10 @@ export class NetRace {
 
   /* ------------------------------------------------------------ the lobby */
 
-  /** Host: change the lobby settings (cars on the grid, laps). */
+  /** Host: change the lobby settings (cars on the grid, laps, and the rest). `ctype` is the Car type's index. */
   configure(
     cars: number, laps: number, track = this.state.track, seed = this.state.seed, arms = this.state.arms,
-    pick = this.state.pick, boost = this.state.boost, body = this.state.body,
+    pick = this.state.pick, boost = this.state.boost, ctype = this.state.ctype,
   ): void {
     if (!this.isHost || this.state.phase !== 'L') return;
     // Mid-championship the track is the championship's: the lobby's boxes may still hold another.
@@ -212,7 +212,7 @@ export class NetRace {
     this.state = {
       ...this.state, cars: Math.max(1, Math.min(6, cars)), laps: Math.max(1, Math.min(100, laps)), track,
       seed: seed >>> 0, arms: arms ? 1 : 0, pick: pick ? 1 : 0, boost: boost ? 1 : 0,
-      body: BODIES[body - 1] ? body : 0,
+      ctype: CAR_MODES[ctype] ? ctype : 0,
     };
     this.room.beatNow();
     this.events.emit('state', { state: this.state });
@@ -262,7 +262,52 @@ export class NetRace {
     const grid = [...humans];
     for (let slot = grid.length; slot < Math.max(this.state.cars, humans.length); slot++) grid.push(`b${slot}`);
     this.director.reset();
-    this.setState({ ...this.state, ...change, phase: 'C', goAt: Math.round(this.roomNow + NET.countdownMs), grid, finish: [] });
+    const goAt = Math.round(this.roomNow + NET.countdownMs);
+    // The Car type settled once, here, for the whole race: every client races the bodies the host dealt.
+    const mode = carModeOf(this.state.ctype);
+    const dealt = mode === 'any' ? null : assignBodies(grid.map((id) => this.ownLook(id).body), mode, hashString(`${this.room.roomId}:${goAt}`), grid.indexOf(this.playerId));
+    const bodies = dealt ? dealt.map((b) => BODIES.indexOf(b).toString(36)).join('') : '';
+    // Older builds read `body`: the one body of a Single grid, and their own car otherwise.
+    const body = mode === 'single' && dealt ? bodyCode(dealt[0]) : 0;
+    this.setState({ ...this.state, ...change, phase: 'C', goAt, grid, finish: [], bodies, body });
+  }
+
+  /** A car's look as its driver dressed it (a bot, as the room dresses it), before the Car type. */
+  private ownLook(id: string): CarLook {
+    if (isBotId(id)) return botLook(hashString(`${this.room.roomId}:${id}`));
+    return decodeLook(id === this.playerId ? this.room.look : this.room.peers.get(id)?.look);
+  }
+
+  /**
+   * The body a car races in under the room's Car type: the one the host
+   * dealt once the grid is set, and in the lobby what it would be if the
+   * race started now (a Random grid shows everyone's own until then).
+   */
+  bodyOf(id: string): BodyId {
+    const s = this.state;
+    const slot = s.grid.indexOf(id);
+    const dealt = s.phase !== 'L' && slot >= 0 ? BODIES[parseInt(s.bodies[slot] ?? '', 36)] : undefined;
+    if (dealt) return dealt;
+    // An older host's lock, or a grid it dealt before this client arrived: one body for all.
+    if (s.phase !== 'L' && !s.bodies && BODIES[s.body - 1]) return BODIES[s.body - 1]!;
+    const mode = carModeOf(s.ctype);
+    if (mode === 'any' || mode === 'random') return this.ownLook(id).body;
+    // As the grid would be now: humans in join order, then the bots that fill it.
+    const humans = this.room.aliveIds.slice(0, NET.maxPlayers);
+    const ids = [...humans];
+    for (let slot = ids.length; slot < Math.max(s.cars, humans.length); slot++) ids.push(`b${slot}`);
+    if (!ids.includes(id)) ids.push(id);
+    const lead = Math.max(0, ids.indexOf(this.room.hostId ?? this.playerId));
+    return assignBodies(ids.map((i) => this.ownLook(i).body), mode, 0, lead)[ids.indexOf(id)]!;
+  }
+
+  /**
+   * Bodies other people in the room have, which a Distinct room keeps you
+   * off in the Garage. Empty for any other Car type.
+   */
+  takenBodies(): Set<BodyId> {
+    if (carModeOf(this.state.ctype) !== 'distinct') return new Set();
+    return new Set(this.room.aliveIds.filter((id) => id !== this.playerId).map((id) => this.ownLook(id).body));
   }
 
   /** Name and resolved colour for every car on the grid (or in the room, in the lobby). */
@@ -277,11 +322,11 @@ export class NetRace {
       const bots = this.state.grid.filter(isBotId);
       const k = Math.max(0, bots.indexOf(id));
       // Dressed from the room and the slot, which every client knows.
-      const look = lockedLook(botLook(hashString(`${this.room.roomId}:${id}`)), this.state.body);
+      const look = { ...this.ownLook(id), body: this.bodyOf(id) };
       return { id, name: botNames(hashString(`${this.room.roomId}:names`), slot + 1)[slot]!, colour: free[k % free.length] ?? DEFAULT_COLOUR, bot: true, you: false, look };
     }
     const peer = this.room.peers.get(id);
-    const look = lockedLook(decodeLook(you ? this.room.look : peer?.look), this.state.body);
+    const look = { ...this.ownLook(id), body: this.bodyOf(id) };
     return { id, name: you ? this.room.displayName : (peer?.name ?? '—'), colour: colours[id] ?? DEFAULT_COLOUR, bot: false, you, look };
   }
 

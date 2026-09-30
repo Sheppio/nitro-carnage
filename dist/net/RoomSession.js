@@ -4,7 +4,7 @@ import { Emitter } from '../util.js';
 import { decodeHeartbeat, decodePresence, encodeHeartbeat, encodePresence } from './codec.js';
 import { Topics, segment } from './topics.js';
 export const LOBBY_STATE = {
-    phase: 'L', race: 0, of: 0, track: 0, laps: 5, goAt: 0, grid: [], finish: [], cars: 6, seed: 0, arms: 1, pick: 1, boost: 1, body: 0,
+    phase: 'L', race: 0, of: 0, track: 0, laps: 5, goAt: 0, grid: [], finish: [], cars: 6, seed: 0, arms: 1, pick: 1, boost: 1, body: 0, ctype: 0, bodies: '',
     cup: [], score: [],
 };
 /**

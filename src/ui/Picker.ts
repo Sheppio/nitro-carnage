@@ -19,6 +19,9 @@ export class Picker {
   private index = 0;
   private readonly text: HTMLElement | null = null;
   private readonly squares: HTMLElement[] = [];
+  /** Values the arrows pass over (say, bodies somebody else has), and the class the control wears on one. */
+  private blocked: ReadonlySet<string> = new Set();
+  private blockedClass = 'taken';
   onChange: ((value: string) => void) | null = null;
 
   constructor(readonly el: HTMLElement, private readonly items: readonly PickerItem[]) {
@@ -78,7 +81,24 @@ export class Picker {
   }
 
   step(dir: number): void {
-    this.pick((this.index + dir + this.items.length) % this.items.length);
+    const n = this.items.length;
+    for (let k = 1; k <= n; k++) {
+      const i = (((this.index + dir * k) % n) + n) % n;
+      if (!this.blocked.has(this.items[i]!.value) || k === n) {
+        this.pick(i);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Values the arrows skip, shown as `cls` should one be the value anyway (it
+   * was picked before somebody else took it): for bodies in a Distinct room.
+   */
+  block(values: ReadonlySet<string>, cls = 'taken'): void {
+    this.blocked = values;
+    this.blockedClass = cls;
+    this.show();
   }
 
   private pick(i: number): void {
@@ -98,7 +118,9 @@ export class Picker {
     const item = this.items[this.index]!;
     this.el.dataset.value = item.value;
     this.el.setAttribute('aria-valuetext', item.label);
-    if (this.text) this.text.textContent = item.label;
+    const blocked = this.blocked.has(item.value);
+    this.el.classList.toggle(this.blockedClass, blocked);
+    if (this.text) this.text.textContent = blocked ? `${item.label} · taken` : item.label;
     this.squares.forEach((sq, i) => {
       sq.classList.toggle('on', i === this.index);
       sq.setAttribute('aria-checked', String(i === this.index));

@@ -744,6 +744,7 @@ body.is-host .guest-only { display: none !important; }
 .track-card .track-info { display: block; font-size: 12px; }
 button.track-card::after { content: '›'; margin-left: auto; padding-left: 6px; font: 600 24px var(--display); color: var(--muted); }
 /* A colour somebody else has: still pickable (the room sorts clashes out), but marked. */
+.picker.taken .picker-value { opacity: 0.55; }
 .swatch.taken { opacity: 0.35; background-image: linear-gradient(135deg, transparent 45%, rgba(0, 0, 0, 0.7) 45%, rgba(0, 0, 0, 0.7) 55%, transparent 55%); }
 .lobby-grid .field select, .lobby-grid .field input { min-width: 0; max-width: 62%; }
 .lobby-grid .seed-row .field input { max-width: none; flex: 1 1 auto; }

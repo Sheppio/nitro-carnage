@@ -241,6 +241,8 @@ export function encodeHeartbeat(h) {
         // A seed is marked `s`; a bare number is a built-in track.
         h.cup.map((c) => (c.seed ? `s${b36(c.seed)}` : b36(c.track))).join(LIST),
         h.score.map((s) => `${s.id}:${b36(s.points)}:${b36(s.wins)}`).join(LIST),
+        b36(h.ctype),
+        h.bodies,
     ].join(FLD);
 }
 export function decodeHeartbeat(payload) {
@@ -282,6 +284,8 @@ export function decodeHeartbeat(payload) {
                 return id ? [{ id, points: un36(points), wins: un36(wins) }] : [];
             })
             : [],
+        ctype: f[19] === undefined ? (un36(f[16]) ? 1 : 0) : un36(f[19]),
+        bodies: f[20] ?? '',
     };
 }
 /** Names go inside a comma-delimited record, so they must not contain one. */

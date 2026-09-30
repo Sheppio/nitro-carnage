@@ -11,7 +11,7 @@ import { Surface } from './sim/surfaces.js';
 import { missileAt } from './sim/weapons.js';
 import { interpolateCar } from './sim/interpolate.js';
 import { COLOUR_ORDER, colourOf } from './sim/palette.js';
-import { bodyCode, botLook, DEFAULT_LOOK, lockedLook } from './sim/look.js';
+import { assignBodies, botLook, DEFAULT_LOOK } from './sim/look.js';
 import { displayLap, standings } from './sim/race.js';
 import { RaceLog } from './sim/raceLog.js';
 import { racingLine } from './sim/racingLine.js';
@@ -122,8 +122,10 @@ export class RaceSession {
             const playerSlot = race ? Math.min(bots, 3) : 0;
             const colours = COLOUR_ORDER.filter((c) => c !== opts.colourId);
             this.player = this.world.addCar('you', playerSlot, () => this.playerIntent());
-            const lock = race ? bodyCode(opts.body) : 0;
-            this.addInfo('you', opts.name || 'YOU', opts.colourId, true, lockedLook(opts.look ?? DEFAULT_LOOK, lock));
+            // The Car type: the player is the senior car, whose body a Single grid copies.
+            const own = [opts.look ?? DEFAULT_LOOK, ...Array.from({ length: bots }, (_, b) => botLook(1000 + b))];
+            const bodies = assignBodies(own.map((l) => l.body), race ? (opts.carMode ?? 'any') : 'any', Math.floor(Math.random() * 2 ** 31));
+            this.addInfo('you', opts.name || 'YOU', opts.colourId, true, { ...own[0], body: bodies[0] });
             let slot = 0;
             // New names every race: a quick race has no room to agree with.
             const names = botNames(Math.floor(Math.random() * 2 ** 31), bots);
@@ -132,7 +134,7 @@ export class RaceSession {
                     slot++;
                 const id = `b${b}`;
                 this.world.addBot(id, slot, skillFor(b, settings.current.botLevel), 1000 + b);
-                this.addInfo(id, names[b], colours[b % colours.length], false, lockedLook(botLook(1000 + b), lock));
+                this.addInfo(id, names[b], colours[b % colours.length], false, { ...own[b + 1], body: bodies[b + 1] });
                 slot++;
             }
         }

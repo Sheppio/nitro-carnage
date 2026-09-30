@@ -49,11 +49,8 @@ export class Garage {
     $('garage-number').addEventListener('change', () => this.read());
     document.addEventListener('nc:shoulder', (e) => {
       if ($('screen-garage').hidden) return;
-      const dir = (e as CustomEvent<{ dir: number }>).detail.dir;
-      const i = BODIES.indexOf(this.look.body);
-      this.look = { ...this.look, body: BODIES[(i + dir + BODIES.length) % BODIES.length]! };
-      this.write();
-      this.changed();
+      // As the arrows would: past any body a Distinct room has given someone else.
+      this.body.step((e as CustomEvent<{ dir: number }>).detail.dir);
     });
   }
 
@@ -76,6 +73,11 @@ export class Garage {
   /** Mark the colours other people in the room have. */
   taken(colours: ReadonlySet<string>): void {
     this.colour.mark(colours, 'taken');
+  }
+
+  /** Keep the body off the ones other people have: a room whose Car type is Distinct (#17). */
+  takenBodies(bodies: ReadonlySet<string>): void {
+    this.body.block(bodies);
   }
 
   /** Open with the colour the car will wear. */
