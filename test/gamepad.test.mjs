@@ -299,7 +299,7 @@ try {
     visited.add((await focused(page)).replace(/-pick$/, ''));
     await tap(page, B.DOWN);
   }
-  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-bots', 'set-fov', 'set-names', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
+  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-bots', 'set-fov', 'set-names', 'set-fullscreen', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
   const missed = rows.filter((id) => !visited.has(id));
   await until(async () => (await focused(page)) === 'set-motion' || (await tap(page, B.DOWN), false), { timeout: 10000, interval: 0 });
   const before = await page.evaluate(() => document.getElementById('set-motion').checked);

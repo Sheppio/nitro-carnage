@@ -137,6 +137,23 @@ try {
   await page.keyboard.press('Space');
   const m1 = await page.evaluate(() => document.getElementById('set-motion').checked);
   r.check('Space toggles a checkbox', m0 !== m1);
+  // Full screen (#27): ticked, it asks at once (the tick is a gesture), and again at the next key while not full screen.
+  await page.evaluate(() => {
+    window.__fs = 0;
+    document.documentElement.requestFullscreen = () => { window.__fs++; return Promise.resolve(); };
+  });
+  await goTo(page, 'set-fullscreen');
+  await page.keyboard.press('Space');
+  const fsAsked = await page.evaluate(() => [window.__fs, window.nitro.settings.current.fullscreen]);
+  await page.keyboard.press('ArrowUp');
+  const again = await page.evaluate(() => window.__fs);
+  await goTo(page, 'set-fullscreen');
+  await page.keyboard.press('Space');
+  const unticked = await page.evaluate(() => window.__fs);
+  await page.keyboard.press('ArrowUp');
+  const off = await page.evaluate(() => [window.__fs, window.nitro.settings.current.fullscreen]);
+  r.check('the Full screen box asks for full screen when ticked and at the next key; unticked, it stops asking',
+    fsAsked[0] >= 1 && fsAsked[1] === true && again > fsAsked[0] && off[1] === false && off[0] === unticked, JSON.stringify({ fsAsked, again, off }));
   await page.keyboard.press('Escape');
   const backToMenu = await until(() => visible(page, 'screen-menu'));
   r.check('Esc goes back to the menu', Boolean(backToMenu));

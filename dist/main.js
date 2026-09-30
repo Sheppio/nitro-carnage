@@ -1016,6 +1016,7 @@ function openSettings(fromPause) {
     $('set-quality').value = settings.current.quality === 'potato' ? 'low' : settings.current.quality;
     $('set-touch').value = settings.current.touchControls;
     $('set-vibration').checked = settings.current.vibration;
+    $('set-fullscreen').checked = settings.current.fullscreen;
     $('set-motion').checked = settings.current.reduceMotion;
     $('set-autopilot').checked = settings.current.autopilot;
     $('set-direct').checked = settings.current.direct;
@@ -1059,6 +1060,42 @@ settings.events.on('change', () => {
 $('set-quality').addEventListener('change', (e) => settings.set('quality', e.target.value));
 $('set-touch').addEventListener('change', (e) => settings.set('touchControls', e.target.value));
 $('set-vibration').addEventListener('change', (e) => settings.set('vibration', e.target.checked));
+/**
+ * Full screen by itself (#27). Browsers only allow it from a gesture, so it
+ * happens at the first tap, click or key, and at once when ticked (itself a
+ * gesture). Leaving full screen yourself (Esc, a swipe) is respected: it
+ * stays off until the page is loaded again or the box is ticked again.
+ */
+let fullscreenDeclined = false;
+let fullscreenAsked = false;
+const goFullscreen = () => {
+    const el = document.documentElement;
+    if (!settings.current.fullscreen || fullscreenDeclined || document.fullscreenElement || !el.requestFullscreen)
+        return;
+    fullscreenAsked = true;
+    void el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
+        /* refused: not a gesture the browser counts, or no full screen here */
+    });
+};
+document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement)
+        fullscreenAsked = false;
+    else if (!fullscreenAsked)
+        fullscreenDeclined = true;
+});
+for (const type of ['keydown', 'pointerup'])
+    window.addEventListener(type, goFullscreen, { capture: true, passive: true });
+// A console goes full screen from its Menu button already, and an iPhone's browser can't at all: no box for either.
+$('set-fullscreen-row').hidden = isConsole() || typeof document.documentElement.requestFullscreen !== 'function';
+$('set-fullscreen').addEventListener('change', (e) => {
+    const on = e.target.checked;
+    settings.set('fullscreen', on);
+    fullscreenDeclined = false;
+    if (on)
+        goFullscreen();
+    else if (document.fullscreenElement)
+        void document.exitFullscreen().catch(() => { });
+});
 $('set-motion').addEventListener('change', (e) => settings.set('reduceMotion', e.target.checked));
 $('set-autopilot').addEventListener('change', (e) => settings.set('autopilot', e.target.checked));
 $('set-direct').addEventListener('change', (e) => settings.set('direct', e.target.checked));

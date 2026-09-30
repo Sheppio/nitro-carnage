@@ -45,6 +45,8 @@ export interface InputSettings {
   direct: boolean;
   /** 'auto' is large on a console, which is on a TV across the room, and normal elsewhere. */
   uiSize: UiSize;
+  /** Go full screen by itself (#27), at the first tap, click or key a browser allows it from. */
+  fullscreen: boolean;
 }
 
 /** Numeric settings and the range each is clamped to when read back. */
@@ -75,6 +77,7 @@ export const DEFAULT_SETTINGS: InputSettings = {
   broker: BROKERS[0]!.id,
   direct: true,
   uiSize: 'auto',
+  fullscreen: false,
 };
 
 export interface SettingsEvents extends Record<string, unknown> {
@@ -156,7 +159,7 @@ function coerce(state: InputSettings): InputSettings {
   if (!['rivals', 'all', 'off'].includes(out.nameTags)) out.nameTags = 'rivals';
   if (!BROKERS.some((b) => b.id === out.broker)) out.broker = BROKERS[0]!.id;
   if (!['auto', 'normal', 'tv'].includes(out.uiSize)) out.uiSize = 'auto';
-  for (const key of ['vibration', 'reduceMotion', 'autopilot'] as const) out[key] = Boolean(out[key]);
+  for (const key of ['vibration', 'reduceMotion', 'autopilot', 'fullscreen'] as const) out[key] = Boolean(out[key]);
   // Missing from settings saved before it existed: on.
   out.direct = out.direct !== false;
   return out;

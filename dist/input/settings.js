@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
     broker: BROKERS[0].id,
     direct: true,
     uiSize: 'auto',
+    fullscreen: false,
 };
 /**
  * Persisted player settings. Read back through `coerce`, because storage
@@ -103,7 +104,7 @@ function coerce(state) {
         out.broker = BROKERS[0].id;
     if (!['auto', 'normal', 'tv'].includes(out.uiSize))
         out.uiSize = 'auto';
-    for (const key of ['vibration', 'reduceMotion', 'autopilot'])
+    for (const key of ['vibration', 'reduceMotion', 'autopilot', 'fullscreen'])
         out[key] = Boolean(out[key]);
     // Missing from settings saved before it existed: on.
     out.direct = out.direct !== false;
