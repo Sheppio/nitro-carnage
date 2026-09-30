@@ -16,6 +16,7 @@ import { STUCK_RESPAWN, GHOST_TIME } from '../dist/sim/World.js';
 import { TRACKS } from '../dist/sim/track/index.js';
 import { World } from '../dist/sim/World.js';
 import { RaceLog, awards, Tally } from '../dist/sim/raceLog.js';
+import { award } from '../dist/sim/championship.js';
 import { pickupSpots } from '../dist/sim/pickups.js';
 import { interpolateCar } from '../dist/sim/interpolate.js';
 import { resolveColours, PALETTE } from '../dist/sim/palette.js';
@@ -1576,9 +1577,13 @@ console.log('\nawards and the room tally');
   quiet.onEvent({ kind: 'go', time: 0 }, grid);
   check('a clean race in grid order gives no awards', awards(quiet, ['A', 'B', 'C', 'D'], (id) => id).length === 0);
 
+  // As a room keeps it: each client adds the wrecks it saw, and takes the
+  // points and wins from the host's table on the heartbeat (the championship, #8).
   const tally = new Tally();
+  const second = ['A', 'D', 'B', 'C'];
   tally.add(order, log, (id) => `N${id}`, (id) => id === 'C');
-  tally.add(['A', 'D', 'B', 'C'], log, (id) => `N${id}`, (id) => id === 'C');
+  tally.add(second, log, (id) => `N${id}`, (id) => id === 'C');
+  tally.sync(award(award([], order), second), (id) => `N${id}`, (id) => id === 'C');
   const st = tally.standings();
   check('the tally adds points across races: 10, 6, 4, 3', st[0].id === 'A' && st[0].points === 16 && st[0].wins === 1 && st[1].id === 'D' && st[1].points === 16,
     st.map((r) => `${r.id}:${r.points}`).join(' '));

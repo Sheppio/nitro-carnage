@@ -137,7 +137,6 @@ export class AudioEngine {
   private noise: AudioBuffer | null = null;
   private voices = new Map<string, EngineVoice>();
   private shots = new Map<string, MissileVoice>();
-  private windVoice: { src: AudioBufferSourceNode; filter: BiquadFilterNode; gain: GainNode } | null = null;
   private lastPlayed = new Map<string, { at: number; level: number }>();
   private lastBeat = -Infinity;
   private sfx = 1;
@@ -357,30 +356,6 @@ export class AudioEngine {
   }
 
   /**
-   * Once a frame: the air rushing past the followed car. Nothing below a
-   * jog; a roar at full boost.
-   */
-  wind(speed: number): void {
-    const ctx = this.live();
-    if (!ctx) return;
-    const level = clamp((Math.abs(speed) - 8) / 55, 0, 1.2) ** 2 * 0.1;
-    if (!this.windVoice) {
-      if (level <= 0) return;
-      const src = this.loop(ctx);
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.Q.value = 0.6;
-      const gain = ctx.createGain();
-      gain.gain.value = 0;
-      src.connect(filter).connect(gain).connect(this.sfxBus!);
-      this.windVoice = { src, filter, gain };
-    }
-    const t = ctx.currentTime;
-    this.windVoice.filter.frequency.setTargetAtTime(300 + Math.abs(speed) * 22, t, 0.1);
-    this.windVoice.gain.gain.setTargetAtTime(level, t, 0.12);
-  }
-
-  /**
    * Once a frame: the missiles in the air, nearest first. Each whines, pitched
    * up as it comes at you and down as it goes.
    */
@@ -422,16 +397,10 @@ export class AudioEngine {
     this.shots.delete(key);
   }
 
-  /** Every engine off, and the wind and missiles with them: the race is over, or paused. */
+  /** Every engine off, and the missiles with them: the race is over, or paused. */
   silenceEngines(): void {
     for (const [id, v] of this.voices) this.stopVoice(id, v);
     for (const [key, v] of this.shots) this.stopShot(key, v);
-    if (this.windVoice && this.ctx) {
-      const t = this.ctx.currentTime;
-      this.windVoice.gain.gain.setTargetAtTime(0, t, 0.05);
-      this.windVoice.src.stop(t + 0.3);
-      this.windVoice = null;
-    }
   }
 
   get engineVoices(): number {

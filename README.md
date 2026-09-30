@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.74**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.75**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -990,8 +990,6 @@ Everything is synthesised with Web Audio, and there are no sound files:
   noise is filtered noise shaped by the rougher of the two axles' surfaces: a hiss on
   dirt, a rumble on grass, a buzz on the kerbs, a splash in water. It gets louder with
   speed.
-- **Wind.** Band-passed noise around the followed car, from nothing at a jog to a roar
-  at full boost.
 - **Weapons.** Missiles are a noise burst over a falling saw wave, and explosions a
   noise sweep over a sine drop. The nearest four missiles whine while they fly, pitched
   up coming at you and down going away.

@@ -401,7 +401,7 @@ export class RaceSession {
   }
 
   /**
-   * Once a frame: engines for the nearest cars, the wind, the missiles in the
+   * Once a frame: engines for the nearest cars, the missiles in the
    * air, the countdown, the crossing, and the music's mood.
    */
   private sound(raceTime: number, drawTime: number, dt: number): void {
@@ -442,9 +442,6 @@ export class RaceSession {
       });
     }
     a.engines(voices);
-    const f = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
-    // Airborne, the wind is all there is: a little louder.
-    a.wind(f ? Math.hypot(f.vx, f.vz) * (f.airborne ? 1.2 : 1) : 0);
     const shots: MissileVoiceInput[] = [];
     for (const m of this.world.armoury.missiles) {
       if (m.done || drawTime < m.t0 || drawTime > m.end) continue;
