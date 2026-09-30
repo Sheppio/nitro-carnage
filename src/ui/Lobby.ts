@@ -1,3 +1,4 @@
+import { FEATURES } from '../config.js';
 import { WIRE } from '../net/codec.js';
 import type { NetRace } from '../net/NetRace.js';
 import { isBotId } from '../sim/bots.js';
@@ -135,7 +136,7 @@ export class Lobby {
     this.renderCard(track);
     const on = cupOn(st);
     $('lobby-wait').textContent = room.hostId
-      ? `${on ? `Championship race ${st.race + 1} of ${st.cup.length}` : 'Next race'}: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost ? '' : ', no turbo'}${BODIES[st.body - 1] ? `, everyone in a ${BODY_NAMES[BODIES[st.body - 1]!]}` : ''}. Waiting for the host to start it.`
+      ? `${on ? `Championship race ${st.race + 1} of ${st.cup.length}` : 'Next race'}: ${track}, ${net.state.laps} lap${net.state.laps === 1 ? '' : 's'}${st.arms ? '' : ', no weapons'}${st.pick ? '' : ', no power-ups'}${st.boost || !FEATURES.turbo ? '' : ', no turbo'}${BODIES[st.body - 1] ? `, everyone in a ${BODY_NAMES[BODIES[st.body - 1]!]}` : ''}. Waiting for the host to start it.`
       : 'Looking for the room…';
   }
 

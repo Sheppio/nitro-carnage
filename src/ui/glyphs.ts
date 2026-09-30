@@ -6,7 +6,7 @@
  * built-in controls). A "Wireless Controller" with no vendor is a DualShock or
  * DualSense on some browsers.
  */
-import { SIM } from '../config.js';
+import { FEATURES, SIM } from '../config.js';
 
 export type PadFamily = 'xbox' | 'playstation' | 'deck' | 'generic' | 'none';
 
@@ -63,7 +63,7 @@ export function applyGlyphs(family: PadFamily): void {
     const l = (a: Action): string => label(a, family);
     el.innerHTML =
       `<b>Drive</b> ${l('throttle')} · <b>Brake</b> ${l('brake')} · <b>Steer</b> ${l('steer')} · ` +
-      `<b>Handbrake</b> ${l('handbrake')} · <b>Turbo</b> ${l('turbo')} · ` +
+      `<b>Handbrake</b> ${l('handbrake')} · ${FEATURES.turbo ? `<b>Turbo</b> ${l('turbo')} · ` : ''}` +
       `<b>Missile</b> ${l('front')} · <b>${SIM.weapons.rearMissiles ? 'Mine / rear' : 'Mine'}</b> ${l('rear')} · <b>Menu</b> ${l('menu')}`;
   };
   line('menu-keys');

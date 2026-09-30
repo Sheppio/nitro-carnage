@@ -1,4 +1,4 @@
-import { SIM } from '../config.js';
+import { FEATURES, SIM } from '../config.js';
 import { EMPTY_SAMPLE } from './sources.js';
 import type { DriveSample, InputSource } from './sources.js';
 
@@ -58,7 +58,7 @@ export class TouchSource implements InputSource {
       <div class="touch-pad">
         <button class="touch-btn weapon" data-drive="front" aria-label="Front weapon">▲</button>
         <button class="touch-btn weapon" data-drive="rear" aria-label="${SIM.weapons.rearMissiles ? 'Rear weapon' : 'Mine'}">${SIM.weapons.rearMissiles ? '▼' : '◆'}</button>
-        <button class="touch-btn turbo" data-drive="turbo" aria-label="Turbo">TURBO</button>
+        ${FEATURES.turbo ? '<button class="touch-btn turbo" data-drive="turbo" aria-label="Turbo">TURBO</button>' : '<span aria-hidden="true"></span>'}
         <button class="touch-btn hb" data-drive="handbrake" aria-label="Handbrake">HB</button>
         <button class="touch-btn pedal brake" data-drive="brake" aria-label="Brake">◼</button>
         <button class="touch-btn pedal gas" data-drive="throttle" aria-label="Accelerate">▶</button>

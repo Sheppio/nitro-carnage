@@ -1,5 +1,5 @@
 import { GAME_NAME, SLUG } from './brand.js';
-import { BROKERS, NET } from './config.js';
+import { BROKERS, FEATURES, NET } from './config.js';
 import type { QualityId } from './config.js';
 import { InputManager } from './input/InputManager.js';
 import { isConsole, SettingsStore } from './input/settings.js';
@@ -275,6 +275,9 @@ menuWeapons.addEventListener('change', () => store.set(WEAPONS_KEY, menuWeapons.
 const menuPickups = $<HTMLSelectElement>('menu-pickups');
 menuPickups.value = store.get(PICKUPS_KEY) === '0' ? '0' : '1';
 menuPickups.addEventListener('change', () => store.set(PICKUPS_KEY, menuPickups.value));
+// The turbo is switched off (#19): its rows stay in the page for the day it comes back.
+$('lobby-turbo-row').hidden = !FEATURES.turbo;
+$('menu-turbo-row').hidden = !FEATURES.turbo;
 const menuTurbo = $<HTMLSelectElement>('menu-turbo');
 menuTurbo.value = store.get(TURBO_KEY) === '0' ? '0' : '1';
 menuTurbo.addEventListener('change', () => store.set(TURBO_KEY, menuTurbo.value));
@@ -314,6 +317,8 @@ const reshaped = (def: TrackDef): boolean => def.id.startsWith('seed-') && def.l
 const recordKey = (def: TrackDef): string => `${SLUG}.${reshaped(def) ? 'best4' : 'best2'}.${def.id}`;
 /** The Track of the Day mode's own records: laps without turbo are not comparable with a turbo hotlap's. */
 const dailyKey = (def: TrackDef): string => `${recordKey(def)}.noturbo`;
+/** A hotlap's records: with the turbo switched off (#19) every hotlap is driven without, as the Track of the Day's. */
+const hotlapKey = (def: TrackDef): string => (FEATURES.turbo ? recordKey(def) : dailyKey(def));
 function loadRecord(key: string): LapRecord | null {
   try {
     const r = JSON.parse(store.get(key) || 'null') as LapRecord | null;
@@ -510,7 +515,7 @@ function chooseTrack(mode: 'race' | 'hotlap'): void {
   // A hotlap never has weapons or boxes, and always has its turbo: the switches only belong to a race.
   $('menu-weapons-row').hidden = mode === 'hotlap';
   $('menu-pickups-row').hidden = mode === 'hotlap';
-  $('menu-turbo-row').hidden = mode === 'hotlap';
+  $('menu-turbo-row').hidden = mode === 'hotlap' || !FEATURES.turbo;
   $('menu-body-row').hidden = mode === 'hotlap';
   $('menu-laps-row').hidden = mode === 'hotlap';
   show('screen-track');
@@ -535,14 +540,14 @@ function startOffline(mode: OfflineMode): void {
     { mode: race ? 'race' : 'hotlap', track, quality, colourId, name: playerName(), bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look,
       weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0',
       // A hotlap has its turbo; the Track of the Day is driven without.
-      turbo: race ? menuTurbo.value !== '0' : !daily,
+      turbo: FEATURES.turbo && (race ? menuTurbo.value !== '0' : !daily),
       body: race ? BODIES[Number(menuBody.value) - 1] : undefined },
     input,
     settings,
   );
-  const bestKey = daily ? dailyKey(track) : recordKey(track);
+  const bestKey = daily ? dailyKey(track) : hotlapKey(track);
   if (!race) s.record = loadRecord(bestKey);
-  begin(race ? 'race' : 'hotlap', s, track, daily ? `${choice.label} · no turbo` : choice.label, bestKey);
+  begin(race ? 'race' : 'hotlap', s, track, daily && FEATURES.turbo ? `${choice.label} · no turbo` : choice.label, bestKey);
 }
 
 function stopSession(): void {

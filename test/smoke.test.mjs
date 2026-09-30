@@ -80,7 +80,7 @@ try {
       return { mode: s.mode, turbo: s.world.turbo, meter: s.player.car.turbo, bar: getComputedStyle(document.getElementById('hud-turbo').parentElement).display, label: document.getElementById('hud-track').textContent };
     }));
     r.check('Track of the day goes straight from the menu to a hotlap on today\'s track, with no turbo and no turbo bar',
-      d?.mode === 'hotlap' && d.turbo === false && d.meter === 0 && d.bar === 'none' && /^Track of the day \d{4}-\d{2}-\d{2} · .* · no turbo$/.test(d.label), JSON.stringify(d));
+      d?.mode === 'hotlap' && d.turbo === false && d.meter === 0 && d.bar === 'none' && /^Track of the day \d{4}-\d{2}-\d{2} · .*$/.test(d.label), JSON.stringify(d));
     await dp.close();
   }
 
@@ -140,17 +140,15 @@ try {
 
   const shown = await until(() => page.evaluate(() => Number(document.getElementById('hud-speed').textContent) > 40));
   r.check('the HUD shows the speed', Boolean(shown));
-  // The speed's width doesn't move what's beside it: 0, 8, 88 and 188 km/h put
-  // the turbo bar in the same place.
-  const bars = await page.evaluate(() => {
-    const el = document.getElementById('hud-speed');
-    const bar = document.getElementById('hud-turbo').parentElement;
-    const was = el.textContent;
-    const xs = ['0', '8', '88', '188'].map((t) => { el.textContent = t; return bar.getBoundingClientRect().left; });
-    el.textContent = was;
-    return xs;
-  });
-  r.check('the turbo bar stays put whatever the speed reads', new Set(bars.map((x) => x.toFixed(1))).size === 1, bars.map((x) => x.toFixed(1)).join(' / '));
+  // The turbo is switched off (#19): no bar in the HUD, and no switch in the menus.
+  const noTurbo = await page.evaluate(() => ({
+    bar: getComputedStyle(document.getElementById('hud-turbo').parentElement).display,
+    world: window.nitro.session.world.turbo,
+    help: /turbo/i.test(document.getElementById('hud-help').textContent + document.getElementById('menu-keys').textContent),
+    touch: Boolean(document.querySelector('.touch-btn.turbo')),
+  }));
+  r.check('no turbo: no bar in the HUD, none in the race, and no mention in the help or the touch controls',
+    noTurbo.bar === 'none' && noTurbo.world === false && !noTurbo.help && !noTurbo.touch, JSON.stringify(noTurbo));
 
   // Camera lead: at speed the car sits behind screen centre, with the road
   // ahead in view. Measured along the car's own direction, whichever way the
@@ -174,17 +172,16 @@ try {
   const turned = await until(async () => ((await car()).w > 0.2 ? await car() : null), { timeout: 5000 });
   await page.keyboard.up('ArrowLeft');
   r.check('← steers left', Boolean(turned), turned ? `yaw rate ${turned.w.toFixed(2)} rad/s` : 'no left yaw');
-  // Turbo: flames out of the exhausts while it burns, and none once it stops.
+  // The turbo is off (#19): Shift lights no flames out of the exhausts.
   const flames = () => page.evaluate(() => {
     let n = 0;
     window.nitro.session.view.scene.traverse((o) => { if (o.name === 'exhaust-flame' && o.visible && o.parent?.visible !== false) n++; });
     return n;
   });
   await page.keyboard.down('Shift');
-  const lit = await until(async () => ((await flames()) > 0 ? await flames() : null), { timeout: 5000 });
+  const lit = await until(async () => ((await flames()) > 0 ? await flames() : null), { timeout: 1500 });
   await page.keyboard.up('Shift');
-  const out = await until(async () => ((await flames()) === 0 ? true : null), { timeout: 5000 });
-  r.check('turbo shoots flames out of the exhausts, and they go out when it stops', Boolean(lit) && Boolean(out), `${lit ?? 0} flame cones while boosting`);
+  r.check('with the turbo off, Shift shoots no flames out of the exhausts', !lit, `${lit ?? 0} flame cones`);
   await page.keyboard.up('ArrowUp');
   r.check('the car actually moved from the grid', Math.hypot((moving?.x ?? 0) - start.x, (moving?.z ?? 0) - start.z) > 5);
 
@@ -665,8 +662,9 @@ try {
   // Two laps on autopilot: the first sets the record, which is saved.
   const saved = await until(() => hl.evaluate(() => {
     const id = window.nitro.session.world.track.def.id;
-    // best4 for a generated loop or long straights (reshaped in #3), best2 for the rest.
-    const r = localStorage.getItem(`nitrocarnage.best4.${id}`) ?? localStorage.getItem(`nitrocarnage.best2.${id}`);
+    // best4 for a generated loop or long straights (reshaped in #3), best2 for the rest;
+    // .noturbo while the turbo is switched off (#19).
+    const r = localStorage.getItem(`nitrocarnage.best4.${id}.noturbo`) ?? localStorage.getItem(`nitrocarnage.best2.${id}.noturbo`);
     return r ? JSON.parse(r) : null;
   }), { timeout: 150000, interval: 500 });
   r.check('a finished lap becomes the record, with its splits, and is kept', saved && saved.time > 20 && saved.splits.length === 3,
@@ -711,7 +709,7 @@ try {
   r.check('the ghost can be switched off, or run ahead to show the line: a second ahead is metres up the road',
     ahead.off === null && ahead.gap !== null && ahead.gap > 10, ahead.gap === null ? 'no ghost' : `${ahead.gap.toFixed(1)} m ahead at 1 s`);
 
-  // Damage from a lap is gone at the line, and the turbo is full again.
+  // Damage from a lap is gone at the line (the turbo is off, #19, so its meter stays empty).
   // Read at the lap event itself: polled a moment later, the autopilot has
   // already started on the refilled turbo down the straight.
   await hl.evaluate(() => {
@@ -726,7 +724,7 @@ try {
     };
   });
   const healed = await until(() => hl.evaluate(() => window.healed ?? null), { timeout: 150000, interval: 200 });
-  r.check('in a hotlap every lap starts with full health and a full turbo', healed?.hp === 100 && healed.turbo > 3.9,
+  r.check('in a hotlap every lap starts with full health, and no turbo', healed?.hp === 100 && healed.turbo === 0,
     `health ${healed?.hp}, turbo ${healed?.turbo.toFixed(2)} s after the line`);
   await hl.close();
 

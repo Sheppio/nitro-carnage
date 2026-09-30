@@ -1,4 +1,4 @@
-import { STEP } from './config.js';
+import { FEATURES, STEP } from './config.js';
 import { HAPTIC } from './input/settings.js';
 import { GameView } from './render/GameView.js';
 import { crossingWarning, trainAt } from './sim/train.js';
@@ -111,7 +111,7 @@ export class RaceSession {
             const race = opts.mode === 'race';
             this.world = new World(opts.track, {
                 laps: race ? opts.laps : 0, countdown: race ? COUNTDOWN : 0, weapons: race && opts.weapons !== false,
-                pickups: opts.pickups !== false, turbo: opts.turbo !== false,
+                pickups: opts.pickups !== false, turbo: FEATURES.turbo && opts.turbo !== false,
                 // A hotlap starts a quarter of a lap back, so the first timed lap is a flying one.
                 flyingStart: race ? 0 : 0.25,
             });

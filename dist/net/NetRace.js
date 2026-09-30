@@ -1,4 +1,4 @@
-import { NET, STEP } from '../config.js';
+import { FEATURES, NET, STEP } from '../config.js';
 import { createAutopilot, autopilot, skillFor } from '../sim/autopilot.js';
 import { botNames, isBotId } from '../sim/bots.js';
 import { award, CUP_MAX, cupOn, nextCupRace } from '../sim/championship.js';
@@ -374,7 +374,7 @@ export class NetRace {
         // A late arrival (a failover, or a spectator) starts its world part-way
         // through, so world time and room time still line up.
         const elapsed = Math.max(0, (now - s.goAt) / 1000);
-        const w = new World(def, { laps: s.laps, countdown, elapsed, weapons: s.arms !== 0, pickups: s.pick !== 0, turbo: s.boost !== 0 });
+        const w = new World(def, { laps: s.laps, countdown, elapsed, weapons: s.arms !== 0, pickups: s.pick !== 0, turbo: FEATURES.turbo && s.boost !== 0 });
         this.worldZero = s.goAt - w.goTime * 1000;
         this.raceGoAt = s.goAt;
         this.resultsSent = false;

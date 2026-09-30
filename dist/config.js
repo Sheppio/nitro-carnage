@@ -6,6 +6,15 @@
  */
 /** The simulation's fixed step. Rendering interpolates between steps. */
 export const STEP = 1 / 60;
+/**
+ * Whole features switched off, their code kept for another day (#19). Off,
+ * the race is built without them and the menus, the HUD and the help never
+ * mention them; on again, everything comes back as it was.
+ */
+export const FEATURES = {
+    /** The turbo: its meter, its button, its boxes and its menu switch. */
+    turbo: false,
+};
 export const SIM = {
     gravity: 20,
     car: {

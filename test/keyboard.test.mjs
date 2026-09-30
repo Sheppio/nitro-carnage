@@ -249,11 +249,12 @@ try {
   // In two columns of ‹ › steppers, which keep left/right, half were a detour away.
   await goTo(page, 'btn-lobby-track');
   const downs = [];
-  for (let k = 0; k < 7; k++) {
+  // No turbo switch: the turbo is off (#19).
+  for (let k = 0; k < 6; k++) {
     await page.keyboard.press('ArrowDown');
     downs.push(await focused(page));
   }
-  const column = ['lobby-laps-pick', 'lobby-cars-pick', 'lobby-weapons-pick', 'lobby-pickups-pick', 'lobby-turbo-pick', 'lobby-body-pick', 'btn-start-race'];
+  const column = ['lobby-laps-pick', 'lobby-cars-pick', 'lobby-weapons-pick', 'lobby-pickups-pick', 'lobby-body-pick', 'btn-start-race'];
   r.check('lobby: down from the track card walks every setting, one by one, to Start', downs.join() === column.join(), downs.join(' → '));
   // The track has a screen of its own: Enter on the lobby's card, Esc back to it.
   await goTo(page, 'btn-lobby-track');
