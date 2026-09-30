@@ -7,7 +7,7 @@ import { carIcon } from '../ui/carIcon.js';
 /** Stills already drawn, by look, colour and size. */
 const drawn = new Map();
 /**
- * A still of a car, the real `CarMesh` seen from the front three-quarter, for
+ * A still of a car, the real `CarMesh` seen from above the front three-quarter, for
  * the main menu's Garage button (#7) and the lobby's roster: the plan-view
  * icon read as a coloured box. The renderer is given back soon after, so the
  * menu holds no WebGL of its own. Without WebGL it falls back to the
@@ -64,13 +64,14 @@ function render(look, colourId, width, height) {
         sun.position.set(5, 8, -3);
         scene.add(sun);
         const car = new CarMesh(colourOf(colourId).colour, false, look);
-        // Nose to the right, turned a little towards the viewer.
-        car.update(createCar(0, 0, Math.PI - 0.55), 0);
+        // Nose to the left, turned a little towards the viewer (#16).
+        car.update(createCar(0, 0, 0.55), 0);
         scene.add(car.root);
-        const half = 2.9, aspect = width / height;
+        const half = 3.1, aspect = width / height;
         const camera = new THREE.OrthographicCamera(-half, half, half / aspect, -half / aspect, 0.1, 50);
-        camera.position.set(8, 3.4, 0);
-        camera.lookAt(0, 0.6, 0);
+        // Looking down at about the Garage's angle, 32 degrees (#16): lower, the roof and bonnet were lost.
+        camera.position.set(7.2, 5.1, 0);
+        camera.lookAt(0, 0.8, 0);
         gl.render(scene, camera);
         const out = document.createElement('canvas');
         out.width = width * dpr;
