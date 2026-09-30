@@ -369,12 +369,12 @@ try {
       const car = [...s.cars.values()].find((c) => c.name === el.textContent);
       const st = car && s.drawnStates.get(car.id);
       const p = st && s.view.toScreen(st.x, 1, st.z);
-      out.push({ name: el.textContent, above: p ? t.bottom - box.top < p.y : false });
+      out.push({ name: el.textContent, you: Boolean(car?.you), above: p ? t.bottom - box.top < p.y : false });
     }
     return out;
   });
   const tags = await until(async () => { const t = await tagCheck(); return t.length ? t : null; }, { timeout: 60000 });
-  r.check('driver names float over rivals, above each car, and not over your own', Boolean(tags) && tags.every((t) => t.above && t.name !== 'YOU'),
+  r.check('driver names float over rivals, above each car, and not over your own', Boolean(tags) && tags.every((t) => t.above && !t.you),
     JSON.stringify(tags));
   await race.evaluate(() => window.nitro.settings.set('nameTags', 'off'));
   const tagsOff = await until(() => race.evaluate(() => document.querySelectorAll('.name-tag').length === 0 || null), { timeout: 5000 });

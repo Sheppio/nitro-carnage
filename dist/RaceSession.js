@@ -97,7 +97,7 @@ export class RaceSession {
             this.playerId = net.playerId;
             for (const e of this.world.entrants) {
                 const info = net.carInfo(e.id);
-                this.addInfo(e.id, info.you ? 'YOU' : info.name, info.colour, info.you, info.look);
+                this.addInfo(e.id, info.name, info.colour, info.you, info.look);
             }
             net.drive = () => this.playerIntent();
             this.offNet.push(net.events.on('race', ({ ev }) => this.handle(ev)), net.events.on('results', ({ rows }) => {
@@ -123,7 +123,7 @@ export class RaceSession {
             const colours = COLOUR_ORDER.filter((c) => c !== opts.colourId);
             this.player = this.world.addCar('you', playerSlot, () => this.playerIntent());
             const lock = race ? bodyCode(opts.body) : 0;
-            this.addInfo('you', 'YOU', opts.colourId, true, lockedLook(opts.look ?? DEFAULT_LOOK, lock));
+            this.addInfo('you', opts.name || 'YOU', opts.colourId, true, lockedLook(opts.look ?? DEFAULT_LOOK, lock));
             let slot = 0;
             // New names every race: a quick race has no room to agree with.
             const names = botNames(Math.floor(Math.random() * 2 ** 31), bots);

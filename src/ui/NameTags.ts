@@ -8,7 +8,7 @@ export class NameTags {
 
   constructor(private root: HTMLElement) {}
 
-  update(cars: readonly { id: string; name: string; css: string; x: number; y: number; onScreen: boolean }[]): void {
+  update(cars: readonly { id: string; name: string; css: string; you?: boolean; x: number; y: number; onScreen: boolean }[]): void {
     const seen = new Set<string>();
     for (const c of cars) {
       if (!c.onScreen) continue;
@@ -22,6 +22,7 @@ export class NameTags {
       }
       if (el.textContent !== c.name) el.textContent = c.name;
       el.style.setProperty('--c', c.css);
+      el.classList.toggle('you', Boolean(c.you));
       el.style.transform = `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px) translate(-50%, -100%)`;
     }
     for (const [id, el] of this.tags) {

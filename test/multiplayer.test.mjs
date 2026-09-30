@@ -240,10 +240,9 @@ try {
   await Promise.all([a, b].map((p) => p.waitForSelector('#screen-results:not([hidden])', { timeout: 240000 })));
   const orderA = await a.evaluate(() => [...document.querySelectorAll('#results-body tr td:nth-child(2)')].map((t) => t.textContent).join(','));
   const orderB = await b.evaluate(() => [...document.querySelectorAll('#results-body tr td:nth-child(2)')].map((t) => t.textContent).join(','));
-  // Each screen calls itself YOU; compare with that normalised away.
-  const norm = (s, me) => s.replace('YOU', me);
-  r.check('the race reaches the results on both screens, in the same order', norm(orderA, 'ALICE') === norm(orderB, 'BOB'), norm(orderA, 'ALICE'));
-  const botName = orderA.split(',').find((n) => n !== 'YOU' && n !== 'BOB');
+  // Every screen calls each driver by name, its own player too.
+  r.check('the race reaches the results on both screens, in the same order, by name', orderA === orderB && orderA.includes('ALICE') && orderA.includes('BOB'), orderA);
+  const botName = orderA.split(',').find((n) => n !== 'ALICE' && n !== 'BOB');
   r.check('the bot races under a driver\'s name, the same on both screens', Boolean(botName) && !/^BOT/.test(botName) && orderB.includes(botName), botName ?? '');
   // Back to lobby goes straight there, before the room itself goes back. The
   // host too: with its race screen gone nothing drove the room, it stayed in

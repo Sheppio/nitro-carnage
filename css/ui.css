@@ -177,8 +177,8 @@ select {
 
 /* The HUD's scale, set from the window's size (main.ts): 1 up to a laptop's
    window, up to about 1.8 on a QHD desktop. The TV layout zooms the overlay instead. */
-:root { --hud: 1; }
-body.tv { --hud: 1; }
+:root { --hud: 1; --hud-big: 1; }
+body.tv { --hud: 1; --hud-big: 1; }
 .hud-top, .hud-race, .hud-bottom, .hud-feed { zoom: var(--hud); }
 
 .hud-top, .hud-bottom {
@@ -204,6 +204,7 @@ body.tv { --hud: 1; }
 
 .speedo {
   font: 700 38px var(--display);
+  font-size: calc(38px * var(--hud-big));
   font-style: italic;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
 }
@@ -430,8 +431,8 @@ body.tv { --hud: 1; }
   position: absolute;
   right: 14px;
   bottom: 14px;
-  width: 150px;
-  height: 150px;
+  width: calc(150px * var(--hud-big));
+  height: calc(150px * var(--hud-big));
   border-radius: 12px;
   background: rgba(10, 8, 18, 0.45);
   border: 1px solid var(--edge);
@@ -509,6 +510,7 @@ body.tv .hud-banner.over { font-size: 5.7vw; }
   border-radius: 4px;
   padding: 1px 6px;
 }
+.name-tag.you { color: var(--accent-2); }
 
 .rival-arrow {
   position: absolute;

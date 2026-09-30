@@ -25,6 +25,7 @@ export class NameTags {
             if (el.textContent !== c.name)
                 el.textContent = c.name;
             el.style.setProperty('--c', c.css);
+            el.classList.toggle('you', Boolean(c.you));
             el.style.transform = `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px) translate(-50%, -100%)`;
         }
         for (const [id, el] of this.tags) {

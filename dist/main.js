@@ -21,7 +21,7 @@ import { carPortrait } from './render/carPortrait.js';
 import { PodiumView } from './render/PodiumView.js';
 import { applyGlyphs, padFamily } from './ui/glyphs.js';
 import { GamepadNavigator } from './ui/GamepadNavigator.js';
-import { formatTime, Hud } from './ui/Hud.js';
+import { formatTime, Hud, YOU_CSS } from './ui/Hud.js';
 import { Keyboard } from './ui/Keyboard.js';
 import { ChoiceList } from './ui/ChoiceList.js';
 import { Confirm } from './ui/Confirm.js';
@@ -404,8 +404,8 @@ function begin(mode, s, track, label = track.name, bestKey = recordKey(track)) {
         Hud.results(rows);
         showPodium(rows);
         const online = mode === 'net';
-        // Names as the room knows them (the session calls you YOU), and each car's colour.
-        const name = (id) => (room ? room.net.carInfo(id).name : id === s.playerId ? playerName() || 'You' : (s.cars.get(id)?.name ?? '—'));
+        // Names as the room knows them, and each car's colour.
+        const name = (id) => (room ? room.net.carInfo(id).name : (s.cars.get(id)?.name ?? '—'));
         const css = (id) => s.cars.get(id)?.css ?? (room ? colourOf(room.net.carInfo(id).colour).cssColour : '#fff');
         const order = rows.map((r) => r.car.id);
         if (online)
@@ -464,7 +464,7 @@ function showPodium(rows) {
     top.forEach((r, i) => {
         const el = $(`podium-${i + 1}`);
         el.textContent = r.car.name;
-        el.style.color = r.car.css;
+        el.style.color = r.car.you ? YOU_CSS : r.car.css;
     });
     for (let i = top.length; i < 3; i++)
         $(`podium-${i + 1}`).textContent = '';
@@ -505,7 +505,7 @@ function startOffline(mode) {
     }
     const track = choice.def;
     const race = mode === 'race';
-    const s = new RaceSession(gameRoot, { mode: race ? 'race' : 'hotlap', track, quality, colourId, bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look,
+    const s = new RaceSession(gameRoot, { mode: race ? 'race' : 'hotlap', track, quality, colourId, name: playerName(), bots: botsOverride, laps: lapsOverride || Number(menuLaps.value) || track.laps, look,
         weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0',
         // A hotlap has its turbo; the Track of the Day is driven without.
         turbo: race ? menuTurbo.value !== '0' : !daily,
@@ -979,6 +979,8 @@ settings.events.on('change', applyUiSize);
 const hudScale = () => {
     const k = Math.max(1, Math.min(2.2, innerWidth / 1150, innerHeight / 720));
     document.documentElement.style.setProperty('--hud', k.toFixed(3));
+    // The speed and the minimap grow faster, to twice their size from a 1080p window up.
+    document.documentElement.style.setProperty('--hud-big', Math.min(2, 1 + (k - 1) * 3.2).toFixed(3));
 };
 hudScale();
 addEventListener('resize', hudScale);

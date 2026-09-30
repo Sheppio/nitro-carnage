@@ -11,11 +11,15 @@ export class Minimap {
   private scale = 1;
   private ox = 0;
   private oz = 0;
+  /** The dots grow with the map: its size over the 150 px it was drawn for. */
+  private dot = 1;
 
   constructor(private canvas: HTMLCanvasElement, track: Track) {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const size = canvas.clientWidth || 150;
+    // Made before the HUD is shown: a hidden canvas has no client size, but its css width is set.
+    const size = canvas.clientWidth || parseFloat(getComputedStyle(canvas).width) || 150;
     canvas.width = canvas.height = Math.round(size * dpr);
+    this.dot = Math.max(1, size / 150);
     this.ctx = canvas.getContext('2d')!;
     this.base = document.createElement('canvas');
     this.base.width = this.base.height = canvas.width;
@@ -75,10 +79,10 @@ export class Minimap {
     for (const c of [...cars].sort((a, b) => Number(a.you) - Number(b.you))) {
       const [x, y] = this.map(c.x, c.z);
       g.beginPath();
-      g.arc(x, y, (c.you ? 5 : 3.5) * dpr, 0, Math.PI * 2);
+      g.arc(x, y, (c.you ? 5 : 3.5) * dpr * this.dot, 0, Math.PI * 2);
       g.fillStyle = c.css;
       g.fill();
-      g.lineWidth = (c.you ? 2 : 1) * dpr;
+      g.lineWidth = (c.you ? 2 : 1) * dpr * this.dot;
       g.strokeStyle = c.you ? '#fff' : 'rgba(0,0,0,0.7)';
       g.stroke();
     }

@@ -115,6 +115,8 @@ export interface SessionOptions {
   laps: number;
   /** The player's own look (offline; online it comes from the room). */
   look?: CarLook;
+  /** The player's name (offline; online it comes from the room). Unset, YOU. */
+  name?: string;
   /** Weapons on; off makes a race-only race (M7). A hotlap never has them. */
   weapons?: boolean;
   /** Boxes on the road in a race (the default). */
@@ -196,7 +198,7 @@ export class RaceSession {
       this.playerId = net.playerId;
       for (const e of this.world.entrants) {
         const info = net.carInfo(e.id);
-        this.addInfo(e.id, info.you ? 'YOU' : info.name, info.colour, info.you, info.look);
+        this.addInfo(e.id, info.name, info.colour, info.you, info.look);
       }
       net.drive = () => this.playerIntent();
       this.offNet.push(
@@ -223,7 +225,7 @@ export class RaceSession {
       const colours = COLOUR_ORDER.filter((c) => c !== opts.colourId);
       this.player = this.world.addCar('you', playerSlot, () => this.playerIntent());
       const lock = race ? bodyCode(opts.body) : 0;
-      this.addInfo('you', 'YOU', opts.colourId, true, lockedLook(opts.look ?? DEFAULT_LOOK, lock));
+      this.addInfo('you', opts.name || 'YOU', opts.colourId, true, lockedLook(opts.look ?? DEFAULT_LOOK, lock));
       let slot = 0;
       // New names every race: a quick race has no room to agree with.
       const names = botNames(Math.floor(Math.random() * 2 ** 31), bots);

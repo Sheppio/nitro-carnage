@@ -30,6 +30,9 @@ const CAUSE: Record<WreckCause, string> = { front: '▲', rear: '▼', mine: '�
 const FEED_LINES = 4;
 const FEED_MS = 6000;
 
+/** Your own name, wherever names are shown: yellow, to tell it from the rest. */
+export const YOU_CSS = 'var(--accent-2)';
+
 /** A name in its car's colour, for the feed and the results. */
 function named(name: string, css: string): HTMLElement {
   const b = document.createElement('b');
@@ -87,8 +90,9 @@ export class Hud {
     const icon = document.createElement('span');
     icon.className = 'feed-icon';
     icon.textContent = CAUSE[w.cause];
-    if (killer) line.append(named(killer.name, killer.css), icon, named(victim.name, victim.css));
-    else line.append(named(victim.name, victim.css), icon, document.createTextNode('WALL'));
+    const tag = (c: typeof victim): HTMLElement => named(c.name, c.you ? YOU_CSS : c.css);
+    if (killer) line.append(tag(killer), icon, tag(victim));
+    else line.append(tag(victim), icon, document.createTextNode('WALL'));
     feed.prepend(line);
     while (feed.children.length > FEED_LINES) feed.lastElementChild!.remove();
     window.setTimeout(() => line.classList.add('gone'), FEED_MS);
@@ -146,7 +150,7 @@ export class Hud {
     const s = this.session;
     const cars: { id: string; x: number; z: number; css: string; you: boolean }[] = [];
     const screen: { id: string; css: string; x: number; y: number; onScreen: boolean }[] = [];
-    const tags: { id: string; name: string; css: string; x: number; y: number; onScreen: boolean }[] = [];
+    const tags: { id: string; name: string; css: string; you: boolean; x: number; y: number; onScreen: boolean }[] = [];
     // On the grid everybody is introduced, whatever the setting, unless names are off.
     const show = s.settings.current.nameTags === 'off' ? 'off' : racing && hud.countdown > 0 ? 'all' : s.settings.current.nameTags;
     for (const [id, st] of s.drawnStates) {
@@ -157,7 +161,7 @@ export class Hud {
         const p = s.view.toScreen(st.x, 1, st.z);
         screen.push({ id, css: info.css, ...p });
       }
-      if (show === 'all' || (show === 'rivals' && !info.you)) tags.push({ id, name: info.name, css: info.css, ...s.view.overCar(st.x, st.z) });
+      if (show === 'all' || (show === 'rivals' && !info.you)) tags.push({ id, name: info.name, css: info.you ? YOU_CSS : info.css, you: info.you, ...s.view.overCar(st.x, st.z) });
     }
     this.minimap.draw(cars);
     // The live split: green when up on the record, red when down.
