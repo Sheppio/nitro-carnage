@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.99**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.100**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -68,7 +68,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 910 checks: simulation and networking (Node), and real browsers
+npm test           # 911 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -1319,7 +1319,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-910 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+911 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1474,7 +1474,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   change with left and right; Space toggles a switch; Esc goes back everywhere and
   resumes from pause without reopening it; Settings from the pause menu, a volume
   slider by arrows, and Esc back to the paused race; in a race the arrows drive.
-- **`mobile.test.mjs`** (16, browser, an emulated phone in landscape, real touch
+- **`mobile.test.mjs`** (17, browser, an emulated phone in landscape, real touch
   events): the menu and the track screen are all tappable; the touch layer is only up in a race; nothing
   covers a touch button or the pause button; no two HUD panels overlap; the pedal
   drives; a second thumb steers while the first holds the throttle; an upward thumb

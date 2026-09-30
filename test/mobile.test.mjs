@@ -164,6 +164,29 @@ try {
   const resumed = await until(() => page.evaluate(() => (document.getElementById('pause-veil').hidden && !window.nitro.session.paused && !document.querySelector('.touch-layer').hidden) || null));
   r.check('and Resume carries on, with the touch controls back', Boolean(resumed));
 
+  // Weapons off: no weapon buttons to tap, and the pedals take the pad's one row.
+  {
+    const off = await ctx.newPage();
+    off.on('pageerror', (e) => errors.push(e.message));
+    await off.goto(`${url}?quality=potato`);
+    await off.waitForSelector('#screen-menu:not([hidden])');
+    await off.tap('#btn-race');
+    await off.waitForSelector('#screen-track:not([hidden])');
+    await off.evaluate(() => { const s = document.getElementById('menu-weapons'); s.value = '0'; s.dispatchEvent(new Event('change')); });
+    await off.locator('#btn-track-go').scrollIntoViewIfNeeded();
+    await off.tap('#btn-track-go');
+    await off.waitForSelector('#screen-hud:not([hidden])', { timeout: 30000 });
+    const pad = await until(() => off.evaluate(() => {
+      if (document.querySelector('.touch-layer').hidden) return null;
+      const shown = (sel) => [...document.querySelectorAll(sel)].filter((el) => el.getClientRects().length > 0).length;
+      return { weapons: shown('.touch-btn.weapon'), pedals: shown('.touch-btn.pedal'), hb: shown('.touch-btn.hb'), armed: window.nitro.session.world.weapons };
+    }));
+    const offBad = await covered(off, '.touch-btn, #btn-pause');
+    r.check('with weapons off, the weapon buttons are gone and the pedals and handbrake stay, uncovered',
+      pad?.weapons === 0 && pad.pedals === 2 && pad.hb === 1 && pad.armed === false && offBad.length === 0, JSON.stringify({ pad, offBad }));
+    await off.close();
+  }
+
   r.check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (err) {
   r.crashed(err);

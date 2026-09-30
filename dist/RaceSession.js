@@ -171,7 +171,7 @@ export class RaceSession {
         if (this.running)
             return;
         this.running = true;
-        this.input.setInRace(true);
+        this.input.setInRace(true, this.world.weapons);
         this.last = performance.now();
         this.fpsAt = this.last;
         this.raf = requestAnimationFrame(this.frame);

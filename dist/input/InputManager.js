@@ -33,8 +33,10 @@ export class InputManager {
         this.syncTouch();
     }
     /** Called when a race starts and ends. Gates the touch overlay. */
-    setInRace(inRace) {
+    setInRace(inRace, weapons = true) {
         this.inRace = inRace;
+        // A race without weapons (or a hotlap) has no weapon buttons to show.
+        this.touch.setWeapons(weapons);
         this.paused = false;
         this.syncTouch();
     }

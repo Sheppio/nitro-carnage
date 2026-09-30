@@ -91,7 +91,7 @@ export class TouchSource implements InputSource {
       <div class="touch-pad">
         <button class="touch-btn weapon" data-drive="front" aria-label="Front weapon">${ICON.front}</button>
         <button class="touch-btn weapon" data-drive="rear" aria-label="${SIM.weapons.rearMissiles ? 'Rear weapon' : 'Mine'}">${SIM.weapons.rearMissiles ? ICON.rear : ICON.mine}</button>
-        ${FEATURES.turbo ? '<button class="touch-btn turbo" data-drive="turbo" aria-label="Turbo">TURBO</button>' : '<span aria-hidden="true"></span>'}
+        ${FEATURES.turbo ? '<button class="touch-btn turbo" data-drive="turbo" aria-label="Turbo">TURBO</button>' : '<span class="touch-gap" aria-hidden="true"></span>'}
         <button class="touch-btn hb" data-drive="handbrake" aria-label="Handbrake">${ICON.handbrake}</button>
         <button class="touch-btn pedal brake" data-drive="brake" aria-label="Brake">${ICON.brake}</button>
         <button class="touch-btn pedal gas" data-drive="throttle" aria-label="Accelerate">${ICON.gas}</button>
@@ -116,6 +116,15 @@ export class TouchSource implements InputSource {
     this.enabled = on;
     this.root.hidden = !on;
     if (!on) this.reset();
+  }
+
+  /**
+   * The weapon buttons, shown only when the race has weapons: in a race-only
+   * race or a hotlap they are gone, and the pedals drop into their row.
+   */
+  setWeapons(on: boolean): void {
+    this.root.querySelector('.touch-pad')!.classList.toggle('no-weapons', !on);
+    if (!on) for (const a of ['front', 'rear'] as const) this.held.delete(a);
   }
 
   /** The slider, or the two steering buttons. */
