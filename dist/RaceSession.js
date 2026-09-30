@@ -205,7 +205,9 @@ export class RaceSession {
         const human = { ...this.intent };
         this.intent.fireFront = false;
         this.intent.fireRear = false;
-        const touched = Math.abs(human.steer) > 0.05 || human.throttle > 0 || human.brake > 0 || human.handbrake;
+        // An always-on throttle is not somebody driving: the autopilot still takes over when nothing else is touched.
+        const pressing = human.throttle > 0 && !this.settings.current.autoThrottle;
+        const touched = Math.abs(human.steer) > 0.05 || pressing || human.brake > 0 || human.handbrake;
         if (me.lap.finished || (this.autopilot && !touched)) {
             const line = racingLine(this.world.track);
             const auto = autopilot(this.pilot, me.car, this.world.track, line, this.world.rivalsOf(me.id), this.world.time, STEP, this.world.stopLine(me));

@@ -1020,6 +1020,7 @@ function openSettings(fromPause) {
     $('set-steer').value = settings.current.touchSteer;
     $('set-vibration').checked = settings.current.vibration;
     $('set-fullscreen').checked = settings.current.fullscreen;
+    $('set-autothrottle').checked = settings.current.autoThrottle;
     $('set-motion').checked = settings.current.reduceMotion;
     $('set-autopilot').checked = settings.current.autopilot;
     $('set-direct').checked = settings.current.direct;
@@ -1070,6 +1071,7 @@ function showSteerRow(mode) {
 $('set-touch').addEventListener('change', (e) => showSteerRow(e.target.value));
 $('set-touch').addEventListener('change', (e) => settings.set('touchControls', e.target.value));
 $('set-vibration').addEventListener('change', (e) => settings.set('vibration', e.target.checked));
+$('set-autothrottle').addEventListener('change', (e) => settings.set('autoThrottle', e.target.checked));
 /**
  * Full screen by itself (#27). Browsers only allow it from a gesture, so it
  * happens at the first tap, click or key, and at once when ticked (itself a

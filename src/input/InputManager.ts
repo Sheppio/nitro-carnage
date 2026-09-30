@@ -84,8 +84,10 @@ export class InputManager {
     this.frontWas = s.front;
     this.rearWas = s.rear;
 
+    // Always-on throttle: flat out, except while braking (or reversing) or on the handbrake.
+    const auto = this.settings.current.autoThrottle && s.brake === 0 && !s.handbrake;
     return {
-      throttle: s.throttle,
+      throttle: auto ? 1 : s.throttle,
       brake: s.brake,
       steer: s.steer,
       handbrake: s.handbrake,
@@ -111,6 +113,7 @@ export class InputManager {
     const mode = this.settings.current.touchControls;
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     this.touch.setSteerMode(this.settings.current.touchSteer);
+    this.touch.setAutoThrottle(this.settings.current.autoThrottle);
     this.touch.setEnabled(this.inRace && !this.paused && (mode === 'on' || (mode === 'auto' && coarse)));
   }
 

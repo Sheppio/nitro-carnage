@@ -430,6 +430,9 @@ body.tv { --hud: 1; --hud-big: 1; }
 .touch-pad .touch-gap { display: none; }
 /* No weapons in this race: their buttons go; the handbrake stays over the accelerator. */
 .touch-pad.no-weapons .touch-btn.weapon { display: none; }
+/* Always-on throttle: no accelerator button, and the handbrake drops into its place beside the brake. */
+.touch-pad.auto-throttle .touch-btn[data-drive="throttle"] { display: none; }
+.touch-pad.auto-throttle .touch-btn[data-drive="handbrake"] { grid-area: 2 / 3; }
 .touch-btn.hb { color: #ffb13c; border-color: rgba(255, 177, 60, 0.5); }
 .touch-btn.steer { color: #3ee6ff; border-color: rgba(62, 230, 255, 0.5); }
 .touch-btn.pedal.gas { color: #7dffb5; border-color: rgba(0, 220, 130, 0.7); background: radial-gradient(circle at 50% 30%, rgba(0, 230, 140, 0.55), rgba(0, 150, 90, 0.2) 70%); }
@@ -1086,8 +1089,7 @@ body.tv .roster .badge { font-size: 12px; }
 body.tv .hud-splits { font-size: 15px; }
 body.tv .ammo { font-size: 15px; }
 
-/* A phone upright: the settings list is long, so its rows sit closer, and it fits without scrolling. */
-@media (max-width: 500px) {
-  #screen-settings .field { margin-bottom: 7px; }
-  #screen-settings h2 { margin-bottom: 10px; }
-}
+/* The settings list is long: its rows sit closer, so it fits a phone, a Deck or a TV without scrolling.
+   One column, so down and up on a pad or the arrow keys visit every row in turn. */
+#screen-settings .field { margin-bottom: 7px; }
+#screen-settings h2 { margin-bottom: 10px; }

@@ -127,6 +127,12 @@ export class TouchSource implements InputSource {
     if (!on) for (const a of ['front', 'rear'] as const) this.held.delete(a);
   }
 
+  /** Always-on throttle: no accelerator to hold, so the pad leaves it out and the handbrake takes its place. */
+  setAutoThrottle(on: boolean): void {
+    this.root.querySelector('.touch-pad')!.classList.toggle('auto-throttle', on);
+    if (on) this.held.delete('throttle');
+  }
+
   /** The slider, or the two steering buttons. */
   setSteerMode(mode: TouchSteer): void {
     if (mode === this.steerMode) return;

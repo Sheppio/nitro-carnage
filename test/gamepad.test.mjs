@@ -294,12 +294,12 @@ try {
   await tap(page, B.A);
   await until(() => page.evaluate(() => !document.getElementById('screen-settings').hidden));
   const visited = new Set();
-  for (let k = 0; k < 18; k++) {
+  for (let k = 0; k < 20; k++) {
     // A dropdown under arrows is visited as its arrows, `<id>-pick`.
     visited.add((await focused(page)).replace(/-pick$/, ''));
     await tap(page, B.DOWN);
   }
-  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-bots', 'set-fov', 'set-names', 'set-fullscreen', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
+  const rows = ['set-quality', 'set-touch', 'set-sfx', 'set-music', 'set-bots', 'set-fov', 'set-names', 'set-autothrottle', 'set-fullscreen', 'set-vibration', 'set-motion', 'set-autopilot', 'set-broker', 'btn-settings-back'];
   const missed = rows.filter((id) => !visited.has(id));
   await until(async () => (await focused(page)) === 'set-motion' || (await tap(page, B.DOWN), false), { timeout: 10000, interval: 0 });
   const before = await page.evaluate(() => document.getElementById('set-motion').checked);

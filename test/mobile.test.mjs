@@ -195,6 +195,46 @@ try {
     await off.close();
   }
 
+  // Always-on throttle: no accelerator on the pad, the car drives on with no thumb down,
+  // and the brake lifts off it.
+  {
+    const at = await ctx.newPage();
+    at.on('pageerror', (e) => errors.push(e.message));
+    await at.goto(`${url}?quality=potato`);
+    await at.waitForSelector('#screen-menu:not([hidden])');
+    await at.evaluate(() => window.nitro.settings.set('autoThrottle', true));
+    await at.tap('#btn-race');
+    await at.waitForSelector('#screen-track:not([hidden])');
+    await at.locator('#btn-track-go').scrollIntoViewIfNeeded();
+    await at.tap('#btn-track-go');
+    await at.waitForSelector('#screen-hud:not([hidden])', { timeout: 30000 });
+    const pad = await until(() => at.evaluate(() => {
+      if (document.querySelector('.touch-layer').hidden) return null;
+      const gas = document.querySelector('.touch-btn.gas').getClientRects().length;
+      const hb = document.querySelector('.touch-btn.hb').getBoundingClientRect(), brake = document.querySelector('.touch-btn.brake').getBoundingClientRect();
+      return { gas, hbBeside: Math.abs(hb.top - brake.top) < 1 && hb.left > brake.right };
+    }));
+    const driving = await until(() => at.evaluate(() => {
+      const s = window.nitro.session;
+      return s.world.started && s.player.intent.throttle === 1 && Math.hypot(s.player.car.vx, s.player.car.vz) > 5 || null;
+    }), { timeout: 20000 });
+    const brakeAt = await at.evaluate(() => {
+      const b = document.querySelector('.touch-btn.brake').getBoundingClientRect();
+      return [b.left + b.width / 2, b.top + b.height / 2];
+    });
+    const cdp2 = await ctx.newCDPSession(at);
+    await cdp2.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: brakeAt[0], y: brakeAt[1], id: 0 }] });
+    const lifted = await until(() => at.evaluate(() => {
+      const i = window.nitro.session.player.intent;
+      return i.throttle === 0 && i.brake === 1 || null;
+    }), { timeout: 5000 });
+    await cdp2.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    const back = await until(() => at.evaluate(() => window.nitro.session.player.intent.throttle === 1 || null), { timeout: 5000 });
+    r.check('always-on throttle: no accelerator button, the handbrake beside the brake, the car drives itself on, and the brake lifts off',
+      pad?.gas === 0 && pad.hbBeside && Boolean(driving) && Boolean(lifted) && Boolean(back), JSON.stringify({ pad, driving, lifted, back }));
+    await at.close();
+  }
+
   r.check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (err) {
   r.crashed(err);
