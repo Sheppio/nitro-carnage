@@ -10,6 +10,11 @@
 - If a working branch already exists on GitHub, check whether it is behind
   `origin/main` before building on it.
 
+## Working on GitHub issues
+
+- When starting work on a GitHub issue, assign it and add the `in progress` label;
+  remove the label when the fix is pushed.
+
 ## Checking the front end
 
 - Look at every screen at Xbox 1080p (an Xbox user agent turns the TV layout on),
