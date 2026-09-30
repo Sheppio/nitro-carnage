@@ -406,9 +406,24 @@ body.tv { --hud: 1; --hud-big: 1; }
   touch-action: none;
 }
 
-.touch-btn.down { background: rgba(255, 255, 255, 0.35); }
-.touch-btn.pedal.gas { background: rgba(0, 200, 120, 0.3); }
-.touch-btn.pedal.brake { background: rgba(255, 77, 46, 0.3); }
+/* Glass buttons, lit from above, each in its own colour, with a picture rather than a letter (#24). */
+.touch-btn {
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.05) 70%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 3px 10px rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  transition: transform 60ms, background 60ms;
+}
+.touch-btn svg { width: 56%; height: 56%; display: block; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
+.touch-btn.down { transform: scale(0.93); background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.15) 70%); }
+.touch-btn.weapon { color: #ffd23c; border-color: rgba(255, 210, 60, 0.5); }
+.touch-btn.hb { color: #ffb13c; border-color: rgba(255, 177, 60, 0.5); }
+.touch-btn.steer { color: #3ee6ff; border-color: rgba(62, 230, 255, 0.5); }
+.touch-btn.pedal.gas { color: #7dffb5; border-color: rgba(0, 220, 130, 0.7); background: radial-gradient(circle at 50% 30%, rgba(0, 230, 140, 0.55), rgba(0, 150, 90, 0.2) 70%); }
+.touch-btn.pedal.brake { color: #ffb3a3; border-color: rgba(255, 77, 46, 0.7); background: radial-gradient(circle at 50% 30%, rgba(255, 90, 60, 0.55), rgba(180, 40, 20, 0.2) 70%); }
+.touch-btn.pedal.gas.down, .touch-btn.pedal.brake.down { filter: brightness(1.3); }
 
 /* Touch devices: the controls hint is about keys nobody has, and the bottom of
    the screen belongs to thumbs, so the speedo moves up under the top bar. */

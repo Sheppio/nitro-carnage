@@ -6,6 +6,27 @@ type Action = 'throttle' | 'brake' | 'handbrake' | 'front' | 'rear' | 'turbo' | 
 /** Steering by the floating slider, or by a left and a right button (#26). */
 export type TouchSteer = 'slider' | 'buttons';
 
+/**
+ * The touch buttons' pictures (#24): drawn in `currentColor`, so each takes
+ * its button's colour. Plain glyphs (▲ ◆ HB) read as placeholders.
+ */
+const ICON = {
+  // A missile, nose up, with fins and a flame.
+  front: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 1.5c2.2 2 3.3 4.8 3.3 8.3v6.4H8.7V9.8c0-3.5 1.1-6.3 3.3-8.3Z"/><path fill="currentColor" opacity=".75" d="M8.7 11.5 5.5 15v2.2h3.2Zm6.6 0 3.2 3.5v2.2h-3.2Z"/><path fill="#ffb13c" d="M10 17.2h4l-.8 3.3L12 23l-1.2-2.5Z"/></svg>',
+  // A mine: a ball of spikes with a light in the middle.
+  mine: '<svg viewBox="0 0 24 24" aria-hidden="true"><g stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2.5v3.2M12 18.3v3.2M2.5 12h3.2M18.3 12h3.2M5.3 5.3l2.2 2.2M16.5 16.5l2.2 2.2M5.3 18.7l2.2-2.2M16.5 7.5l2.2-2.2"/></g><circle cx="12" cy="12" r="6" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="#ff4d2e"/></svg>',
+  // A rear missile: the front one turned round.
+  rear: '<svg viewBox="0 0 24 24" aria-hidden="true" style="transform:rotate(180deg)"><path fill="currentColor" d="M12 1.5c2.2 2 3.3 4.8 3.3 8.3v6.4H8.7V9.8c0-3.5 1.1-6.3 3.3-8.3Z"/><path fill="currentColor" opacity=".75" d="M8.7 11.5 5.5 15v2.2h3.2Zm6.6 0 3.2 3.5v2.2h-3.2Z"/><path fill="#ffb13c" d="M10 17.2h4l-.8 3.3L12 23l-1.2-2.5Z"/></svg>',
+  // The dashboard's handbrake light: (P) in brackets.
+  handbrake: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><path d="M4.2 6.5a9.5 9.5 0 0 0 0 11M19.8 6.5a9.5 9.5 0 0 1 0 11"/></g><path fill="currentColor" d="M10.3 8.6h2.4a2.3 2.3 0 0 1 0 4.6h-1v2.2h-1.4Zm1.4 1.3v2h1a1 1 0 0 0 0-2Z"/></svg>',
+  // The brake: a wide pedal with grooves across it.
+  brake: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="3" fill="currentColor"/><g stroke="#000" stroke-opacity=".35" stroke-width="1.6" stroke-linecap="round"><path d="M7 9.5h10M7 12h10M7 14.5h10"/></g></svg>',
+  // The accelerator: a tall pedal, grooved, on its hinge.
+  gas: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7.5" y="2.5" width="9" height="16" rx="2.5" fill="currentColor"/><g stroke="#000" stroke-opacity=".35" stroke-width="1.5" stroke-linecap="round"><path d="M10 6h4M10 9h4M10 12h4M10 15h4"/></g><rect x="9" y="19.5" width="6" height="2.5" rx="1" fill="currentColor" opacity=".7"/></svg>',
+  left: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M15 4.5 7.5 12l7.5 7.5"/></svg>',
+  right: '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" d="M9 4.5 16.5 12 9 19.5"/></svg>',
+};
+
 /** Pixels of thumb travel from where it landed to full lock. */
 const STEER_TRAVEL = 110;
 /**
@@ -64,16 +85,16 @@ export class TouchSource implements InputSource {
         <div class="touch-steer-base"><div class="touch-steer-knob"></div></div>
       </div>
       <div class="touch-steer-buttons" hidden>
-        <button class="touch-btn steer" data-drive="left" aria-label="Steer left">◀</button>
-        <button class="touch-btn steer" data-drive="right" aria-label="Steer right">▶</button>
+        <button class="touch-btn steer" data-drive="left" aria-label="Steer left">${ICON.left}</button>
+        <button class="touch-btn steer" data-drive="right" aria-label="Steer right">${ICON.right}</button>
       </div>
       <div class="touch-pad">
-        <button class="touch-btn weapon" data-drive="front" aria-label="Front weapon">▲</button>
-        <button class="touch-btn weapon" data-drive="rear" aria-label="${SIM.weapons.rearMissiles ? 'Rear weapon' : 'Mine'}">${SIM.weapons.rearMissiles ? '▼' : '◆'}</button>
+        <button class="touch-btn weapon" data-drive="front" aria-label="Front weapon">${ICON.front}</button>
+        <button class="touch-btn weapon" data-drive="rear" aria-label="${SIM.weapons.rearMissiles ? 'Rear weapon' : 'Mine'}">${SIM.weapons.rearMissiles ? ICON.rear : ICON.mine}</button>
         ${FEATURES.turbo ? '<button class="touch-btn turbo" data-drive="turbo" aria-label="Turbo">TURBO</button>' : '<span aria-hidden="true"></span>'}
-        <button class="touch-btn hb" data-drive="handbrake" aria-label="Handbrake">HB</button>
-        <button class="touch-btn pedal brake" data-drive="brake" aria-label="Brake">◼</button>
-        <button class="touch-btn pedal gas" data-drive="throttle" aria-label="Accelerate">▶</button>
+        <button class="touch-btn hb" data-drive="handbrake" aria-label="Handbrake">${ICON.handbrake}</button>
+        <button class="touch-btn pedal brake" data-drive="brake" aria-label="Brake">${ICON.brake}</button>
+        <button class="touch-btn pedal gas" data-drive="throttle" aria-label="Accelerate">${ICON.gas}</button>
       </div>`;
     host.appendChild(this.root);
     this.base = this.root.querySelector('.touch-steer-base')!;
