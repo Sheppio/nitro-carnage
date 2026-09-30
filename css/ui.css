@@ -30,6 +30,12 @@ html, body {
   inset: 0;
 }
 
+/* The race's end: the track and the HUD fade out, then the results fade in
+   (see `onOver` in main.ts). The next race fades back in the same way. */
+#game-root, .screen.hud { transition: opacity 0.6s ease; }
+body.race-out #game-root, body.race-out .screen.hud { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { #game-root, .screen.hud { transition: none; } }
+
 .game-canvas {
   display: block;
   width: 100%;
@@ -506,6 +512,11 @@ select {
 }
 
 .menu-card.wide { width: min(560px, 100%); }
+
+/* An animation restarts whenever `hidden` comes off, and only a race's end shows the results. */
+.screen.results { animation: results-in 0.6s ease both; }
+@keyframes results-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .screen.results { animation: none; } }
 
 .results-table {
   width: 100%;

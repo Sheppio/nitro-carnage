@@ -79,6 +79,14 @@ type ScreenId = (typeof screens)[number];
 let current = 'screen-menu' as ScreenId;
 /** The results' podium: its own WebGL context, made the first time a race ends. */
 let podium: PodiumView | null = null;
+/**
+ * The race's end is not cut straight to the results: the race holds for a
+ * moment (the finish banner, the cars rolling over the line), then the track
+ * and the HUD fade out, and the results fade in (css: `body.race-out`).
+ */
+const RACE_HOLD_MS = 2000;
+const RACE_FADE_MS = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600;
+let raceOutTimer = 0;
 
 function show(id: ScreenId): void {
   // A race can start while the host's guest is in the Garage: stop its turntable.
@@ -89,7 +97,12 @@ function show(id: ScreenId): void {
   choices.dismiss();
   confirm.dismiss();
   current = id;
-  if (id !== 'screen-results') podium?.stop();
+  // A race's end on its way to the results is overtaken by any other screen.
+  clearTimeout(raceOutTimer);
+  if (id !== 'screen-results') {
+    podium?.stop();
+    document.body.classList.remove('race-out');
+  }
   for (const s of screens) $(s).hidden = s !== id;
   if (id === 'screen-hud') {
     nav.stop();
@@ -401,6 +414,18 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
     }
   };
   s.onOver = (rows) => {
+    // A room goes back to the lobby `resultsMs` after the race ends, not after the results appear.
+    const lobbyAt = performance.now() + NET.resultsMs;
+    clearTimeout(raceOutTimer);
+    raceOutTimer = window.setTimeout(() => {
+      if (session !== s) return;
+      document.body.classList.add('race-out');
+      raceOutTimer = window.setTimeout(() => {
+        if (session === s) raceOver(rows, lobbyAt);
+      }, RACE_FADE_MS);
+    }, RACE_HOLD_MS);
+  };
+  const raceOver = (rows: ResultRow[], lobbyAt: number): void => {
     Hud.results(rows);
     showPodium(rows);
     const online = mode === 'net';
@@ -424,7 +449,7 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
     $('btn-again').textContent = online ? 'Back to lobby' : 'Race again';
     $('results-note').hidden = !online;
     rematchButton();
-    if (online) countDownToLobby();
+    if (online) countDownToLobby(lobbyAt);
     $('btn-results-menu').textContent = online ? 'Leave room' : 'Back';
     // B is the turbo a moment ago: in a room it goes back to the lobby, never out of the room.
     $('btn-again').toggleAttribute('data-nav-back', online);
@@ -523,6 +548,7 @@ function stopSession(): void {
     audio.music.setTheme(null);
     audio.music.play('menu');
   }
+  clearTimeout(raceOutTimer);
   session?.stop();
   hud?.dispose();
   session = null;
@@ -821,9 +847,8 @@ $('btn-again').addEventListener('click', () => {
 
 /** "Back to the lobby in 9 s" on a room's results, counting down. */
 let lobbyTimer = 0;
-function countDownToLobby(): void {
+function countDownToLobby(until: number): void {
   clearInterval(lobbyTimer);
-  const until = performance.now() + NET.resultsMs;
   const tick = (): void => {
     const left = Math.ceil((until - performance.now()) / 1000);
     if (left <= 0 || $('screen-results').hidden) {
