@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.72**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.73**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -63,7 +63,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 891 checks: simulation and networking (Node), and real browsers
+npm test           # 893 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -1316,14 +1316,15 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-891 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+893 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (603, Node; the per-track checks run on all 25 tracks):
+- **`sim.test.mjs`** (605, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
-    UTC midnight and not before; a thousand seeds all valid; a hundred lapped cleanly
+    UTC midnight and not before; a thousand seeds all valid, and every loop and long
+    straights bent into its infield, none a round blob; a hundred lapped cleanly
     by the autopilot; a split at every checkpoint; a race-only world ignores every
     trigger; a recorded lap plays back where the car was; a damaged ghost from storage is
     refused.

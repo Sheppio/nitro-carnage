@@ -1151,15 +1151,15 @@ console.log('\ngenerated tracks');
  * different track: the test is there to make that a decision, not an accident.
  */
 const PINNED = [
-  [1, 'Neon Sprint', 'd2de948f'],
+  [1, 'Neon Sprint', '26d8512e'],
   [42, 'Static Reach', '5fc6df9d'],
   [seedOf('NITRO'), 'Neon Yard', 'd6d30adf'],
   // The day's seed became the bare date in v0.1.42, so this day's track changed.
   [daySeed(Date.UTC(2026, 8, 25, 12)), 'Granite Loop', '9a8d4796'],
   // A port, a city at dusk and a city by day (M10), so every theme's rules are pinned.
   [seedOf('pin-run-dig'), 'Hollow Ring', '36c3e42e'],
-  [seedOf('big-red-bus'), 'Granite Park', 'e6c16d92'],
-  [seedOf('oak-elm-fig'), 'Amber Loop', '1cf449b5'],
+  [seedOf('big-red-bus'), 'Granite Park', 'd50feb8c'],
+  [seedOf('oak-elm-fig'), 'Amber Loop', '7964a017'],
 ];
 /**
  * The shape alone — corners, start and ramps — pinned apart from the rest.
@@ -1173,7 +1173,10 @@ const PINNED = [
 // And again for the pockets into the infield (#3): the loops and long
 // straights changed, the city grids did not, and records for the changed
 // ones moved to a new key.
-const SHAPES = ['99ca40c0', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', '881d2678', '31d83172'];
+// And once more (#3, v0.1.73): half the pockets failed validation, so the
+// retries quietly chose plain ovals. Every loop and long straights now gets a
+// pocket that fits; the city grids' four pins did not move.
+const SHAPES = ['a0e11a31', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', 'f8892f28', '6f9d7a45'];
 
 {
   const got = PINNED.map(([seed]) => {
@@ -1214,6 +1217,17 @@ const SHAPES = ['99ca40c0', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', '881
   let squared = 0;
   let curvy = 0;
   let infield = 0;
+  let round = 0;
+  // Twice the area, by the shoelace formula, and the convex hull's: a lap that dives into its middle covers less of its hull.
+  const area2 = (p) => Math.abs(p.reduce((a, [x1, z1], i) => { const [x2, z2] = p[(i + 1) % p.length]; return a + x1 * z2 - x2 * z1; }, 0));
+  const hull = (pts) => {
+    const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const q of p) { while (lo.length >= 2 && cr(lo.at(-2), lo.at(-1), q) <= 0) lo.pop(); lo.push(q); }
+    for (const q of p.reverse()) { while (up.length >= 2 && cr(up.at(-2), up.at(-1), q) <= 0) up.pop(); up.push(q); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  };
   for (let sd = 1000; sd < 2000; sd++) {
     try {
       const d = generateTrack(sd);
@@ -1231,6 +1245,8 @@ const SHAPES = ['99ca40c0', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', '881
         const far = d.corners.map((c) => Math.hypot(c[0] - cx, c[1] - cz));
         curvy++;
         if (Math.min(...far) < 0.35 * Math.max(...far)) infield++;
+        const pts = d.corners.map(([x, z]) => [x, z]);
+        if (100 * area2(pts) > 88 * area2(hull(pts))) round++;
       }
     } catch {
       bad++;
@@ -1240,6 +1256,9 @@ const SHAPES = ['99ca40c0', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', '881
   // Not just a blob that goes round (#3): most loops and straights dive into the infield and back out.
   check('most flowing loops and long straights have road that reaches into the infield', infield > curvy / 2,
     `${infield} of ${curvy} reach within 35% of the middle`);
+  // And none is left a blob: each bends in far enough to cover at most 88% of its convex hull (an oval covers 92-100%).
+  check('no flowing loop or long straights is a plain round blob', round === 0, `${round} of ${curvy} cover over 88% of their hull`);
+  check('and a seed takes a few candidates at most, never near the 400 allowed', most <= 60, `at most ${most}`);
   const counts = Object.values(layouts);
   check('seeds share out evenly between flowing loops, city grids and long straights', counts.length === 3 && counts.every((c) => c > 280) && squared === layouts['City grid'],
     JSON.stringify(layouts));

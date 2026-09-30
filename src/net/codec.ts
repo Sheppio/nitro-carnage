@@ -18,8 +18,10 @@ import type { CupRace, Score } from '../sim/championship.js';
  * The wire protocol's version. 1: a topic per car for state and another for
  * events. 2: one message per client carrying all its cars, events inside.
  * 3: pickups, which an older build would neither see taken nor take.
+ * 4: generated loops and straights reshaped (#3): every client builds the
+ *    track from its seed, so an older build would race a different shape.
  */
-export const WIRE = 3;
+export const WIRE = 4;
 
 const FLD = ',';
 const LIST = '.';

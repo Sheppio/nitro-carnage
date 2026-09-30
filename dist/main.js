@@ -270,8 +270,9 @@ menuBody.addEventListener('change', () => store.set(BODY_KEY, menuBody.value));
 // through the new one's walls.
 // "best3": generated loops and long straights gained pockets into the infield
 // (#3), so theirs moved again; city grids and the built-in tracks kept their shape.
+// "best4": and again, when every one of them was given a pocket that fits (#3).
 const reshaped = (def) => def.id.startsWith('seed-') && def.layout !== 'City grid';
-const recordKey = (def) => `${SLUG}.${reshaped(def) ? 'best3' : 'best2'}.${def.id}`;
+const recordKey = (def) => `${SLUG}.${reshaped(def) ? 'best4' : 'best2'}.${def.id}`;
 /** The Track of the Day mode's own records: laps without turbo are not comparable with a turbo hotlap's. */
 const dailyKey = (def) => `${recordKey(def)}.noturbo`;
 function loadRecord(key) {

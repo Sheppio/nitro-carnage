@@ -94,15 +94,15 @@ export function generateTrack(seed: number): TrackDef {
   const int = (lo: number, hi: number): number => lo + Math.floor(rand() * (hi - lo + 1));
   const style = pickStyle(int, s);
   for (let attempt = 0; attempt < 400; attempt++) {
-    const def = candidate(s, int, attempt, style);
     try {
+      const def = candidate(s, int, attempt, style);
       // Checked bare: scattering a city round a candidate only to throw it away is most of the cost.
       if (fits(def)) {
         cache.set(s, def);
         return def;
       }
     } catch {
-      // A corner radius that does not fit between its neighbours: draw again.
+      // A corner radius that does not fit between its neighbours, or a lap still round: draw again.
     }
   }
   throw new Error(`no valid track for seed ${s}`);
@@ -115,9 +115,8 @@ export function attemptsFor(seed: number): number {
   const int = (lo: number, hi: number): number => lo + Math.floor(rand() * (hi - lo + 1));
   const style = pickStyle(int, s);
   for (let attempt = 0; attempt < 400; attempt++) {
-    const def = candidate(s, int, attempt, style);
     try {
-      if (fits(def)) return attempt + 1;
+      if (fits(candidate(s, int, attempt, style))) return attempt + 1;
     } catch {
       /* next */
     }
@@ -134,7 +133,9 @@ const LAYOUT_NAMES = { loop: 'Flowing loop', grid: 'City grid', straights: 'Long
 
 type Int = (lo: number, hi: number) => number;
 type Corner = [number, number, number];
-type Style = { theme: (typeof THEMES)[number] | 'day'; layout: (typeof LAYOUTS)[number] };
+/** What takes a loop or straights into its infield (#3): a pocket, and sometimes a kidney dent too. */
+type Feature = { pocket: boolean; kidney: boolean };
+type Style = { theme: (typeof THEMES)[number] | 'day'; layout: (typeof LAYOUTS)[number]; feature: Feature };
 
 /**
  * A seed's look and shape, drawn once before any candidate: a layout that
@@ -147,10 +148,17 @@ function pickStyle(int: Int, seed: number): Style {
   // A city is by day or at dusk, half and half (M10). Drawn from a stream of
   // its own, so the choice leaves every other draw — the shape — as it was.
   const day = theme === 'dusk' && mulberry32(seed ^ 0x64617921)() < 0.5;
-  return { theme: day ? 'day' : theme, layout };
+  // The infield feature, also from a stream of its own, and drawn once per
+  // seed: a retry keeps it. Rolled afresh on every candidate, it was the
+  // plain shapes that passed validation most, so retries quietly chose ovals.
+  // Always a pocket, and half the time a kidney as well: a kidney alone is
+  // too shallow a dent to take a lap out of the round, and it took twenty
+  // candidates a seed to find one that was.
+  const kidney = mulberry32(seed ^ 0x706f636b)() < 0.5;
+  return { theme: day ? 'day' : theme, layout, feature: { pocket: true, kidney } };
 }
 
-function candidate(seed: number, int: Int, attempt: number, { theme, layout }: Style): TrackDef {
+function candidate(seed: number, int: Int, attempt: number, { theme, layout, feature }: Style): TrackDef {
   // The tightest corner a theme allows: the park's wide grass verge puts its wall further in.
   const tight = theme === 'park' ? 16 : 14;
   let corners = layout === 'grid' ? grid(int, tight) : layout === 'straights' ? straights(int, tight) : loop(int, theme);
@@ -176,6 +184,16 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout }: S
     for (let i = 0; i < corners.length; i++) around += dist(corners[i]!, corners[(i + 1) % corners.length]!);
     const k = Math.floor((LONGEST * 1000) / around);
     if (k < 1000) corners = corners.map(([x, z, r]) => [Math.round((x * k) / 1000), Math.round((z * k) / 1000), Math.max(Math.round((r * k) / 1000), tight)]);
+    // Into the infield, in the metres the track is raced at: drawn before the
+    // shrink, a pocket's hairpin came out too tight and its arms too close,
+    // and most failed validation.
+    corners = infield(corners, int, tight, feature);
+    fit(corners);
+    // Still a blob (the dents too shallow to show), or a corner squeezed
+    // tighter than the validator allows: draw again, before building a Track.
+    if (!dented(corners)) throw new Error('no infield');
+    const least = theme === 'park' ? 16 : theme === 'overcast' ? 12 : 13;
+    if (corners.some((c) => c[2] > 0 && c[2] < least)) throw new Error('too tight');
   }
   fit(corners);
   const n = corners.length;
@@ -276,55 +294,140 @@ function loop(int: Int, theme: string): Corner[] {
     const z = Math.round((r * SIN[deg]!) / 10000);
     corners.push([Math.round((x * COS[turn]! - z * SIN[turn]!) / 10000), Math.round((x * SIN[turn]! + z * COS[turn]!) / 10000), int(theme === 'park' ? 30 : 16, theme === 'park' ? 60 : 40)]);
   }
-  return infield(corners, int, theme === 'park' ? 30 : 16);
+  return corners;
 }
 
 /**
- * What the real circuits have and a star does not: road that dives into the
- * infield and comes back out. Two thirds of the time one corner becomes a
- * pocket — two arms into the middle, a hairpin at the bottom — and half the
- * time another corner is pulled in on its own, bending the lap into a kidney.
- * Corners are pulled towards the origin, the middle of the star.
+ * What the real circuits have and a star does not (#3): road that dives into
+ * the infield and comes back out. The seed's feature says which:
+ * - a pocket: one long edge has a notch cut into the infield, in, across and
+ *   back out, square like the city grid's notches, so every turn is a right
+ *   angle that fits the room it has (at a corner, the turn into the pocket
+ *   was 120-150° and too tight for its arms). The arms are 56-76 m apart,
+ *   comfortably over the validator's 40 m;
+ * - a kidney: a corner pushed in past the line between its neighbours, so
+ *   the lap bends inwards there however thin the track is (pulled towards the
+ *   middle instead, a long thin track's corner barely moved off that line).
+ * Works on the corners as raced, after the shrink to a 30 s lap.
  */
-function infield(corners: Corner[], int: Int, tight: number): Corner[] {
+function infield(corners: Corner[], int: Int, tight: number, feature: Feature): Corner[] {
   const n = corners.length;
-  const pocket = int(0, 2) > 0 ? int(0, n - 1) : -1;
-  // The kidney's corner is at least two away from the pocket, round the lap.
-  const kidney = pocket < 0 || int(0, 1) ? (pocket < 0 ? int(0, n - 1) : (pocket + int(2, n - 2)) % n) : -1;
+  // The pocket goes in one of the two longest edges long enough to take it.
+  let pocket = -1;
+  if (feature.pocket) {
+    const long = corners.map((c, k) => [dist(c, corners[(k + 1) % n]!), k] as const).filter(([d]) => d >= 170).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+    if (!long.length) throw new Error('no edge for the pocket');
+    pocket = long[Math.min(int(0, 1), long.length - 1)]![1];
+  }
+  // The kidney's corner is not at either end of the pocket's edge.
+  let kidney = -1;
+  if (feature.kidney) {
+    kidney = int(0, n - 1);
+    if (pocket >= 0 && (kidney === pocket || kidney === (pocket + 1) % n)) kidney = (pocket + 2) % n;
+  }
+  // Inward is to the left of the way round when the lap runs anticlockwise (positive shoelace sum), else to the right.
+  let sum = 0;
+  for (let k = 0; k < n; k++) sum += corners[k]![0] * corners[(k + 1) % n]![1] - corners[(k + 1) % n]![0] * corners[k]![1];
+  const left = sum > 0 ? 1 : -1;
   const out: Corner[] = [];
   for (let i = 0; i < n; i++) {
     const c = corners[i]!;
     const [x, z] = c;
-    const far = Math.sqrt(x * x + z * z);
     if (i === kidney) {
-      const pull = int(25, 45);
-      out.push([Math.round((x * pull) / 100), Math.round((z * pull) / 100), int(tight, tight + 14)]);
-      continue;
-    }
-    if (i !== pocket || far < 120) {
+      // The foot of the corner on the line between its neighbours, and the corner pushed through it by a quarter to nearly half again.
+      const p = corners[(i + n - 1) % n]!;
+      const q = corners[(i + 1) % n]!;
+      const lx = q[0] - p[0], lz = q[1] - p[1];
+      const len2 = lx * lx + lz * lz;
+      const t = len2 === 0 ? 0 : ((x - p[0]) * lx + (z - p[1]) * lz) / len2;
+      const fx = p[0] + lx * t, fz = p[1] + lz * t;
+      const push = int(125, 145);
+      out.push([Math.round(x + ((fx - x) * push) / 100), Math.round(z + ((fz - z) * push) / 100), int(tight, tight + 14)]);
+    } else {
       out.push(c);
-      continue;
     }
-    // Outward, per mille, and along: the way the lap is heading as it passes this corner.
-    const ux = Math.round((x * 1000) / far);
-    const uz = Math.round((z * 1000) / far);
-    const p = corners[(i + n - 1) % n]!;
+    if (i !== pocket) continue;
+    // Along the edge, per mille, and inward, square to it.
     const q = corners[(i + 1) % n]!;
-    const ahead = -uz * (q[0] - p[0]) + ux * (q[1] - p[1]) >= 0 ? 1 : -1;
-    const tx = -uz * ahead;
-    const tz = ux * ahead;
-    // Arms 80-110 m apart (before the shrink to a 30 s lap), reaching 55-80% of the way in.
-    const half = int(40, 55);
-    const depth = Math.round((far * int(55, 80)) / 100);
-    const at = (along: number, down: number, r: number): void => {
-      out.push([Math.round(x + (tx * along - ux * down) / 1000), Math.round(z + (tz * along - uz * down) / 1000), r]);
-    };
-    at(-half, 0, int(tight, tight + 8));
-    at(-half, depth, int(tight + 10, tight + 20));
-    at(half, depth, int(tight + 10, tight + 20));
-    at(half, 0, int(tight, tight + 8));
+    const len = dist(c, q);
+    const ux = Math.round(((q[0] - x) * 1000) / len);
+    const uz = Math.round(((q[1] - z) * 1000) / len);
+    const ix = -uz * left;
+    const iz = ux * left;
+    const gap = int(56, 76);
+    // Somewhere near the middle of the edge, clear of the corners at its ends.
+    const mid = Math.round(len / 2) + int(-Math.floor((len - gap - 110) / 2), Math.floor((len - gap - 110) / 2));
+    const a = mid - Math.round(gap / 2);
+    const b = a + gap;
+    const pt = (along: number, down: number): [number, number] => [Math.round(x + (ux * along + ix * down) / 1000), Math.round(z + (uz * along + iz * down) / 1000)];
+    // As deep as it will go, up to 130 m, while its far side stays 50 m clear of the rest of the lap.
+    let depth = int(90, 130);
+    while (depth >= 50 && !clear([pt(a, depth), pt(b, depth), pt(mid, depth)], corners, i)) depth -= 10;
+    // No room (a track too thin to take it): this candidate has no pocket, and is drawn again.
+    if (depth < 50) throw new Error('no room for the pocket');
+    const r = (): number => int(tight, tight + 8);
+    out.push([...pt(a, 0), r()], [...pt(a, depth), Math.floor(gap / 2)], [...pt(b, depth), Math.floor(gap / 2)], [...pt(b, 0), r()]);
   }
   return out;
+}
+
+/**
+ * Are these points of a pocket's far side all at least 50 m from every edge
+ * of the lap but the one the pocket is cut into? Its road would otherwise
+ * come within the validator's 40 m of another stretch.
+ */
+function clear(pts: [number, number][], corners: Corner[], cut: number): boolean {
+  const n = corners.length;
+  for (let k = 0; k < n; k++) {
+    if (k === cut) continue;
+    const a = corners[k]!, b = corners[(k + 1) % n]!;
+    const lx = b[0] - a[0], lz = b[1] - a[1];
+    const len2 = lx * lx + lz * lz;
+    for (const [px, pz] of pts) {
+      const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - a[0]) * lx + (pz - a[1]) * lz) / len2));
+      const dx = px - (a[0] + lx * t), dz = pz - (a[1] + lz * t);
+      if (dx * dx + dz * dz < 50 * 50) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Does the lap really bend into its middle? Its area is at most 88% of its
+ * convex hull's: a plain star or oval is 92-100%. Both areas are exact
+ * integers (twice the shoelace sum, of whole-metre corners), so every engine
+ * agrees.
+ */
+function dented(corners: Corner[]): boolean {
+  const pts = corners.map(([x, z]) => [x, z] as [number, number]);
+  return 100 * area2(pts) <= 88 * area2(hull(pts));
+}
+
+/** Twice a polygon's area, by the shoelace formula. */
+function area2(pts: [number, number][]): number {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, z1] = pts[i]!, [x2, z2] = pts[(i + 1) % pts.length]!;
+    a += x1 * z2 - x2 * z1;
+  }
+  return Math.abs(a);
+}
+
+/** The convex hull, by the monotone chain: integer cross products only. */
+function hull(pts: [number, number][]): [number, number][] {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: [number, number], a: [number, number], b: [number, number]): number => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower: [number, number][] = [];
+  const upper: [number, number][] = [];
+  for (const q of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, q) <= 0) lower.pop();
+    lower.push(q);
+  }
+  for (const q of p.reverse()) {
+    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, q) <= 0) upper.pop();
+    upper.push(q);
+  }
+  return lower.slice(0, -1).concat(upper.slice(0, -1));
 }
 
 /**
@@ -416,7 +519,7 @@ function straights(int: Int, tight: number): Corner[] {
     const t = tanHalf(corners[(i + n - 1) % n]!, corners[i]!, corners[(i + 1) % n]!);
     if (int(0, 1) === 0 && t < 0.41) corners[i]![2] = int(30, 50);
   }
-  return infield(corners, int, tight);
+  return corners;
 }
 
 /**
