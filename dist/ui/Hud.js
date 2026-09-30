@@ -47,6 +47,8 @@ export class Hud {
     bannerWarn = false;
     /** The race is over: RACE OVER stays up, over anything else, until the results. */
     over = false;
+    /** Where you finished, for under RACE OVER: empty until you are home. */
+    finished = '';
     constructor(session, debug) {
         this.session = session;
         this.minimap = new Minimap($('hud-minimap'), session.world.track);
@@ -125,7 +127,13 @@ export class Hud {
         const bannerEl = $('hud-banner');
         bannerEl.classList.toggle('over', this.over);
         if (this.over) {
-            bannerEl.textContent = 'RACE OVER';
+            // Built once: rewriting it every frame would restart nothing, but churns the DOM.
+            if (bannerEl.firstChild?.textContent !== 'RACE OVER' || bannerEl.childNodes.length !== (this.finished ? 2 : 1)) {
+                const sub = document.createElement('small');
+                sub.className = 'banner-sub';
+                sub.textContent = this.finished;
+                bannerEl.replaceChildren('RACE OVER', ...(this.finished ? [sub] : []));
+            }
             bannerEl.classList.remove('warn');
         }
         else if (hud.wrongWay) {
@@ -228,7 +236,8 @@ export class Hud {
         }
         else if (ev.kind === 'finish' && ev.id === me) {
             const pos = this.session.results().findIndex((r) => r.car.you) + 1;
-            this.banner(`FINISHED ${ordinal(pos)}`, 8);
+            this.finished = `You finished ${ordinal(pos)}`;
+            this.banner(this.finished, 8);
         }
         else if (ev.kind === 'finish') {
             const info = this.session.cars.get(ev.id);

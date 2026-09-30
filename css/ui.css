@@ -480,6 +480,10 @@ body.tv { --hud: 1; --hud-big: 1; }
 /* RACE OVER: across the middle of the screen, over half its width. */
 .hud-banner.over { top: 30%; transform: translate(-50%, -50%); font-size: 8vw; font-style: italic; color: var(--accent-2); }
 body.tv .hud-banner.over { font-size: 5.7vw; }
+/* Where you finished, under RACE OVER, until the fade. */
+/* Centred under it; its own letter spacing, not the big one's; never smaller than 16px, on a phone held upright. */
+.hud-banner.over { text-align: center; }
+.hud-banner .banner-sub { display: block; font-size: max(0.3em, 16px); letter-spacing: 0.08em; font-style: normal; color: var(--text); margin-top: 0.15em; }
 /* A phone held sideways has the lap box where RACE OVER would be: lower, clear of it. */
 @media (pointer: coarse) { .hud-banner.over { top: 50%; } }
 .hud-banner:empty { opacity: 0; }
