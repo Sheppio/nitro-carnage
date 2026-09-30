@@ -503,7 +503,15 @@ export class RaceSession {
       if (this.player.wrecked <= 0) this.player.hp = SIM.weapons.health;
       if (this.world.turbo) this.player.car.turbo = SIM.car.turboCapacity;
     }
-    this.soundFor(ev);
+    // The winner home (#23): fireworks over the line, confetti on it, and the crowd, in place of the finish's own notes.
+    const won = ev.kind === 'finish' && this.mode !== 'hotlap' && this.world.entrants.filter((e) => e.lap.finished).length === 1;
+    if (won) {
+      const c = this.drawn.get(ev.id);
+      const pops = c ? this.view.celebrate(c.x, c.z) : [];
+      this.audio?.celebrate(pops, ev.id === this.playerId);
+    } else {
+      this.soundFor(ev);
+    }
     const wreck = this.log.onEvent(ev, this.world.entrants);
     if (wreck) this.onWreck?.(wreck);
     const focus = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;

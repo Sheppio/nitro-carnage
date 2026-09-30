@@ -567,6 +567,63 @@ export class AudioEngine {
     [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.35, 'triangle', 0.14, i * 0.13));
   }
 
+  /**
+   * The winner crosses the line (#23): the crowd roars and whoops, a firework
+   * pops at each of `pops` (seconds from now), and brass plays a fanfare, the
+   * whole way if it's you who won.
+   */
+  celebrate(pops: readonly number[], you: boolean): void {
+    const ctx = this.live();
+    if (!ctx || !this.sfxBus) return;
+    const t = ctx.currentTime;
+    // The crowd: noise where voices are, swelling, held, and dying away, with the wobble of many people.
+    if (this.noise) {
+      for (const [freq, q, level] of [[450, 0.7, 0.1], [950, 0.9, 0.2], [1900, 1.3, 0.09]] as const) {
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        src.loop = true;
+        const f = ctx.createBiquadFilter();
+        f.type = 'bandpass';
+        f.frequency.value = freq;
+        f.Q.value = q;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0008, t);
+        g.gain.exponentialRampToValueAtTime(level, t + 0.5);
+        g.gain.setValueAtTime(level, t + 2);
+        g.gain.exponentialRampToValueAtTime(0.0008, t + 4);
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 2.5 + Math.random() * 3;
+        const depth = ctx.createGain();
+        depth.gain.value = level * 0.35;
+        lfo.connect(depth).connect(g.gain);
+        src.connect(f).connect(g).connect(this.sfxBus);
+        src.start(t, Math.random() * 0.5);
+        src.stop(t + 4.1);
+        lfo.start(t);
+        lfo.stop(t + 4.1);
+        this.started++;
+      }
+      // Whistles over it.
+      for (let i = 0; i < 4; i++) {
+        const f0 = 1500 + Math.random() * 900;
+        this.tone(f0, 0.4, 'sine', 0.025, 0.4 + Math.random() * 1.8, f0 * 1.35, (Math.random() - 0.5) * 1.2);
+      }
+    }
+    // The fireworks: a thump as each goes off, and the crackle after.
+    for (const d of pops) {
+      this.tone(160, 0.25, 'sine', 0.12, d, 60);
+      this.hiss(0.5, 0.1, 'highpass', 2500, 5000, d + 0.05);
+    }
+    // The fanfare: G C E G, E, G held, with the chord under the end.
+    const level = you ? 0.07 : 0.035;
+    const notes: [number, number, number][] = [[392, 0, 0.14], [523, 0.14, 0.14], [659, 0.28, 0.14], [784, 0.42, 0.34], [659, 0.78, 0.14], [784, 0.92, 1.1]];
+    for (const [f, at, dur] of notes) {
+      this.tone(f, dur, 'sawtooth', level, at);
+      this.tone(f * 2, dur, 'triangle', level * 0.4, at);
+    }
+    for (const f of [523, 659]) this.tone(f, 1.1, 'sawtooth', level * 0.6, 0.92);
+  }
+
   /** Somebody else crossed the line: two soft falling notes. */
   rivalHome(): void {
     if (!this.gate('rival', 400)) return;

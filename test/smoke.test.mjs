@@ -381,7 +381,16 @@ try {
   const tagsOff = await until(() => race.evaluate(() => document.querySelectorAll('.name-tag').length === 0 || null), { timeout: 5000 });
   r.check('and the setting turns them off mid-race', Boolean(tagsOff));
 
+  // The winner home (#23): one celebration, fireworks and confetti over the line.
+  await race.evaluate(() => {
+    const v = window.nitro.session.view;
+    const was = v.celebrate.bind(v);
+    window.__cheers = [];
+    v.celebrate = (x, z) => { const pops = was(x, z); window.__cheers.push(pops.length); return pops; };
+  });
   await race.waitForSelector('#screen-results:not([hidden])', { timeout: 240000 });
+  const cheers = await race.evaluate(() => window.__cheers);
+  r.check('the winner crossing the line sets off one volley of fireworks', cheers.length === 1 && cheers[0] >= 5, JSON.stringify(cheers));
   const results = await race.evaluate(() => ({
     rows: document.querySelectorAll('#results-body tr').length,
     you: document.querySelectorAll('#results-body tr.you').length,

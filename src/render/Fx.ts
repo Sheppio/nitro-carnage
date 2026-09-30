@@ -81,7 +81,7 @@ class TyreMarks {
   }
 }
 
-export type ParticleKind = 'smoke' | 'dust' | 'spark' | 'fire' | 'flash' | 'soot';
+export type ParticleKind = 'smoke' | 'dust' | 'spark' | 'fire' | 'flash' | 'soot' | 'star' | 'confetti';
 
 interface KindDef {
   colour: THREE.Color;
@@ -100,7 +100,13 @@ const KINDS: Record<ParticleKind, KindDef> = {
   fire: { colour: new THREE.Color(0xff7a1c), life: 0.55, size0: 1.6, size1: 0.6, alpha: 0.95, gravity: -4, drag: 2.2 },
   flash: { colour: new THREE.Color(0xfff2c0), life: 0.18, size0: 7, size1: 11, alpha: 1, gravity: 0, drag: 0 },
   soot: { colour: new THREE.Color(0x2c2a2e), life: 1.8, size0: 1.4, size1: 5.2, alpha: 0.55, gravity: -1.2, drag: 1.4 },
+  // The winner's fireworks and confetti (#23): coloured one by one.
+  star: { colour: new THREE.Color(0xffffff), life: 1.5, size0: 1.1, size1: 0.3, alpha: 1, gravity: 4, drag: 1.3 },
+  confetti: { colour: new THREE.Color(0xffffff), life: 3.2, size0: 0.7, size1: 0.6, alpha: 1, gravity: 2.2, drag: 2.4 },
 };
+
+/** Firework and confetti colours: bright, and every one different from the tarmac. */
+const CELEBRATION = [0xff4d2e, 0xffd23c, 0x3ee6ff, 0x7dff6a, 0xff4fd8, 0xffffff, 0x9d7bff].map((c) => new THREE.Color(c));
 
 /**
  * Pooled particles, drawn as one `Points` call.
@@ -124,7 +130,7 @@ class Particles {
   private alive = 0;
   readonly uScale = { value: 1 };
   private kinds = Object.values(KINDS);
-  private kindIndex: Record<ParticleKind, number> = { smoke: 0, dust: 1, spark: 2, fire: 3, flash: 4, soot: 5 };
+  private kindIndex: Record<ParticleKind, number> = { smoke: 0, dust: 1, spark: 2, fire: 3, flash: 4, soot: 5, star: 6, confetti: 7 };
 
   constructor(n: number) {
     this.n = n;
@@ -175,13 +181,14 @@ class Particles {
     this.points.name = 'particles';
   }
 
-  emit(kind: ParticleKind, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
+  emit(kind: ParticleKind, x: number, y: number, z: number, vx: number, vy: number, vz: number, colour?: THREE.Color): void {
     const i = this.next;
     this.next = (this.next + 1) % this.n;
     const def = KINDS[kind];
+    const c = colour ?? def.colour;
     this.pos.set([x, y, z], i * 3);
     this.vel.set([vx, vy, vz], i * 3);
-    this.col.set([def.colour.r, def.colour.g, def.colour.b], i * 3);
+    this.col.set([c.r, c.g, c.b], i * 3);
     this.age[i] = 0;
     this.life[i] = def.life * (0.8 + ((i * 7919) % 100) / 250);
     this.kind[i] = this.kindIndex[kind];
@@ -240,6 +247,8 @@ export class Fx {
   private time = 0;
   private emitCarry = new Map<object, number>();
   private damageCarry = new WeakMap<object, number>();
+  /** Firework bursts still to go off: where, and in how many seconds. */
+  private bursts: { x: number; y: number; z: number; in: number }[] = [];
 
   constructor(tyreMarks: number, particles: number) {
     this.group.name = 'fx';
@@ -279,6 +288,40 @@ export class Fx {
       }
     }
     this.damageCarry.set(key, carry);
+  }
+
+  /**
+   * The winner is home (#23): a volley of fireworks over the line, and
+   * confetti on it. Returns when each firework goes off, in seconds from now,
+   * so the sound can pop in time with them.
+   */
+  celebrate(x: number, z: number): number[] {
+    const delays: number[] = [];
+    for (let k = 0; k < 7; k++) {
+      const at = k * 0.42 + Math.random() * 0.2;
+      const a = Math.random() * Math.PI * 2, r = 6 + Math.random() * 12;
+      this.bursts.push({ x: x + Math.cos(a) * r, y: 10 + Math.random() * 8, z: z + Math.sin(a) * r, in: at });
+      delays.push(at);
+    }
+    for (let i = 0; i < 140; i++) {
+      const c = CELEBRATION[i % CELEBRATION.length]!;
+      this.particles.emit('confetti', x + (Math.random() - 0.5) * 14, 7 + Math.random() * 6, z + (Math.random() - 0.5) * 14,
+        (Math.random() - 0.5) * 6, 2 + Math.random() * 4, (Math.random() - 0.5) * 6, c);
+    }
+    return delays;
+  }
+
+  /** One firework: a flash and a sphere of stars in one colour, with a few in another. */
+  private burst(x: number, y: number, z: number): void {
+    this.emit('flash', x, y, z);
+    const c = CELEBRATION[Math.floor(Math.random() * CELEBRATION.length)]!;
+    const tip = CELEBRATION[Math.floor(Math.random() * CELEBRATION.length)]!;
+    for (let i = 0; i < 48; i++) {
+      // Evenly round a sphere (a golden-angle spiral), so the burst is round, not clumped.
+      const u = 1 - (2 * (i + 0.5)) / 48, ring = Math.sqrt(1 - u * u), a = i * 2.39996;
+      const v = 9 + Math.random() * 2;
+      this.particles.emit('star', x, y, z, Math.cos(a) * ring * v, u * v, Math.sin(a) * ring * v, i % 6 === 0 ? tip : c);
+    }
   }
 
   /** An explosion: a flash, a fireball, debris and a column of smoke. `size` 1 is a missile. */
@@ -371,6 +414,10 @@ export class Fx {
   update(dt: number): void {
     this.time += dt;
     this.marks.setTime(this.time);
+    if (this.bursts.length) {
+      for (const b of this.bursts) if ((b.in -= dt) <= 0) this.burst(b.x, b.y, b.z);
+      this.bursts = this.bursts.filter((b) => b.in > 0);
+    }
     this.particles.update(dt);
   }
 }

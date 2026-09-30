@@ -233,6 +233,11 @@ export class GameView {
     this.hazards.update(raceTime, dt);
   }
 
+  /** The winner is home (#23): fireworks and confetti over the line. Returns when each firework goes off. */
+  celebrate(x: number, z: number): number[] {
+    return this.fx.celebrate(x, z);
+  }
+
   /**
    * An explosion at a world point. The camera shakes with it, by how close
    * it is to the car being followed.
