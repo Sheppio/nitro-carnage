@@ -49,10 +49,17 @@ export class Minimap {
     g.strokeStyle = 'rgba(235,230,245,0.85)';
     g.lineWidth = Math.max(2 * dpr, track.halfWidth * 2 * this.scale);
     g.stroke(path);
-    // Start line.
+    // Start line: across the road, turned to the way the lap runs there (it
+    // was drawn upright, which only lay across a start straight running east-west).
     const [sx, sy] = this.map(px[0]!, pz[0]!);
+    const [ax, ay] = this.map(px[1 % track.n]!, pz[1 % track.n]!);
+    const across = Math.max(10 * dpr, track.halfWidth * 2 * this.scale + 4 * dpr);
+    g.save();
+    g.translate(sx, sy);
+    g.rotate(Math.atan2(ay - sy, ax - sx));
     g.fillStyle = '#ff4d2e';
-    g.fillRect(sx - 2 * dpr, sy - 5 * dpr, 4 * dpr, 10 * dpr);
+    g.fillRect(-2 * dpr, -across / 2, 4 * dpr, across);
+    g.restore();
   }
 
   private map(x: number, z: number): [number, number] {
