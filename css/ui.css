@@ -419,9 +419,17 @@ body.tv { --hud: 1; --hud-big: 1; }
 .touch-btn svg { width: 56%; height: 56%; display: block; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
 .touch-btn.down { transform: scale(0.93); background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.15) 70%); }
 .touch-btn.weapon { color: #ffd23c; border-color: rgba(255, 210, 60, 0.5); }
-/* No weapons in this race: their row goes, and the pedals are the whole pad. */
-.touch-pad.no-weapons { grid-template-rows: 64px; }
-.touch-pad.no-weapons .touch-btn.weapon, .touch-pad.no-weapons .touch-gap { display: none; }
+/* Where each button sits: weapons top left, the handbrake above the accelerator
+   (under the same thumb, a short reach up), the brake beside it. */
+.touch-btn[data-drive="front"] { grid-area: 1 / 1; }
+.touch-btn[data-drive="rear"] { grid-area: 1 / 2; }
+.touch-btn[data-drive="handbrake"] { grid-area: 1 / 3; }
+.touch-btn[data-drive="turbo"] { grid-area: 2 / 1; }
+.touch-btn[data-drive="brake"] { grid-area: 2 / 2; }
+.touch-btn[data-drive="throttle"] { grid-area: 2 / 3; }
+.touch-pad .touch-gap { display: none; }
+/* No weapons in this race: their buttons go; the handbrake stays over the accelerator. */
+.touch-pad.no-weapons .touch-btn.weapon { display: none; }
 .touch-btn.hb { color: #ffb13c; border-color: rgba(255, 177, 60, 0.5); }
 .touch-btn.steer { color: #3ee6ff; border-color: rgba(62, 230, 255, 0.5); }
 .touch-btn.pedal.gas { color: #7dffb5; border-color: rgba(0, 220, 130, 0.7); background: radial-gradient(circle at 50% 30%, rgba(0, 230, 140, 0.55), rgba(0, 150, 90, 0.2) 70%); }

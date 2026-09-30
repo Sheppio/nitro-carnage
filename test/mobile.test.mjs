@@ -74,6 +74,12 @@ try {
   /* ------------------------------------------------------------ the HUD */
   const hudBad = await covered(page, '.touch-btn, #btn-pause');
   r.check('every touch button and the pause button is uncovered', hudBad.length === 0, hudBad.join(', '));
+  // The handbrake sits right above the accelerator, a short reach for the same thumb.
+  const hbAbove = await page.evaluate(() => {
+    const hb = document.querySelector('.touch-btn.hb').getBoundingClientRect(), gas = document.querySelector('.touch-btn.gas').getBoundingClientRect();
+    return hb.bottom <= gas.top && Math.abs(hb.left - gas.left) < 1;
+  });
+  r.check('the handbrake is directly above the accelerator', hbAbove);
   const overlaps = await page.evaluate(() => {
     const ids = ['hud-race', 'hud-minimap', 'btn-pause', 'hud-speed', 'hud-arms', 'hud-turbo'];
     const boxes = ids.map((id) => {
@@ -179,11 +185,13 @@ try {
     const pad = await until(() => off.evaluate(() => {
       if (document.querySelector('.touch-layer').hidden) return null;
       const shown = (sel) => [...document.querySelectorAll(sel)].filter((el) => el.getClientRects().length > 0).length;
-      return { weapons: shown('.touch-btn.weapon'), pedals: shown('.touch-btn.pedal'), hb: shown('.touch-btn.hb'), armed: window.nitro.session.world.weapons };
+      const hb = document.querySelector('.touch-btn.hb').getBoundingClientRect(), gas = document.querySelector('.touch-btn.gas').getBoundingClientRect();
+      return { weapons: shown('.touch-btn.weapon'), pedals: shown('.touch-btn.pedal'), hb: shown('.touch-btn.hb'), armed: window.nitro.session.world.weapons,
+        above: hb.bottom <= gas.top && Math.abs(hb.left - gas.left) < 1 };
     }));
     const offBad = await covered(off, '.touch-btn, #btn-pause');
     r.check('with weapons off, the weapon buttons are gone and the pedals and handbrake stay, uncovered',
-      pad?.weapons === 0 && pad.pedals === 2 && pad.hb === 1 && pad.armed === false && offBad.length === 0, JSON.stringify({ pad, offBad }));
+      pad?.weapons === 0 && pad.pedals === 2 && pad.hb === 1 && pad.armed === false && pad.above && offBad.length === 0, JSON.stringify({ pad, offBad }));
     await off.close();
   }
 
