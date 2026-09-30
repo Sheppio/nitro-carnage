@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.88**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.89**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -63,7 +63,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 894 checks: simulation and networking (Node), and real browsers
+npm test           # 901 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -1314,7 +1314,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-894 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+901 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1375,7 +1375,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     line-follower lapping cleanly and taking the ramp.
   - **Helpers:** interpolation, deadzones, framerate-independent smoothing, colour
     clash resolution.
-- **`net.test.mjs`** (105, Node, an in-memory broker and a fake clock): the heartbeat
+- **`net.test.mjs`** (107, Node, an in-memory broker and a fake clock): the heartbeat
   carries the seed and the weapons switch, and an older one decodes as a built-in track
   with weapons on; a race-only room on a seed builds the same track everywhere with no
   shots on the wire;
@@ -1410,7 +1410,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     closing hands its traffic to the broker at once, is given up within 3.5 s, and
     links again when the network is back; a player without direct links races with
     the rest.
-- **`smoke.test.mjs`** (70, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (72, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
@@ -1441,7 +1441,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
-- **`multiplayer.test.mjs`** (34, browser, up to four tabs): a room forms from a code
+- **`multiplayer.test.mjs`** (37, browser, up to four tabs): a room forms from a code
   and a share link; one host; colour clashes; a look chosen in one tab's Garage shows
   in the other's lobby; only the host can start; a missile fired
   in one tab flies in the other; a race to the
