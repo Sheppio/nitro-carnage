@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.93**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.94**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -68,7 +68,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 905 checks: simulation and networking (Node), and real browsers
+npm test           # 907 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -1319,11 +1319,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-905 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+907 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (606, Node; the per-track checks run on all 25 tracks):
+- **`sim.test.mjs`** (607, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid, and every loop and long
@@ -1380,7 +1380,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     line-follower lapping cleanly and taking the ramp.
   - **Helpers:** interpolation, deadzones, framerate-independent smoothing, colour
     clash resolution.
-- **`net.test.mjs`** (107, Node, an in-memory broker and a fake clock): the heartbeat
+- **`net.test.mjs`** (108, Node, an in-memory broker and a fake clock): the heartbeat
   carries the seed and the weapons switch, and an older one decodes as a built-in track
   with weapons on; a race-only room on a seed builds the same track everywhere with no
   shots on the wire;
