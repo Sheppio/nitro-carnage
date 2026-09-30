@@ -50,6 +50,8 @@ export class Hud {
   private bannerUntil = 0;
   private bannerText = '';
   private bannerWarn = false;
+  /** The race is over: RACE OVER stays up, over anything else, until the results. */
+  private over = false;
 
   constructor(private session: RaceSession, debug: boolean) {
     this.minimap = new Minimap($<HTMLCanvasElement>('hud-minimap'), session.world.track);
@@ -120,7 +122,10 @@ export class Hud {
     }
 
     const bannerEl = $('hud-banner');
-    if (hud.wrongWay) {
+    if (this.over) {
+      bannerEl.textContent = 'RACE OVER';
+      bannerEl.classList.remove('warn');
+    } else if (hud.wrongWay) {
       bannerEl.textContent = 'WRONG WAY';
       bannerEl.classList.add('warn');
     } else if (hud.spectating) {
@@ -227,9 +232,15 @@ export class Hud {
   }
 
   banner(text: string, seconds: number, warn = false): void {
+    if (this.over) return;
     this.bannerText = text;
     this.bannerWarn = warn;
     this.bannerUntil = performance.now() + seconds * 1000;
+  }
+
+  /** The last car is home (or the race's time is up): RACE OVER, until the results. */
+  raceOver(): void {
+    this.over = true;
   }
 
   /** Fill the results table. */

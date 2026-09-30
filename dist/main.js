@@ -68,11 +68,12 @@ let current = 'screen-menu';
 let podium = null;
 /**
  * The race's end is not cut straight to the results: the race holds for a
- * moment (the finish banner, the cars rolling over the line), then the track
+ * moment under RACE OVER, the cars rolling over the line, then the track
  * and the HUD fade out, and the results fade in (css: `body.race-out`).
  */
-const RACE_HOLD_MS = 2000;
-const RACE_FADE_MS = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 600;
+const RACE_HOLD_MS = 3000;
+/** Each half of the fade: the race out, then the results in (css: 0.5s each). */
+const RACE_FADE_MS = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500;
 let raceOutTimer = 0;
 function show(id) {
     // A race can start while the host's guest is in the Garage: stop its turntable.
@@ -387,6 +388,7 @@ function begin(mode, s, track, label = track.name, bestKey = recordKey(track)) {
     s.onOver = (rows) => {
         // A room goes back to the lobby `resultsMs` after the race ends, not after the results appear.
         const lobbyAt = performance.now() + NET.resultsMs;
+        hud?.raceOver();
         clearTimeout(raceOutTimer);
         raceOutTimer = window.setTimeout(() => {
             if (session !== s)
