@@ -272,6 +272,9 @@ export class Hud {
     /** Fill the results table. */
     static results(rows) {
         const winner = rows[0]?.time ?? null;
+        // The race's fastest lap, which earns a trophy beside it (#12).
+        const bests = rows.map((r) => r.best).filter((t) => t !== null && Number.isFinite(t) && t > 0);
+        const fastest = bests.length ? Math.min(...bests) : null;
         const body = $('results-body');
         body.innerHTML = '';
         for (const r of rows) {
@@ -289,6 +292,9 @@ export class Hud {
                     td.appendChild(sw);
                 }
                 td.appendChild(document.createTextNode(text));
+                if (i === 3 && fastest !== null && r.best === fastest) {
+                    td.appendChild(Object.assign(document.createElement('span'), { className: 'fastest-lap', textContent: '🏆', title: 'Fastest lap' }));
+                }
                 tr.appendChild(td);
             });
             body.appendChild(tr);

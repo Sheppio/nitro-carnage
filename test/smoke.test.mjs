@@ -383,9 +383,18 @@ try {
     you: document.querySelectorAll('#results-body tr.you').length,
     title: document.getElementById('results-title').textContent,
     canvases: document.querySelectorAll('canvas.game-canvas').length,
+    // The trophy (#12): in the Best lap column of the row with the fastest lap, and nowhere else.
+    trophies: document.querySelectorAll('#results-body .fastest-lap').length,
+    trophyAt: [...document.querySelectorAll('#results-body tr')].findIndex((tr) => tr.cells[3]?.querySelector('.fastest-lap')),
+    bests: [...document.querySelectorAll('#results-body tr')].map((tr) => {
+      const [m, sec] = (tr.cells[3]?.firstChild?.textContent ?? '').split(':');
+      return sec === undefined ? Infinity : Number(m) * 60 + Number(sec);
+    }),
   }));
   r.check('the race ends on a results table with the player marked', results.rows === 6 && results.you === 1 && /^You finished/.test(results.title) && results.canvases === 0,
     results.title);
+  r.check('a trophy sits beside the fastest lap, and only there', results.trophies === 1 && results.bests[results.trophyAt] === Math.min(...results.bests),
+    JSON.stringify({ at: results.trophyAt, bests: results.bests }));
 
   // Race again: the renderer is kept, and must hold what this race needs,
   // not that plus everything the last one left behind (the Xbox judder).

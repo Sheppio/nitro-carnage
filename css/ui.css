@@ -554,6 +554,7 @@ body.tv .hud-banner.over { font-size: 5.7vw; }
 
 .results-table td { padding: 8px; border-top: 1px solid var(--edge); }
 .results-table tr.you td { background: rgba(255, 255, 255, 0.06); font-weight: 600; }
+.results-table .fastest-lap { margin-left: 6px; font-size: 0.85em; vertical-align: 1px; }
 .results-table .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px; vertical-align: -1px; }
 
 /* The podium: the first three turning on their plinths, names underneath. */
