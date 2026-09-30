@@ -4,6 +4,7 @@ import { Track } from './buildTrack.js';
 import type { PropRule, TrackDef } from './TrackDef.js';
 import { validateTrack } from './validate.js';
 import { GRID_RADIUS, gridBend } from './gridStart.js';
+import { sweepCorners } from './sweep.js';
 
 /**
  * A candidate is kept if it validates and its whole grid is on a straight:
@@ -196,6 +197,12 @@ function candidate(seed: number, int: Int, attempt: number, { theme, layout, fea
     if (corners.some((c) => c[2] > 0 && c[2] < least)) throw new Error('too tight');
   }
   fit(corners);
+  // Rounder (#20): drawn as a handful of points, a flowing loop read as short
+  // straights between tight arcs. Its corners grow into most of the room
+  // their edges leave, so its bends run into one another as one sweep; long
+  // straights' corners into half of it, so the straights stay. A city grid
+  // keeps its right angles.
+  if (layout !== 'grid') corners = sweepCorners(corners, { share: layout === 'loop' ? 900 : 500 });
   const n = corners.length;
   // The longest edge is the main straight: the start line goes on it.
   let longest = 0;

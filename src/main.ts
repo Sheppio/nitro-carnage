@@ -321,8 +321,9 @@ menuBody.addEventListener('change', () => store.set(BODY_KEY, menuBody.value));
 // "best3": generated loops and long straights gained pockets into the infield
 // (#3), so theirs moved again; city grids and the built-in tracks kept their shape.
 // "best4": and again, when every one of them was given a pocket that fits (#3).
-const reshaped = (def: TrackDef): boolean => def.id.startsWith('seed-') && def.layout !== 'City grid';
-const recordKey = (def: TrackDef): string => `${SLUG}.${reshaped(def) ? 'best4' : 'best2'}.${def.id}`;
+// "best5": their corners rounded into sweeps (#20), and the real circuits' too (#22).
+const reshaped = (def: TrackDef): boolean => (def.id.startsWith('seed-') && def.layout !== 'City grid') || Boolean(def.circuit);
+const recordKey = (def: TrackDef): string => `${SLUG}.${reshaped(def) ? 'best5' : 'best2'}.${def.id}`;
 /** The Track of the Day mode's own records: laps without turbo are not comparable with a turbo hotlap's. */
 const dailyKey = (def: TrackDef): string => `${recordKey(def)}.noturbo`;
 /** A hotlap's records: with the turbo switched off (#19) every hotlap is driven without, as the Track of the Day's. */

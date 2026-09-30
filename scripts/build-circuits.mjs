@@ -27,6 +27,7 @@
 import fs from 'node:fs';
 import { Track } from '../dist/sim/track/buildTrack.js';
 import { validateTrack } from '../dist/sim/track/validate.js';
+import { sweepCorners } from '../dist/sim/track/sweep.js';
 import { straightStart } from '../dist/sim/track/gridStart.js';
 import { HAND } from './circuits/hand.mjs';
 import { CIRCUIT_INFO } from './circuits/info.mjs';
@@ -244,6 +245,10 @@ function build(id, info, outline) {
       const cx = raw.reduce((s, p) => s + p[0], 0) / raw.length, cz = raw.reduce((s, p) => s + p[1], 0) / raw.length;
       let corners = raw.map(([x, z, r]) => [Math.round(x - cx), Math.round(z - cz), r]);
       refit(corners, rmin);
+      // A real curve simplified to a few points came out as short straights
+      // between 12 m arcs (#22, Daytona's banking): along a run of corners
+      // turning the same way, each grows into the room its edges leave.
+      corners = sweepCorners(corners, { share: 850, runsUnder: 40 });
       const start = [Math.round(line[0][0] - cx), Math.round(line[0][1] - cz)];
       const def = defFor(id, info, corners, start);
       let why, lap = 0;

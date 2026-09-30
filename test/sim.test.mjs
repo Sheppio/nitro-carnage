@@ -1172,15 +1172,15 @@ console.log('\ngenerated tracks');
  * different track: the test is there to make that a decision, not an accident.
  */
 const PINNED = [
-  [1, 'Neon Sprint', '26d8512e'],
+  [1, 'Neon Sprint', 'bc599246'],
   [42, 'Static Reach', '5fc6df9d'],
   [seedOf('NITRO'), 'Neon Yard', 'd6d30adf'],
   // The day's seed became the bare date in v0.1.42, so this day's track changed.
   [daySeed(Date.UTC(2026, 8, 25, 12)), 'Granite Loop', '9a8d4796'],
   // A port, a city at dusk and a city by day (M10), so every theme's rules are pinned.
   [seedOf('pin-run-dig'), 'Hollow Ring', '36c3e42e'],
-  [seedOf('big-red-bus'), 'Granite Park', 'd50feb8c'],
-  [seedOf('oak-elm-fig'), 'Amber Loop', '7964a017'],
+  [seedOf('big-red-bus'), 'Granite Park', '164d38b'],
+  [seedOf('oak-elm-fig'), 'Amber Loop', '96b37781'],
 ];
 /**
  * The shape alone — corners, start and ramps — pinned apart from the rest.
@@ -1197,7 +1197,10 @@ const PINNED = [
 // And once more (#3, v0.1.73): half the pockets failed validation, so the
 // retries quietly chose plain ovals. Every loop and long straights now gets a
 // pocket that fits; the city grids' four pins did not move.
-const SHAPES = ['a0e11a31', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', 'f8892f28', '6f9d7a45'];
+// And for rounder corners (#20): a loop's corners grow into most of the room
+// their edges leave, long straights' into half; the city grids did not move,
+// and records for the rest moved to a new key (best5).
+const SHAPES = ['70ed647f', 'f7011ebf', 'be2e3974', 'ec64b5af', 'a2feb768', '43737b70', '70b8bf9b'];
 
 {
   const got = PINNED.map(([seed]) => {

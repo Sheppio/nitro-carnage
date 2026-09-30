@@ -698,9 +698,9 @@ try {
   // Two laps on autopilot: the first sets the record, which is saved.
   const saved = await until(() => hl.evaluate(() => {
     const id = window.nitro.session.world.track.def.id;
-    // best4 for a generated loop or long straights (reshaped in #3), best2 for the rest;
+    // best5 for a generated loop or long straights, or a real circuit (rounded in #20, #22), best2 for the rest;
     // .noturbo while the turbo is switched off (#19).
-    const r = localStorage.getItem(`nitrocarnage.best4.${id}.noturbo`) ?? localStorage.getItem(`nitrocarnage.best2.${id}.noturbo`);
+    const r = localStorage.getItem(`nitrocarnage.best5.${id}.noturbo`) ?? localStorage.getItem(`nitrocarnage.best2.${id}.noturbo`);
     return r ? JSON.parse(r) : null;
   }), { timeout: 150000, interval: 500 });
   r.check('a finished lap becomes the record, with its splits, and is kept', saved && saved.time > 20 && saved.splits.length === 3,
