@@ -152,10 +152,11 @@ h2 {
 .field[hidden], .seed-row[hidden] { display: none; }
 
 /* The seed and its dice on one line: the dice is only a glyph, so it sits at the end of the box. */
-.seed-row { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.seed-row { display: flex; align-items: stretch; gap: 8px; margin: 0 0 12px; }
 .seed-row .field { flex: 1 1 auto; min-width: 0; margin: 0; }
 .seed-row input { min-width: 0; }
-.btn.dice { flex: none; font-size: 20px; line-height: 1; padding: 6px 9px; }
+/* As tall as the seed box beside it, and square, with the dice filling it (#15). */
+.btn.dice { flex: none; align-self: stretch; aspect-ratio: 1; display: grid; place-items: center; font-size: 28px; line-height: 1; padding: 0; }
 
 /* The name and the Garage button beside it, drawn as your car: the button is the box's height. */
 .name-row { display: flex; align-items: flex-end; gap: 8px; margin: 0 0 12px; }
