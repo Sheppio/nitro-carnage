@@ -888,13 +888,28 @@ const S0 = straight(TRACKS[0] && new World(TRACKS[0]).track);
 }
 
 {
-  // Rear missile, once the mines are gone; cooldown and empty racks respected.
+  // Rear missiles are switched off for now (players found the controls too
+  // many): with no mines left, the rear button does nothing.
+  const off = armedWorld(2);
+  place(off.w, off.cars[0], S0 + 30);
+  place(off.w, off.cars[1], S0);
+  off.cars[0].ammo.mines = 0;
+  off.cars[0].script = intent({ fireRear: true });
+  const quiet = stepFor(off.w, 1).filter((e) => e.kind === 'fire');
+  check('rear missiles are off: with no mines left the rear button fires nothing', W.rearMissiles === false && quiet.length === 0 && off.cars[0].ammo.rear === W.loadout.rear);
+}
+
+{
+  // Rear missile, once the mines are gone (switched on here: the code is
+  // kept); cooldown and empty racks respected.
+  W.rearMissiles = true;
   const { w, cars: [a, b] } = armedWorld(2);
   place(w, a, S0 + 30);
   place(w, b, S0);
   a.ammo.mines = 0;
   a.script = intent({ fireRear: true });
   const evs = stepFor(w, 1);
+  W.rearMissiles = false;
   const fired = evs.filter((e) => e.kind === 'fire');
   check('with no mines left the rear button fires rear missiles, one per cooldown', fired.length >= 2 && fired.every((f) => f.weapon === 'rear')
     && fired.length <= Math.ceil(1 / W.rear.cooldown) + 1 && b.hp < W.health, `${fired.length} fired in the first second`);
@@ -1637,11 +1652,15 @@ console.log('\npickups');
   e.ammo = { front: 1, rear: 0, mines: 0 };
   put(at('ammo')); w.step();
   const evs = w.drain().filter((x) => x.kind === 'pickup');
-  check('an ammo box adds missiles, rear missiles and a mine', e.ammo.front === 1 + SIM.pickups.ammo.front && e.ammo.rear === SIM.pickups.ammo.rear && e.ammo.mines === SIM.pickups.ammo.mines && evs.length === 1 && evs[0].pick === 'ammo', JSON.stringify(e.ammo));
+  // Rear missiles are off for now: the box has none of them.
+  check('an ammo box adds missiles and a mine, and no rear missiles while they are off', e.ammo.front === 1 + SIM.pickups.ammo.front && e.ammo.rear === 0 && e.ammo.mines === SIM.pickups.ammo.mines && evs.length === 1 && evs[0].pick === 'ammo', JSON.stringify(e.ammo));
   check('and is gone', !pk.here(at('ammo'), w.time));
+  // Switched on (the code is kept), the box has rear missiles too, never past what a car can carry.
+  SIM.weapons.rearMissiles = true;
   e.ammo = { front: 19, rear: 10, mines: 6 };
   const ammo2 = pk.spots.findIndex((p, i) => p.kind === 'ammo' && i !== at('ammo'));
   put(ammo2); w.step();
+  SIM.weapons.rearMissiles = false;
   check('but never past what a car can carry', e.ammo.front === SIM.pickups.ammoCap.front && e.ammo.rear === SIM.pickups.ammoCap.rear && e.ammo.mines === SIM.pickups.ammoCap.mines);
   e.hp = 30;
   put(at('repair')); w.step();

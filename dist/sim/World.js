@@ -322,7 +322,8 @@ export class World {
         const P = SIM.pickups;
         if (kind === 'ammo') {
             e.ammo.front = Math.min(P.ammoCap.front, e.ammo.front + P.ammo.front);
-            e.ammo.rear = Math.min(P.ammoCap.rear, e.ammo.rear + P.ammo.rear);
+            if (W.rearMissiles)
+                e.ammo.rear = Math.min(P.ammoCap.rear, e.ammo.rear + P.ammo.rear);
             e.ammo.mines = Math.min(P.ammoCap.mines, e.ammo.mines + P.ammo.mines);
         }
         else if (kind === 'repair') {
@@ -343,7 +344,7 @@ export class World {
             this.launch(e, 'front', t);
         }
         if (e.intent.fireRear && e.cooldown.rear <= 0) {
-            // Mines first, then rear missiles once the mines are gone.
+            // Mines first, then rear missiles once the mines are gone (while they are switched on).
             if (e.ammo.mines > 0) {
                 e.ammo.mines--;
                 e.cooldown.rear = W.mine.cooldown;
@@ -351,7 +352,7 @@ export class World {
                 const m = this.armoury.drop(e.id, seq, c.x, c.z, c.yaw, t);
                 this.events.push({ kind: 'mine', id: e.id, seq, x: m.x, z: m.z, time: t });
             }
-            else if (e.ammo.rear > 0) {
+            else if (W.rearMissiles && e.ammo.rear > 0) {
                 e.ammo.rear--;
                 e.cooldown.rear = W.rear.cooldown;
                 this.launch(e, 'rear', t);

@@ -1,3 +1,12 @@
+/**
+ * Button prompts that match the controller in the player's hands.
+ *
+ * Told apart by the Gamepad API `id`, which carries the USB vendor id on most
+ * platforms: 045e is Microsoft, 054c is Sony, 28de is Valve (the Steam Deck's
+ * built-in controls). A "Wireless Controller" with no vendor is a DualShock or
+ * DualSense on some browsers.
+ */
+import { SIM } from '../config.js';
 export function padFamily(id) {
     if (!id)
         return 'none';
@@ -51,7 +60,7 @@ export function applyGlyphs(family) {
         el.innerHTML =
             `<b>Drive</b> ${l('throttle')} · <b>Brake</b> ${l('brake')} · <b>Steer</b> ${l('steer')} · ` +
                 `<b>Handbrake</b> ${l('handbrake')} · <b>Turbo</b> ${l('turbo')} · ` +
-                `<b>Missile</b> ${l('front')} · <b>Mine / rear</b> ${l('rear')} · <b>Menu</b> ${l('menu')}`;
+                `<b>Missile</b> ${l('front')} · <b>${SIM.weapons.rearMissiles ? 'Mine / rear' : 'Mine'}</b> ${l('rear')} · <b>Menu</b> ${l('menu')}`;
     };
     line('menu-keys');
     line('hud-help');

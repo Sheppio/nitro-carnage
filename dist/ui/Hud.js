@@ -51,6 +51,8 @@ export class Hud {
         const hotlap = session.mode === 'hotlap';
         $('hud-race').hidden = false;
         $('hud-minimap').hidden = false;
+        // Rear missiles are switched off for now (config): their count goes with them.
+        $('hud-ammo-rear').parentElement.hidden = !SIM.weapons.rearMissiles;
         // A hotlap is you against the clock: no position, and a record to beat.
         $('hud-pos').parentElement.hidden = hotlap;
         $('hud-record-row').hidden = !hotlap;

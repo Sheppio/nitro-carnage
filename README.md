@@ -1,10 +1,10 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.75**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.76**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
-short races on tight circuits, missiles front and rear, mines, and a shop between races.
+short races on tight circuits, missiles, mines, and a shop between races.
 Everything here is original: the name, the tracks, the meshes and the sound.
 
 **[▶ Play](https://sheppio.github.io/nitro-carnage/)** — create a room, share the link,
@@ -63,7 +63,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 893 checks: simulation and networking (Node), and real browsers
+npm test           # 894 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -638,7 +638,7 @@ same region that is typically 20–60 ms.
 | --- | --- | --- | --- |
 | Front missile (10 per race) | Z / J, Y or RB | 90 m/s, 1.4 s, stops at walls | 20 |
 | Mine (3) | X / K, X or LB | dropped behind, armed after 0.6 s, lasts 45 s | 30 |
-| Rear missile (5) | X / K, X or LB, once the mines are gone | 70 m/s backwards | 20 |
+| Rear missile (5) | *Switched off for now* (`SIM.weapons.rearMissiles`): players found the controls too many. When on: X / K, X or LB, once the mines are gone | 70 m/s backwards | 20 |
 
 Health is 100. A wall hit faster than 12 m/s costs 1.4 health for every m/s over that.
 At zero the car is **wrecked**: it burns for 2.5 s, then returns to the road with full
@@ -1279,10 +1279,10 @@ drives a virtual pad in headless Chromium.
 | **Touch** | pedals, right thumb | left-thumb slider | button | button | button | button |
 
 On a pad the face buttons fire too, so a thumb never leaves them: Y forward (a
-missile), X backward (mines, then rear missiles), beside A for the handbrake and B for
+missile), X backward (mines; rear missiles after them when switched on), beside A for the handbrake and B for
 the turbo. The shoulders do the same, for players who drive with their thumbs on the
 stick. Esc, the pad's Menu/Options or the ☰ button opens the pause menu. The rear-weapon
-button drops mines while you have them, then fires rear missiles. The most recently
+button drops mines (rear missiles, which followed them, are switched off for now). The most recently
 used device drives the car, so picking up a controller mid-race just works.
 
 **Menus need no mouse.** The arrow keys or the D-pad/left stick move the focus ring.
@@ -1314,11 +1314,11 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-893 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+894 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
-- **`sim.test.mjs`** (605, Node; the per-track checks run on all 25 tracks):
+- **`sim.test.mjs`** (606, Node; the per-track checks run on all 25 tracks):
   - **Generated tracks:** pinned seeds generate byte-identical tracks; corners are
     whole metres; a seed is any word, whatever the case; the day's seed changes at
     UTC midnight and not before; a thousand seeds all valid, and every loop and long

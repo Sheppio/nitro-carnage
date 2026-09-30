@@ -86,6 +86,12 @@ export const SIM = {
     weapons: {
         front: { speed: 90, life: 1.4, damage: 20, cooldown: 0.3 },
         rear: { speed: 70, life: 1.2, damage: 20, cooldown: 0.45 },
+        /**
+         * Rear missiles, switched off for now: players found the controls too
+         * many. The rear button only drops mines, boxes hand out none, and the
+         * HUD and the controls lines leave them out. Everything else is kept.
+         */
+        rearMissiles: false,
         mine: { arm: 0.6, life: 45, damage: 30, cooldown: 0.5, radius: 1.3 },
         /** A missile's own radius, for hitting a car. */
         missileRadius: 0.35,
