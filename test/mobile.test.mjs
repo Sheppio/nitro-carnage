@@ -190,14 +190,19 @@ try {
   for (let i = 1; i <= 6; i++) await touch('touchMove', [[250 - i * 15, 150], [450 + i * 15, 150]]);
   await touch('touchEnd', []);
   const v2 = await until(async () => { const v = await look(); return Math.hypot(v.pos[0] - v1.pos[0], v.pos[2] - v1.pos[2]) > 1 ? v : null; }, { timeout: 3000 });
+  // A tap with the UI up focuses where it lands.
+  await page.evaluate(() => { window.nitro.photo.settings.focus = 199; });
+  await touch('touchStart', [[300, 150]]);
+  await touch('touchEnd', []);
+  const tapFocus = await until(() => page.evaluate(() => (window.nitro.photo.settings.focus !== 199 ? window.nitro.photo.settings.focus : null)), { timeout: 3000 });
   await page.tap('#btn-photo-ui');
   const hiddenUi = await page.evaluate(() => getComputedStyle(document.getElementById('photo-bar')).visibility === 'hidden');
   await touch('touchStart', [[300, 150]]);
   await touch('touchEnd', []);
   const shownUi = await until(() => page.evaluate(() => getComputedStyle(document.getElementById('photo-bar')).visibility === 'visible' || null), { timeout: 3000 });
-  r.check('photo mode by touch: every control on screen and tappable, a drag looks, a pinch moves, Hide UI hides and a tap shows it again',
-    photoBad.length === 0 && photoOff.length === 0 && Boolean(v1) && Boolean(v2) && hiddenUi && Boolean(shownUi),
-    JSON.stringify({ photoBad, photoOff, looked: Boolean(v1), moved: Boolean(v2), hiddenUi, shownUi }));
+  r.check('photo mode by touch: every control on screen and tappable, a drag looks, a pinch moves, a tap focuses, Hide UI hides and a tap shows it again',
+    photoBad.length === 0 && photoOff.length === 0 && Boolean(v1) && Boolean(v2) && Boolean(tapFocus) && hiddenUi && Boolean(shownUi),
+    JSON.stringify({ photoBad, photoOff, looked: Boolean(v1), moved: Boolean(v2), tapFocus, hiddenUi, shownUi }));
   await page.tap('#btn-photo-back');
   await until(() => page.evaluate(() => (!window.nitro.photo.active && !document.getElementById('pause-veil').hidden) || null));
   await page.tap('#btn-resume');

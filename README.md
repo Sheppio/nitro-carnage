@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.105**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.106**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -68,7 +68,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 930 checks: simulation and networking (Node), and real browsers
+npm test           # 931 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -387,12 +387,21 @@ the car.
 | Zoom | Wheel | D-pad up, down | Pinch moves forward instead |
 | Focus nearer, further | [ ] | LB, RB | Slider |
 | Focus on the car | F | X | On car |
+| Focus on a point | Click on it | | Tap on it, with the UI shown |
 | Blur less, more | − = | D-pad left, right | Slider |
 | Hide the UI | H | Y | Hide UI, then tap to bring it back |
 | Save a PNG | P | A | Save photo |
 | Back to the pause menu | Esc | B | Back |
 
 The pad's Menu button goes straight back to the race.
+
+**Click to focus** casts a ray from the lens through the point clicked. The first solid,
+visible mesh it meets sets the focus. Particles, lines and see-through things like the hotlap
+ghost are passed through, and the sky focuses as far as the lens goes (200 m). Focus is the
+point's view depth (how far in front of the camera it is), not its straight-line distance,
+because that is what the blur measures. That way a car clicked at the edge of the frame comes
+out as sharp as one in the middle, and "On car" measures its car the same way. A drag still
+looks round. Only a click that stays within 8 px focuses, and a ring marks the spot for a moment.
 
 **Depth of field** is drawn only in photo mode, so it costs nothing while you race. The scene
 is drawn to a texture along with its depth. A gather blur then draws it to the screen,
@@ -1359,7 +1368,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-930 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+931 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1455,7 +1464,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     closing hands its traffic to the broker at once, is given up within 3.5 s, and
     links again when the network is back; a player without direct links races with
     the rest.
-- **`smoke.test.mjs`** (84, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (85, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the

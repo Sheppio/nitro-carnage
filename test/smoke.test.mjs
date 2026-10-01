@@ -254,11 +254,39 @@ try {
   const dof = await page.evaluate(() => {
     const s = window.nitro.session;
     const car = s.drawnStates.get(s.playerId);
-    const d = s.view.rig.camera.position.distanceTo({ x: car.x, y: car.y + 0.6, z: car.z });
+    const cam = s.view.rig.camera;
+    // View depth, as the depth of field measures it.
+    const d = -cam.position.clone().set(car.x, car.y + 0.6, car.z).applyMatrix4(cam.matrixWorldInverse).z;
     return { ...window.nitro.photo.settings, d, out: document.getElementById('photo-blur-out').textContent, calls: s.view.drawCalls };
   });
   r.check('the blur slider sets the depth of field, and F focuses on the car', dof.blur === 0.5 && Math.abs(dof.focus - dof.d) < 0.5 && dof.out === '50%',
     JSON.stringify(dof));
+  // A click on a car focuses at the depth of the spot clicked, with the UI
+  // hidden as well (so nothing covers the car on this small window); a drag only looks round.
+  await page.keyboard.press('KeyH');
+  const target = await page.evaluate(() => {
+    const s = window.nitro.session, cam = s.view.rig.camera;
+    cam.updateMatrixWorld();
+    for (const c of s.drawnStates.values()) {
+      const p = s.view.toScreen(c.x, c.y + 0.6, c.z);
+      if (!p.onScreen) continue;
+      return { x: p.x, y: p.y, depth: -cam.position.clone().set(c.x, c.y + 0.6, c.z).applyMatrix4(cam.matrixWorldInverse).z };
+    }
+    return null;
+  });
+  // Focused well away from the car first, so the click has something to change.
+  const before = await page.evaluate(() => (window.nitro.photo.settings.focus = 150));
+  if (target) await page.mouse.click(target.x, target.y);
+  const clicked = await page.evaluate(() => ({ focus: window.nitro.photo.settings.focus, ring: !document.getElementById('photo-ring').hidden }));
+  await page.mouse.move(400, 200);
+  await page.mouse.down();
+  await page.mouse.move(460, 220, { steps: 5 });
+  await page.mouse.up();
+  const dragged = await page.evaluate(() => window.nitro.photo.settings.focus);
+  await page.keyboard.press('KeyH');
+  r.check('a click on a car focuses on it, to the depth of the spot clicked, and a drag does not',
+    Boolean(target) && Math.abs(clicked.focus - target.depth) < 2.5 && Math.abs(before - target.depth) > 2.5 && clicked.ring && dragged === clicked.focus,
+    JSON.stringify({ target, before, clicked, dragged }));
   await page.keyboard.press('KeyH');
   const clean = await page.evaluate(() => getComputedStyle(document.getElementById('photo-bar')).visibility === 'hidden');
   await page.keyboard.press('KeyH');

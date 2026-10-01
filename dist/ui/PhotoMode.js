@@ -46,6 +46,8 @@ export class PhotoMode {
     nudge = { x: 0, y: 0, z: 0 };
     pointers = new Map();
     pinch = 0;
+    /** A second finger came down in this gesture: then it was a move, never a tap. */
+    multi = false;
     /** The pad's buttons as last read, for presses; null until the first read, so a held A is not a press. */
     padWas = null;
     family = '';
@@ -76,6 +78,7 @@ export class PhotoMode {
         this.session = session;
         this.keys.clear();
         this.pointers.clear();
+        this.multi = false;
         this.lookX = this.lookY = 0;
         this.nudge = { x: 0, y: 0, z: 0 };
         this.padWas = null;
@@ -105,6 +108,7 @@ export class PhotoMode {
         this.session = null;
         document.body.classList.remove('photo', 'photo-clean');
         $('photo-bar').hidden = true;
+        $('photo-ring').hidden = true;
         window.removeEventListener('keydown', this.onKeyDown, true);
         window.removeEventListener('keyup', this.onKeyUp, true);
         window.removeEventListener('blur', this.onBlur);
@@ -144,6 +148,28 @@ export class PhotoMode {
             return;
         this.photo.focus = Math.max(FOCUS_MIN, Math.min(FOCUS_MAX, this.session.carDistance()));
         this.showValues(true);
+    }
+    /**
+     * Focus on whatever is at a point on the screen (a click or a tap), to the
+     * depth of the very spot: a rival's bonnet, a lamp post, a tower's corner.
+     * The sky focuses as far as the lens goes.
+     */
+    focusAtPoint(clientX, clientY) {
+        if (!this.session)
+            return;
+        const d = this.session.pointDistance(clientX, clientY) ?? FOCUS_MAX;
+        this.photo.focus = Math.max(FOCUS_MIN, Math.min(FOCUS_MAX, d));
+        this.showValues(true);
+        const ring = $('photo-ring');
+        // The TV layout zooms the overlay, and the ring's place with it: undone, so it lands on the click.
+        const zoom = ring.parentElement?.currentCSSZoom || 1;
+        ring.style.left = `${clientX / zoom}px`;
+        ring.style.top = `${clientY / zoom}px`;
+        ring.hidden = false;
+        // Restart the fade for a second click before the first has gone.
+        ring.classList.remove('on');
+        void ring.offsetWidth;
+        ring.classList.add('on');
     }
     toggleUi() {
         document.body.classList.toggle('photo-clean');
@@ -241,10 +267,10 @@ export class PhotoMode {
         const stick = family === 'playstation' ? 'L3' : 'LS';
         const y = family === 'playstation' ? '△' : 'Y';
         $('photo-keys').innerHTML = touch
-            ? '<b>Look</b> drag · <b>Move</b> two fingers · <b>Forward</b> pinch · <b>UI</b> tap when hidden'
+            ? '<b>Look</b> drag · <b>Move</b> two fingers · <b>Forward</b> pinch · <b>Focus</b> tap · <b>UI</b> tap when hidden'
             : family === 'none'
                 ? '<b>Move</b> W A S D · <b>Up / down</b> E / Q · <b>Fast</b> Shift · <b>Look</b> arrows or drag · <b>Zoom</b> wheel · ' +
-                    '<b>Focus</b> [ ] · <b>On car</b> F · <b>Blur</b> − = · <b>Hide UI</b> H · <b>Save</b> P · <b>Back</b> Esc'
+                    '<b>Focus</b> click, or [ ] · <b>On car</b> F · <b>Blur</b> − = · <b>Hide UI</b> H · <b>Save</b> P · <b>Back</b> Esc'
                 : `<b>Move</b> left stick · <b>Look</b> right stick · <b>Up / down</b> ${l('throttle')} / ${l('brake')} · <b>Fast</b> ${stick} · ` +
                     `<b>Zoom</b> D-pad ↑↓ · <b>Focus</b> ${l('prev')} / ${l('next')} · <b>On car</b> ${l('delete')} · <b>Blur</b> D-pad ←→ · ` +
                     `<b>Hide UI</b> ${y} · <b>Save</b> ${l('confirm')} · <b>Back</b> ${l('back')} · <b>Resume</b> ${l('menu')}`;
@@ -295,6 +321,8 @@ export class PhotoMode {
     };
     onPointerDown = (e) => {
         this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, at: performance.now() });
+        if (this.pointers.size > 1)
+            this.multi = true;
         this.pinch = this.spread();
     };
     onPointerMove = (e) => {
@@ -322,10 +350,17 @@ export class PhotoMode {
             return;
         this.pointers.delete(e.pointerId);
         this.pinch = this.spread();
-        // A tap, not a drag, with the UI hidden brings it back: a touch screen has no H or Y.
-        const tap = Math.hypot(e.clientX - p.startX, e.clientY - p.startY) < 8 && performance.now() - p.at < 350;
-        if (tap && this.pointers.size === 0 && document.body.classList.contains('photo-clean'))
+        const tap = !this.multi && Math.hypot(e.clientX - p.startX, e.clientY - p.startY) < 8 && performance.now() - p.at < 350;
+        if (this.pointers.size === 0)
+            this.multi = false;
+        if (!tap)
+            return;
+        // A click focuses where it lands, UI or no UI (H brings it back). A tap
+        // does too, but with the UI hidden it brings it back: a touch screen has no H or Y.
+        if (e.pointerType !== 'mouse' && document.body.classList.contains('photo-clean'))
             this.toggleUi();
+        else
+            this.focusAtPoint(e.clientX, e.clientY);
     };
     /** How far apart the first two fingers are, or 0 with fewer down. */
     spread() {

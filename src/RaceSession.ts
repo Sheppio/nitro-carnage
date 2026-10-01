@@ -424,6 +424,11 @@ export class RaceSession {
     return this.view.focusDistance(this.drawn);
   }
 
+  /** The depth of whatever is on screen at a point (CSS pixels), or null for the sky: photo mode's click to focus. */
+  pointDistance(clientX: number, clientY: number): number | null {
+    return this.view.focusAt(clientX, clientY);
+  }
+
   /** The camera settings, at the start and whenever they change: the view, its Custom offset, the zoom and the shake. */
   applyCamera(): void {
     const c = this.settings.current;

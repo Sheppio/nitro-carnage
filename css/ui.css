@@ -1071,7 +1071,7 @@ body[data-pad="none"] .pad-only { display: none; }
 
 /* Photo mode (main.ts, ui/PhotoMode.ts): the race HUD goes, leaving the
    photo bar along the bottom; Hide UI takes that too, for a clean screen. */
-body.photo .screen.hud > :not(#photo-bar) { visibility: hidden; }
+body.photo .screen.hud > :not(#photo-bar, #photo-ring) { visibility: hidden; }
 body.photo-clean #photo-bar, body.photo-clean .notice { visibility: hidden; }
 .photo-bar {
   position: absolute;
@@ -1088,6 +1088,26 @@ body.photo-clean #photo-bar, body.photo-clean .notice { visibility: hidden; }
   touch-action: none;
 }
 .photo-bar[hidden] { display: none; }
+/* Where a click focused: a ring that fades. Shown with the UI hidden too, as the click was meant;
+   HTML, so never in a saved photo. Fixed, so in the window's own pixels, as the click reports them. */
+.photo-ring {
+  position: fixed;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border: 2px solid var(--focus);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.photo-ring[hidden] { display: none; }
+.photo-ring.on { animation: photo-ring 0.7s ease-out; }
+@keyframes photo-ring {
+  from { opacity: 1; transform: scale(1.5); }
+  30% { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1); }
+}
+body.photo .screen.hud > #photo-ring { visibility: visible; }
 .photo-keys { margin: 0 0 6px; font-size: 12px; line-height: 1.4; color: var(--muted); text-align: center; }
 .photo-keys b { color: var(--text); font-weight: 600; }
 .photo-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; }

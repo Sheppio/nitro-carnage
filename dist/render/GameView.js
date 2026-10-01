@@ -285,12 +285,47 @@ export class GameView {
             this.renderer.render(this.scene, cam);
         }
     }
-    /** How far the followed car is from the camera, in metres: photo mode's "focus on the car". */
+    /**
+     * How far in front of the camera the followed car is, in metres: photo
+     * mode's "focus on the car". View depth, not straight-line distance, as the
+     * depth of field measures it, so a car near the edge of the frame is sharp too.
+     */
     focusDistance(states) {
         const car = this.focusId ? states.get(this.focusId) : undefined;
         if (!car)
             return 20;
-        return this.rig.camera.position.distanceTo(this.v.set(car.x, car.y + 0.6, car.z));
+        const cam = this.rig.camera;
+        cam.updateMatrixWorld();
+        return -this.v.set(car.x, car.y + 0.6, car.z).applyMatrix4(cam.matrixWorldInverse).z;
+    }
+    /**
+     * The view depth of whatever is drawn at a point on the screen (CSS
+     * pixels, as a click reports them), or null for the sky: photo mode's
+     * click to focus. A ray from the lens, through every visible solid mesh;
+     * particles, lines and see-through things (the hotlap ghost) are passed through.
+     */
+    focusAt(clientX, clientY) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0)
+            return null;
+        const cam = this.rig.camera;
+        cam.updateMatrixWorld();
+        const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, 1 - ((clientY - rect.top) / rect.height) * 2);
+        const ray = new THREE.Raycaster();
+        ray.setFromCamera(ndc, cam);
+        const forward = cam.getWorldDirection(new THREE.Vector3());
+        const along = ray.ray.direction.dot(forward);
+        for (const hit of ray.intersectObject(this.scene, true)) {
+            const mesh = hit.object;
+            if (!mesh.isMesh || !shown(mesh))
+                continue;
+            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            const mat = hit.face && Array.isArray(mesh.material) ? mats[hit.face.materialIndex] : mats[0];
+            if (!mat || !mat.visible || (mat.transparent && mat.opacity < 0.5))
+                continue;
+            return hit.distance * along;
+        }
+        return null;
     }
     /**
      * Draw a frame and hand it back as a PNG. Read in the same task as the
@@ -450,6 +485,13 @@ export class GameView {
             this.scene.background.dispose();
         this.renderer.renderLists.dispose();
     }
+}
+/** Whether an object is drawn: it and every parent visible. A ray, unlike the renderer, ignores `visible`. */
+function shown(o) {
+    for (; o; o = o.parent)
+        if (!o.visible)
+            return false;
+    return true;
 }
 /** Taps in the blur: a spiral out to the widest blur, the same count whatever the screen's size. */
 const DOF_TAPS = 96;
