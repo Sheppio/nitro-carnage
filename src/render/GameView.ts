@@ -81,6 +81,8 @@ export class GameView {
   private hazards: HazardView;
   private ghost: CarMesh | null = null;
   private ghostState = createCar(0, 0, 0);
+  /** The cut-away as the camera view last set it: on for the overhead view. */
+  private cutawayByView = true;
   private clock = 0;
   private quality: QualityId;
   private resizeObserver: ResizeObserver;
@@ -120,6 +122,8 @@ export class GameView {
 
     this.rig = new CameraRig(1);
     this.rig.setFar(preset.drawDistance + 60);
+    // The cut-away's switch is shared by every race: the last may have left it off.
+    this.setCutaway(true);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(host);
@@ -281,6 +285,7 @@ export class GameView {
     if (focus) {
       this.rig.update(focus, dt);
     }
+    this.viewChanged(focus);
     const cam = this.rig.camera;
     cam.updateMatrixWorld();
     if (focus) this.shadows.follow(cam);
@@ -289,6 +294,28 @@ export class GameView {
     this.fx.setPointScale(this.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)));
     this.updateCutaway(states);
     this.renderer.render(this.scene, cam);
+  }
+
+  /**
+   * What the experimental views change in the scene: the followed car (and a
+   * hotlap ghost on top of it) hidden from a camera inside it, and the
+   * cut-away off, which opens buildings around cars for a camera overhead and
+   * would cut holes in the street ahead of one behind the car.
+   */
+  private viewChanged(focus: CarState | undefined): void {
+    const me = this.focusId ? this.cars.get(this.focusId) : undefined;
+    if (me && this.rig.hidesOwnCar) {
+      me.mesh.root.visible = false;
+      me.mesh.blob.visible = false;
+      if (this.ghost && focus && Math.hypot(this.ghostState.x - focus.x, this.ghostState.z - focus.z) < 3) this.ghost.root.visible = false;
+    } else if (me) {
+      me.mesh.blob.visible = true;
+    }
+    const overhead = this.rig.view === 'overhead';
+    if (overhead !== this.cutawayByView) {
+      this.cutawayByView = overhead;
+      this.setCutaway(overhead);
+    }
   }
 
   private jolts(view: CarView, state: CarState): void {
@@ -348,6 +375,13 @@ export class GameView {
   toScreen(x: number, y: number, z: number): { x: number; y: number; onScreen: boolean } {
     const p = new THREE.Vector3(x, y, z).project(this.rig.camera);
     const rect = this.renderer.domElement.getBoundingClientRect();
+    // Behind a camera that turns with the car, a point projects mirrored
+    // through the middle of the screen: turn it back, so a rival's arrow
+    // points the way they are, and push it out past the edge.
+    if (p.z > 1) {
+      p.x = -p.x * 1e3;
+      p.y = Math.min(-2, -p.y * 1e3);
+    }
     return {
       x: ((p.x + 1) / 2) * rect.width,
       y: ((1 - p.y) / 2) * rect.height,

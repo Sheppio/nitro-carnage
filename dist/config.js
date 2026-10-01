@@ -172,6 +172,22 @@ export const CAMERA = {
     traumaDecay: 1.5,
     shakeMetres: 1.6,
 };
+/** Every view that turns with the car. Starting values, to be tuned. */
+export const CAMERA_VIEWS = {
+    helicopter: { label: 'Helicopter', x: 0, y: 40, z: 25, pitch: -55, near: 5, follow: 2.5 },
+    chaseFar: { label: 'Chase, far', x: 0, y: 4.5, z: 11, pitch: -12, near: 0.5, follow: 6 },
+    chaseNear: { label: 'Chase, near', x: 0, y: 3, z: 7, pitch: -10, near: 0.5, follow: 7 },
+    bonnet: { label: 'Bonnet', x: 0, y: 1.4, z: -0.6, pitch: -4, near: 0.1, follow: 0 },
+    bumper: { label: 'Bumper', x: 0, y: 0.6, z: -2.4, pitch: 0, near: 0.1, follow: 0 },
+    cockpit: { label: 'Cockpit', x: -0.35, y: 1.15, z: 0.2, pitch: -3, near: 0.1, follow: 0 },
+};
+/** The order C and the D-pad's up go through them, and the order on the Experimental page. */
+export const CAMERA_ORDER = ['overhead', 'helicopter', 'chaseFar', 'chaseNear', 'bonnet', 'bumper', 'cockpit', 'custom'];
+export const CAMERA_LABELS = {
+    overhead: 'Overhead',
+    ...Object.fromEntries(Object.entries(CAMERA_VIEWS).map(([k, v]) => [k, v.label])),
+    custom: 'Custom',
+};
 /**
  * Public, unauthenticated brokers. Anyone can subscribe — do not put secrets
  * on these topics. Pages is HTTPS, so every endpoint must be `wss://`: a

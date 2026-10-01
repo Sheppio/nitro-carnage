@@ -1093,3 +1093,9 @@ body.tv .ammo { font-size: 15px; }
    One column, so down and up on a pad or the arrow keys visit every row in turn. */
 #screen-settings .field { margin-bottom: 7px; }
 #screen-settings h2 { margin-bottom: 10px; }
+/* Experimental… beside Back, so the long list gets no taller. */
+.menu-actions.row { flex-direction: row; }
+.menu-actions.row > .btn { flex: 1; }
+/* The Custom camera's sliders, with each value beside its name. */
+#screen-experimental .field output { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px; }
+#screen-experimental .menu-note.warn { margin: 0 0 14px; }

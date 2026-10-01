@@ -195,6 +195,42 @@ export const CAMERA = {
   shakeMetres: 1.6,
 };
 
+/** The race camera's views: the overhead one, and the experimental ones that turn with the car. */
+export type CameraView = 'overhead' | 'helicopter' | 'chaseFar' | 'chaseNear' | 'bonnet' | 'bumper' | 'cockpit' | 'custom';
+
+export interface CameraPreset {
+  readonly label: string;
+  /** Metres from the car's centre: to its right, up, and behind it. */
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  /** Degrees above level; negative looks down. */
+  readonly pitch: number;
+  /** Near plane, metres: close for a camera in or on the car, so the road isn't clipped. */
+  readonly near: number;
+  /** How quickly the camera swings round after the car's heading, per second; 0 is fixed to the car. */
+  readonly follow: number;
+}
+
+/** Every view that turns with the car. Starting values, to be tuned. */
+export const CAMERA_VIEWS: Readonly<Record<Exclude<CameraView, 'overhead' | 'custom'>, CameraPreset>> = {
+  helicopter: { label: 'Helicopter', x: 0, y: 40, z: 25, pitch: -55, near: 5, follow: 2.5 },
+  chaseFar: { label: 'Chase, far', x: 0, y: 4.5, z: 11, pitch: -12, near: 0.5, follow: 6 },
+  chaseNear: { label: 'Chase, near', x: 0, y: 3, z: 7, pitch: -10, near: 0.5, follow: 7 },
+  bonnet: { label: 'Bonnet', x: 0, y: 1.4, z: -0.6, pitch: -4, near: 0.1, follow: 0 },
+  bumper: { label: 'Bumper', x: 0, y: 0.6, z: -2.4, pitch: 0, near: 0.1, follow: 0 },
+  cockpit: { label: 'Cockpit', x: -0.35, y: 1.15, z: 0.2, pitch: -3, near: 0.1, follow: 0 },
+};
+
+/** The order C and the D-pad's up go through them, and the order on the Experimental page. */
+export const CAMERA_ORDER: readonly CameraView[] = ['overhead', 'helicopter', 'chaseFar', 'chaseNear', 'bonnet', 'bumper', 'cockpit', 'custom'];
+
+export const CAMERA_LABELS: Readonly<Record<CameraView, string>> = {
+  overhead: 'Overhead',
+  ...Object.fromEntries(Object.entries(CAMERA_VIEWS).map(([k, v]) => [k, v.label])),
+  custom: 'Custom',
+} as Record<CameraView, string>;
+
 export interface BrokerDef {
   readonly id: string;
   readonly label: string;

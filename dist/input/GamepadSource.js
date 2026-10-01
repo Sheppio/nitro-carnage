@@ -153,6 +153,21 @@ export class GamepadSource {
         return pressed;
     }
     /**
+     * The D-pad's up, pressed: the next camera view, in a race. Its own latch,
+     * like `readPause`, and the button only, not the stick, which steers.
+     */
+    readViewCycle() {
+        const pad = this.pad();
+        if (!pad) {
+            this.viewHeld = false;
+            return false;
+        }
+        const down = pad.buttons[BTN.DPAD_UP]?.pressed === true;
+        const pressed = down && !this.viewHeld;
+        this.viewHeld = down;
+        return pressed;
+    }
+    /**
      * Edge-detected menu navigation, so the front end is fully playable from the
      * pad without a virtual cursor. The D-pad and the left stick both drive it,
      * with key-repeat so holding a direction scrolls a long list.
@@ -204,6 +219,8 @@ export class GamepadSource {
     }
     /* ------------------------------------------------------------- internals */
     pauseHeld = false;
+    /** Whether the D-pad's up was down at the last `readViewCycle`. */
+    viewHeld = false;
     /** True on the press edge, then again on the repeat schedule while held. */
     edge(button, isDown, repeat) {
         const now = performance.now();

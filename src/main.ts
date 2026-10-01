@@ -1,6 +1,6 @@
 import { GAME_NAME, SLUG } from './brand.js';
-import { BROKERS, FEATURES, NET } from './config.js';
-import type { QualityId } from './config.js';
+import { BROKERS, CAMERA_LABELS, CAMERA_ORDER, FEATURES, NET } from './config.js';
+import type { CameraView, QualityId } from './config.js';
 import { InputManager } from './input/InputManager.js';
 import { isConsole, SettingsStore } from './input/settings.js';
 import type { NameTags, UiSize } from './input/settings.js';
@@ -74,7 +74,7 @@ confirm.focus = (el) => nav.focusOn(el);
 
 const screens = [
   'screen-menu', 'screen-join', 'screen-connecting', 'screen-lobby', 'screen-full', 'screen-settings', 'screen-hud', 'screen-results',
-  'screen-garage', 'screen-track', 'screen-lobby-track',
+  'screen-garage', 'screen-track', 'screen-lobby-track', 'screen-experimental',
 ] as const;
 type ScreenId = (typeof screens)[number];
 let current = 'screen-menu' as ScreenId;
@@ -304,7 +304,7 @@ for (const id of [
   'menu-laps', 'menu-weapons', 'menu-pickups', 'menu-turbo', 'menu-body',
   'lobby-cars', 'lobby-laps', 'lobby-weapons', 'lobby-pickups', 'lobby-turbo', 'lobby-body',
   'garage-number',
-  'set-quality', 'set-touch', 'set-steer', 'set-bots', 'set-ghost', 'set-uisize', 'set-names', 'set-broker',
+  'set-quality', 'set-touch', 'set-steer', 'set-bots', 'set-ghost', 'set-uisize', 'set-names', 'set-broker', 'set-camera',
 ]) stepperFor($<HTMLSelectElement>(id));
 const menuBody = $<HTMLSelectElement>('menu-body');
 menuBody.value = store.get(BODY_KEY);
@@ -807,6 +807,8 @@ document.addEventListener('visibilitychange', () => {
 // The pad's Menu/Options, on its own latch so the menu navigator can read the same button.
 (function pollPause(): void {
   if (input.gamepad.readPause() && current === 'screen-hud' && session && !confirm.isOpen) togglePause();
+  // Read every frame, so a press in the pause menu isn't taken for one when it closes.
+  if (input.gamepad.readViewCycle() && inRace()) nextCameraView();
   requestAnimationFrame(pollPause);
 })();
 
@@ -1063,6 +1065,58 @@ function openSettings(fromPause: boolean): void {
   show('screen-settings');
 }
 $('btn-settings').addEventListener('click', () => openSettings(false));
+
+/* ------------------------------------------------------------ experimental */
+
+/** The Custom camera's sliders: setting, element and how its value reads. */
+const camSliders = [
+  { key: 'camX', id: 'cam-x', unit: ' m' },
+  { key: 'camY', id: 'cam-y', unit: ' m' },
+  { key: 'camZ', id: 'cam-z', unit: ' m' },
+  { key: 'camPitch', id: 'cam-pitch', unit: '°' },
+] as const;
+function showCameraSettings(): void {
+  const c = settings.current;
+  $<HTMLSelectElement>('set-camera').value = c.cameraView;
+  $('set-cam-custom').hidden = c.cameraView !== 'custom';
+  for (const s of camSliders) {
+    $<HTMLInputElement>(`set-${s.id}`).value = String(c[s.key]);
+    $(`out-${s.id}`).textContent = `${c[s.key].toFixed(s.key === 'camPitch' ? 0 : 1)}${s.unit}`;
+  }
+}
+$('btn-experimental').addEventListener('click', () => {
+  showCameraSettings();
+  show('screen-experimental');
+});
+$('btn-experimental-back').addEventListener('click', () => {
+  show('screen-settings');
+  nav.focusOn($('btn-experimental'));
+});
+$('set-camera').addEventListener('change', (e) => {
+  settings.set('cameraView', (e.target as HTMLSelectElement).value as CameraView);
+  showCameraSettings();
+});
+for (const s of camSliders) {
+  $(`set-${s.id}`).addEventListener('input', (e) => {
+    settings.set(s.key, Number((e.target as HTMLInputElement).value));
+    showCameraSettings();
+  });
+}
+/** Racing, with nothing over the race: where C and the D-pad's up change the view. */
+function inRace(): boolean {
+  return current === 'screen-hud' && session !== null && $('pause-veil').hidden && !confirm.isOpen;
+}
+/** The next camera view, saved, with its name across the screen for a moment. */
+function nextCameraView(): void {
+  const i = CAMERA_ORDER.indexOf(settings.current.cameraView);
+  const view = CAMERA_ORDER[(i + 1) % CAMERA_ORDER.length]!;
+  settings.set('cameraView', view);
+  hud?.banner(`${CAMERA_LABELS[view]} view`, 1.2);
+}
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyC' || e.repeat || e.ctrlKey || e.metaKey || e.altKey || !inRace()) return;
+  nextCameraView();
+});
 $('btn-pause-settings').addEventListener('click', () => openSettings(true));
 $('btn-settings-back').addEventListener('click', () => {
   if (settingsFromPause && session) {
@@ -1078,8 +1132,7 @@ settings.events.on('change', () => {
   // A host's bots take the new level from their next race.
   if (room) room.net.botLevel = settings.current.botLevel;
   if (!session) return;
-  session.view.rig.shakeScale = settings.current.reduceMotion ? 0.25 : 1;
-  session.view.rig.baseFov = settings.current.fov;
+  session.applyCamera();
   if (!params.has('autopilot')) session.autopilot = settings.current.autopilot;
 });
 $('set-quality').addEventListener('change', (e) => settings.set('quality', (e.target as HTMLSelectElement).value as QualityId));

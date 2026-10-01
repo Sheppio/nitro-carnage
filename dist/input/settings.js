@@ -1,5 +1,5 @@
 import { SLUG } from '../brand.js';
-import { BROKERS } from '../config.js';
+import { BROKERS, CAMERA_ORDER } from '../config.js';
 import { Emitter } from '../util.js';
 /** Numeric settings and the range each is clamped to when read back. */
 export const RANGES = {
@@ -8,6 +8,10 @@ export const RANGES = {
     musicVolume: { min: 0, max: 1 },
     ghostLead: { min: -1, max: 3 },
     fov: { min: 35, max: 70 },
+    camX: { min: -5, max: 5 },
+    camY: { min: 0.3, max: 60 },
+    camZ: { min: -5, max: 40 },
+    camPitch: { min: -90, max: 20 },
 };
 const STORAGE_KEY = `${SLUG}.settings.v1`;
 const QUALITIES = ['potato', 'low', 'medium', 'high'];
@@ -30,6 +34,12 @@ export const DEFAULT_SETTINGS = {
     uiSize: 'auto',
     fullscreen: false,
     autoThrottle: false,
+    cameraView: 'overhead',
+    // The Custom view starts where Chase, far is.
+    camX: 0,
+    camY: 4.5,
+    camZ: 11,
+    camPitch: -12,
 };
 /**
  * Persisted player settings. Read back through `coerce`, because storage
@@ -108,6 +118,8 @@ function coerce(state) {
         out.broker = BROKERS[0].id;
     if (!['auto', 'normal', 'tv'].includes(out.uiSize))
         out.uiSize = 'auto';
+    if (!CAMERA_ORDER.includes(out.cameraView))
+        out.cameraView = 'overhead';
     for (const key of ['vibration', 'reduceMotion', 'autopilot', 'fullscreen', 'autoThrottle'])
         out[key] = Boolean(out[key]);
     // Missing from settings saved before it existed: on.

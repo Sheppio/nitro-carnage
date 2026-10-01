@@ -451,8 +451,52 @@
           </label>
           <label class="field check"><input type="checkbox" id="set-direct" /> <span>Direct links to other players (faster, where your network allows)</span></label>
           <p class="menu-note">Graphics changes apply from the next drive.</p>
-          <nav class="menu-actions">
+          <nav class="menu-actions row">
+            <button class="btn" id="btn-experimental">Experimental…</button>
             <button class="btn primary" id="btn-settings-back" data-nav-back>Back</button>
+          </nav>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------- EXPERIMENTAL -->
+      <section class="screen menu" id="screen-experimental" hidden>
+        <div class="menu-card">
+          <h2>Experimental</h2>
+          <p class="menu-note warn">Unfinished features to try out: they may look rough.</p>
+          <label class="field">
+            <span>Camera view</span>
+            <select id="set-camera" data-nav-default>
+              <option value="overhead">Overhead</option>
+              <option value="helicopter">Helicopter</option>
+              <option value="chaseFar">Chase, far</option>
+              <option value="chaseNear">Chase, near</option>
+              <option value="bonnet">Bonnet</option>
+              <option value="bumper">Bumper</option>
+              <option value="cockpit">Cockpit</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <div id="set-cam-custom" hidden>
+            <label class="field">
+              <span>Sideways <output id="out-cam-x"></output></span>
+              <input type="range" id="set-cam-x" min="-5" max="5" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Height <output id="out-cam-y"></output></span>
+              <input type="range" id="set-cam-y" min="0.3" max="60" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Behind <output id="out-cam-z"></output></span>
+              <input type="range" id="set-cam-z" min="-5" max="40" step="0.1" />
+            </label>
+            <label class="field">
+              <span>Pitch <output id="out-cam-pitch"></output></span>
+              <input type="range" id="set-cam-pitch" min="-90" max="20" step="1" />
+            </label>
+          </div>
+          <p class="menu-note keys">In a race, <b>C</b> or <b>up on the D-pad</b> changes view.</p>
+          <nav class="menu-actions">
+            <button class="btn primary" id="btn-experimental-back" data-nav-back>Back</button>
           </nav>
         </div>
       </section>

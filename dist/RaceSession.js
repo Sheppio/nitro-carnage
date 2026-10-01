@@ -149,8 +149,7 @@ export class RaceSession {
         // The hotlap ghost, built now so its first appearance does not stall the game.
         if (this.mode === 'hotlap' && this.player)
             this.view.prepareGhost();
-        this.view.rig.shakeScale = settings.current.reduceMotion ? 0.25 : 1;
-        this.view.rig.baseFov = settings.current.fov;
+        this.applyCamera();
         this.view.onJolt = (kind, k) => {
             const p = kind === 'landing' ? HAPTIC.landing : HAPTIC.crash;
             this.input.rumble(p.weak * k, p.strong * k, p.ms);
@@ -286,16 +285,31 @@ export class RaceSession {
             this.input.rumble(HAPTIC.count.weak, HAPTIC.count.strong, HAPTIC.count.ms);
         }
     }
+    /** The camera settings, at the start and whenever they change: the view, its Custom offset, the zoom and the shake. */
+    applyCamera() {
+        const c = this.settings.current;
+        const rig = this.view.rig;
+        rig.shakeScale = c.reduceMotion ? 0.25 : 1;
+        rig.baseFov = c.fov;
+        rig.view = c.cameraView;
+        Object.assign(rig.custom, { x: c.camX, y: c.camY, z: c.camZ, pitch: c.camPitch });
+    }
     /**
      * Where a sound is from the car being followed: how far, for how loud, and
-     * how far to the side. The camera is north-up, so screen right is +x.
+     * how far to the side. Screen right is the camera's right: +x for the
+     * north-up camera, and turning with the car in the experimental views.
      */
     hear(x, z) {
         const f = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
         if (!f)
             return { d: 0, pan: 0 };
         const dx = x - f.x;
-        return { d: Math.hypot(dx, z - f.z), pan: Math.max(-1, Math.min(1, dx / 30)) * 0.85 };
+        const dz = z - f.z;
+        const e = this.view.rig.camera.matrixWorld.elements;
+        // The camera's right, flattened onto the ground.
+        const rl = Math.hypot(e[0], e[2]) || 1;
+        const side = (dx * e[0] + dz * e[2]) / rl;
+        return { d: Math.hypot(dx, dz), pan: Math.max(-1, Math.min(1, side / 30)) * 0.85 };
     }
     /** How fast something at (x, z) moving at (vx, vz) closes on the followed car, m/s. */
     closing(x, z, vx, vz) {

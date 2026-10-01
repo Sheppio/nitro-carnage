@@ -171,6 +171,36 @@ try {
     `car ${(-lead.along).toFixed(0)} px behind centre along its heading`);
   r.check('speed widens the lens', lead.fov > 50.3, `fov ${lead.fov.toFixed(1)}°`);
 
+  // Experimental camera views: a chase camera sits behind the car and turns
+  // with it; the cockpit hides the car it is in; C goes to the next view.
+  const viewOf = (v) => page.evaluate(async (v) => {
+    const s = window.nitro.session;
+    window.nitro.settings.set('cameraView', v);
+    await new Promise((res) => setTimeout(res, 400));
+    const c = s.drawnStates.get('you');
+    const cam = s.view.rig.camera.position;
+    const me = s.view.cars.get('you').mesh.root;
+    return {
+      behind: (cam.x - c.x) * Math.sin(c.yaw) + (cam.z - c.z) * Math.cos(c.yaw),
+      height: cam.y - c.y,
+      near: s.view.rig.camera.near,
+      carShown: me.visible,
+    };
+  }, v);
+  const chase = await viewOf('chaseFar');
+  r.check('the chase view sits behind and above the car, with the near plane pulled in', chase.behind < -5 && chase.height > 2 && chase.near < 1,
+    JSON.stringify(chase));
+  const cockpit = await viewOf('cockpit');
+  r.check('the cockpit view is in the car, and hides it', Math.abs(cockpit.behind) < 1 && cockpit.height < 2 && !cockpit.carShown,
+    JSON.stringify(cockpit));
+  await page.keyboard.press('KeyC');
+  const cycled = await until(() => page.evaluate(() => (window.nitro.settings.current.cameraView === 'custom'
+    ? document.getElementById('hud-banner').textContent : null)));
+  r.check('C changes to the next view and names it', /custom/i.test(cycled ?? ''), cycled);
+  const overhead = await viewOf('overhead');
+  r.check('back overhead, the car shows and the near plane is back', overhead.carShown && overhead.near === 5 && overhead.height > 40,
+    JSON.stringify(overhead));
+
   // Steering left turns the car left: yaw increases (see car.ts conventions).
   await page.keyboard.down('ArrowLeft');
   const turned = await until(async () => ((await car()).w > 0.2 ? await car() : null), { timeout: 5000 });

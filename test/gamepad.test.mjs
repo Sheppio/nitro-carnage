@@ -255,6 +255,22 @@ try {
   const resumed = await until(() => page.evaluate(() => document.getElementById('pause-veil').hidden && !window.nitro.session.paused));
   r.check('A on Resume carries on', Boolean(resumed));
 
+  // Up on the D-pad: the next camera view (Settings → Experimental), not in the pause menu.
+  const view = () => page.evaluate(() => window.nitro.settings.current.cameraView);
+  const v0 = await view();
+  await tap(page, B.UP);
+  const v1 = await until(async () => ((await view()) !== v0 ? view() : null), { timeout: 5000 });
+  await tap(page, B.MENU);
+  await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden));
+  await tap(page, B.UP);
+  await frames(page);
+  const v2 = await view();
+  await tap(page, B.B);
+  await until(() => page.evaluate(() => document.getElementById('pause-veil').hidden));
+  await page.evaluate(() => window.nitro.settings.set('cameraView', 'overhead'));
+  r.check('up on the D-pad changes the camera view in a race, and not in the pause menu', v0 === 'overhead' && v1 === 'helicopter' && v2 === v1,
+    `${v0} -> ${v1}, paused: ${v2}`);
+
   await tap(page, B.MENU);
   await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden));
   const onLeave = await padTo(page, 'btn-pause-leave', B.DOWN);
@@ -309,6 +325,23 @@ try {
   const out = await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden));
   r.check('Settings by D-pad: down visits every row, A flips a switch, B goes back', missed.length === 0 && before !== after && Boolean(out),
     missed.length ? `missed ${missed.join(', ')}` : '');
+
+  // Experimental…: its own page, the camera view on the arrows, B back to Settings on the same button.
+  await padTo(page, 'btn-settings', B.DOWN);
+  await tap(page, B.A);
+  await until(() => page.evaluate(() => !document.getElementById('screen-settings').hidden));
+  const onExp = await padTo(page, 'btn-experimental', B.DOWN, 20);
+  await tap(page, B.A);
+  const expFocus = await until(() => page.evaluate(() => !document.getElementById('screen-experimental').hidden && document.activeElement?.id === 'set-camera-pick'));
+  await tap(page, B.LEFT);
+  const custom = await until(() => page.evaluate(() => (window.nitro.settings.current.cameraView === 'custom' && !document.getElementById('set-cam-custom').hidden) || null), { timeout: 5000 });
+  await tap(page, B.B);
+  const expOut = await until(() => page.evaluate(() => !document.getElementById('screen-settings').hidden && document.activeElement?.id === 'btn-experimental'));
+  await page.evaluate(() => window.nitro.settings.set('cameraView', 'overhead'));
+  await tap(page, B.B);
+  await until(() => page.evaluate(() => !document.getElementById('screen-menu').hidden));
+  r.check('Experimental by D-pad: it opens from Settings on the camera view, Custom shows its sliders, B goes back to Settings',
+    onExp && Boolean(expFocus) && Boolean(custom) && Boolean(expOut), JSON.stringify({ onExp, expFocus, custom, expOut }));
   await page.close();
 
   /* ------------------------------------------------------- Steam Deck */
