@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.104**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.105**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -68,7 +68,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 913 checks: simulation and networking (Node), and real browsers
+npm test           # 930 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -367,6 +367,46 @@ Speed still widens the lens by the same 6° on top, and a portrait phone still w
 it to keep 50 m of ground across the screen. The wheel does nothing in the pause
 menu, so it can't change the zoom while you're paused. Changing the field of view
 rather than the camera's height keeps the towers' lean the same at every zoom.
+
+### Photo mode
+
+The pause menu in an offline race (a quick race, a hotlap, the Track of the Day or a
+championship race) has **Photo mode**. Online rooms don't get it, because a race with other
+people in it can't stop. The world stays paused, the pause card and the race HUD go, and
+a free camera takes over from wherever the race camera was. Forward, back and sideways
+move along the ground the way the camera faces, and up and down are straight up and down,
+so a level shot stays level. The camera is kept above the ground and within about 220 m of
+the car.
+
+| | Keyboard and mouse | Pad | Touch |
+|---|---|---|---|
+| Move | W A S D | Left stick | Two fingers |
+| Up, down | E (or Space), Q | RT, LT | Two fingers |
+| Faster | Shift | Left stick click | |
+| Look | Arrows, or drag | Right stick | One finger |
+| Zoom | Wheel | D-pad up, down | Pinch moves forward instead |
+| Focus nearer, further | [ ] | LB, RB | Slider |
+| Focus on the car | F | X | On car |
+| Blur less, more | − = | D-pad left, right | Slider |
+| Hide the UI | H | Y | Hide UI, then tap to bring it back |
+| Save a PNG | P | A | Save photo |
+| Back to the pause menu | Esc | B | Back |
+
+The pad's Menu button goes straight back to the race.
+
+**Depth of field** is drawn only in photo mode, so it costs nothing while you race. The scene
+is drawn to a texture along with its depth. A gather blur then draws it to the screen,
+spiralling out over 96 taps to a widest blur of 1.8% of the screen's height. How far each
+pixel's blur spreads (its circle of confusion) grows with its distance from the focus. A tap
+from further back only spreads over a nearer pixel as far as that pixel's own blur reaches,
+so a sharp car doesn't smear into a blurred background. Each pixel starts its spiral at a
+different angle, so a wide blur looks grainy rather than showing ghost copies. The blur is
+written into the game rather than taken from three's examples, because the page loads three
+alone from its CDN. At zero blur the frame is drawn exactly as in the race.
+
+**Save photo** draws a frame and reads it back in the same task, as the debug pixel probe does,
+and downloads it as `nitrocarnage-<date>-<time>.png`. The picture never includes the page's
+UI. The console's or Steam's own screenshot button works too, with the UI hidden.
 
 ### Tall things must never hide a car
 
@@ -1319,7 +1359,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-913 checks across seven suites. The browser suites swap the CDN for a local three.js and a
+930 checks across seven suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1415,7 +1455,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     closing hands its traffic to the broker at once, is given up within 3.5 s, and
     links again when the network is back; a player without direct links races with
     the rest.
-- **`smoke.test.mjs`** (73, browser): the menu keeps to modes and settings, and the
+- **`smoke.test.mjs`** (84, browser): the menu keeps to modes and settings, and the
   track screen holds the track, seed, map and controls; the browser generates a seed's track to the same
   bytes as Node; a hotlap on the track of the day (named, a record, no position, no
   weapons) sets and keeps a record with its splits and path, then shows splits against it; a see-through ghost on the
@@ -1446,7 +1486,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   - **Budget:** high quality with shadows stays inside the draw-call budget, with no
     console errors.
 
-- **`multiplayer.test.mjs`** (37, browser, up to four tabs): a room forms from a code
+- **`multiplayer.test.mjs`** (38, browser, up to four tabs): a room forms from a code
   and a share link; one host; colour clashes; a look chosen in one tab's Garage shows
   in the other's lobby; only the host can start; a missile fired
   in one tab flies in the other; a race to the
@@ -1455,7 +1495,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   frozen for 20 s waking without splitting the room; a player on an older build is
   marked in the lobby with a note to reload; the tabs open a real WebRTC link, both
   lobbies say DIRECT, and the missile crosses it.
-- **`gamepad.test.mjs`** (29, browser, a virtual pad and nothing else): the Garage by
+- **`gamepad.test.mjs`** (33, browser, a virtual pad and nothing else): the Garage by
   pad (RB changes the body, the D-pad the livery) and at 1280×800; the lock prompt;
   Xbox and PlayStation prompts; the on-screen keyboard; menu to race by way of the
   track screen, Start already focused; RT drives; Menu/Options pauses, A resumes;
@@ -1474,7 +1514,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
   change with left and right; Space toggles a switch; Esc goes back everywhere and
   resumes from pause without reopening it; Settings from the pause menu, a volume
   slider by arrows, and Esc back to the paused race; in a race the arrows drive.
-- **`mobile.test.mjs`** (19, browser, an emulated phone in landscape, real touch
+- **`mobile.test.mjs`** (20, browser, an emulated phone in landscape, real touch
   events): the menu and the track screen are all tappable; the touch layer is only up in a race; nothing
   covers a touch button or the pause button; no two HUD panels overlap; the pedal
   drives; a second thumb steers while the first holds the throttle; an upward thumb

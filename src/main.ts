@@ -35,6 +35,7 @@ import { ChoiceList } from './ui/ChoiceList.js';
 import { Confirm } from './ui/Confirm.js';
 import { stepperFor } from './ui/Picker.js';
 import { Lobby } from './ui/Lobby.js';
+import { PhotoMode } from './ui/PhotoMode.js';
 import { awards, Tally } from './sim/raceLog.js';
 import { cupOn, nextCupRace } from './sim/championship.js';
 import { isBotId } from './sim/bots.js';
@@ -69,6 +70,7 @@ const choices = new ChoiceList();
 choices.focus = (el) => nav.focusOn(el);
 const confirm = new Confirm();
 confirm.focus = (el) => nav.focusOn(el);
+const photo = new PhotoMode(input.gamepad, gameRoot);
 
 /* ---------------------------------------------------------------- screens */
 
@@ -731,7 +733,8 @@ window.addEventListener('popstate', () => {
   if (!guarded) return;
   guarded = false;
   const racing = current === 'screen-hud' && session;
-  if (racing && $('pause-veil').hidden) openPause();
+  if (racing && photo.active) closePhoto();
+  else if (racing && $('pause-veil').hidden) openPause();
   else if (!nav.goBack()) {
     notice('Press Back again to leave Nitro Carnage');
     return;
@@ -764,6 +767,8 @@ function openPause(why = ''): void {
     ? 'The race goes on without you: your car is held on the brakes until you resume.'
     : 'The race is paused.');
   $('btn-pause-leave').textContent = online ? 'Leave room' : 'Leave race';
+  // A race with other people in it does not stop for a photo.
+  $('btn-pause-photo').hidden = online;
   $('pause-veil').hidden = false;
   input.setPaused(true);
   nav.start();
@@ -771,6 +776,7 @@ function openPause(why = ''): void {
 }
 
 function closePause(): void {
+  photo.close();
   // "Leave the room?" belongs to the pause menu: it goes with it, not left over the race.
   confirm.dismiss();
   if (session) session.paused = false;
@@ -780,9 +786,31 @@ function closePause(): void {
 }
 
 function togglePause(): void {
-  if ($('pause-veil').hidden) openPause();
-  else closePause();
+  // In photo mode the pad's Menu goes straight back to the race, as it does from the pause menu.
+  if (photo.active || !$('pause-veil').hidden) closePause();
+  else openPause();
 }
+
+/**
+ * Photo mode, from the pause menu, offline only: the world stays stopped,
+ * the pause card goes, and the camera flies free (see `ui/PhotoMode.ts`).
+ * Back, B or Esc return to the pause menu.
+ */
+function openPhoto(): void {
+  if (!session || session.mode === 'net' || photo.active) return;
+  confirm.dismiss();
+  $('pause-veil').hidden = true;
+  nav.stop();
+  photo.open(session);
+}
+
+function closePhoto(): void {
+  photo.close();
+  openPause();
+  nav.focusOn($('btn-pause-photo'));
+}
+photo.onBack = closePhoto;
+photo.onSaved = (ok) => notice(ok ? 'Photo saved' : 'The photo could not be saved');
 
 /**
  * The race stops by itself when the player can't be driving: the controller
@@ -790,7 +818,7 @@ function togglePause(): void {
  * button, alt-tab). Online the race can't stop, but the car is held on the
  * brakes rather than driving into a wall.
  */
-const racing = (): boolean => current === 'screen-hud' && session !== null && $('pause-veil').hidden;
+const racing = (): boolean => current === 'screen-hud' && session !== null && $('pause-veil').hidden && !photo.active;
 window.addEventListener('gamepaddisconnected', () => {
   // Only when no pad is left: a second, idle pad switching itself off is no reason to stop.
   const left = [...(navigator.getGamepads?.() ?? [])].some((p) => p?.connected);
@@ -890,6 +918,7 @@ $('btn-rematch').addEventListener('click', () => room?.net.rematch());
 $('btn-results-menu').addEventListener('click', toMenu);
 $('btn-pause').addEventListener('click', () => openPause());
 $('btn-resume').addEventListener('click', closePause);
+$('btn-pause-photo').addEventListener('click', openPhoto);
 /** Leaving a room loses it (and tonight's scores): asked first. Offline, a race just ends. */
 async function leave(): Promise<void> {
   if (room) {
@@ -1007,7 +1036,7 @@ $('set-fov').addEventListener('input', (e) => settings.set('fov', Number((e.targ
 // The mouse wheel zooms the race camera: down (towards you) widens the view, up
 // closes in. It changes the same setting as the slider, so it is kept.
 addEventListener('wheel', (e) => {
-  if (!session || $('screen-hud').hidden || !$('pause-veil').hidden) return;
+  if (!session || $('screen-hud').hidden || !$('pause-veil').hidden || photo.active) return;
   e.preventDefault();
   settings.set('fov', settings.current.fov + Math.sign(e.deltaY) * 2);
 }, { passive: false });
@@ -1104,7 +1133,7 @@ for (const s of camSliders) {
 }
 /** Racing, with nothing over the race: where C and the D-pad's up change the view. */
 function inRace(): boolean {
-  return current === 'screen-hud' && session !== null && $('pause-veil').hidden && !confirm.isOpen;
+  return current === 'screen-hud' && session !== null && $('pause-veil').hidden && !confirm.isOpen && !photo.active;
 }
 /** The next camera view, saved, with its name across the screen for a moment. */
 function nextCameraView(): void {
@@ -1228,6 +1257,7 @@ declare global {
       input: InputManager;
       readonly session: RaceSession | null;
       readonly room: RoomClient | null;
+      photo: PhotoMode;
       start: (mode: 'race' | 'hotlap' | 'daily') => void;
       openRoom: (code: string) => Promise<void>;
       leave: () => void;
@@ -1253,6 +1283,7 @@ window.nitro = {
   get room() {
     return room;
   },
+  photo,
   start: startOffline,
   openRoom,
   leave: toMenu,

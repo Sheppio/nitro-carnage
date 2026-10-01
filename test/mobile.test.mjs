@@ -166,6 +166,40 @@ try {
   // The touch controls go while it is up (#28): none of them over its options.
   const touchGone = await page.evaluate(() => document.querySelector('.touch-layer').hidden && document.querySelector('.touch-btn').getClientRects().length === 0);
   r.check('the touch controls are hidden under the pause menu', touchGone);
+
+  // Photo mode by touch: its controls all on screen and tappable, a finger drag
+  // turns the camera, two fingers move it, Hide UI clears the screen and a tap brings it back.
+  await page.tap('#btn-pause-photo');
+  await until(() => page.evaluate(() => window.nitro.photo.active || null));
+  const photoBad = await covered(page, '#photo-bar button, #photo-bar input');
+  const photoOff = await page.evaluate(() => [...document.querySelectorAll('#photo-bar button, #photo-bar input')].filter((el) => {
+    const b = el.getBoundingClientRect();
+    return b.left < 0 || b.top < 0 || b.right > innerWidth || b.bottom > innerHeight;
+  }).map((el) => el.id));
+  const look = () => page.evaluate(() => {
+    const c = window.nitro.session.view.rig.camera;
+    const e = c.matrixWorld.elements;
+    return { pos: c.position.toArray(), dir: [-e[8], -e[9], -e[10]] };
+  });
+  const v0 = await look();
+  await touch('touchStart', [[300, 150]]);
+  for (let i = 1; i <= 6; i++) await touch('touchMove', [[300 + i * 25, 150]]);
+  await touch('touchEnd', []);
+  const v1 = await until(async () => { const v = await look(); return Math.abs(v.dir[0] - v0.dir[0]) + Math.abs(v.dir[2] - v0.dir[2]) > 0.05 ? v : null; }, { timeout: 3000 });
+  await touch('touchStart', [[250, 150], [450, 150]]);
+  for (let i = 1; i <= 6; i++) await touch('touchMove', [[250 - i * 15, 150], [450 + i * 15, 150]]);
+  await touch('touchEnd', []);
+  const v2 = await until(async () => { const v = await look(); return Math.hypot(v.pos[0] - v1.pos[0], v.pos[2] - v1.pos[2]) > 1 ? v : null; }, { timeout: 3000 });
+  await page.tap('#btn-photo-ui');
+  const hiddenUi = await page.evaluate(() => getComputedStyle(document.getElementById('photo-bar')).visibility === 'hidden');
+  await touch('touchStart', [[300, 150]]);
+  await touch('touchEnd', []);
+  const shownUi = await until(() => page.evaluate(() => getComputedStyle(document.getElementById('photo-bar')).visibility === 'visible' || null), { timeout: 3000 });
+  r.check('photo mode by touch: every control on screen and tappable, a drag looks, a pinch moves, Hide UI hides and a tap shows it again',
+    photoBad.length === 0 && photoOff.length === 0 && Boolean(v1) && Boolean(v2) && hiddenUi && Boolean(shownUi),
+    JSON.stringify({ photoBad, photoOff, looked: Boolean(v1), moved: Boolean(v2), hiddenUi, shownUi }));
+  await page.tap('#btn-photo-back');
+  await until(() => page.evaluate(() => (!window.nitro.photo.active && !document.getElementById('pause-veil').hidden) || null));
   await page.tap('#btn-resume');
   const resumed = await until(() => page.evaluate(() => (document.getElementById('pause-veil').hidden && !window.nitro.session.paused && !document.querySelector('.touch-layer').hidden) || null));
   r.check('and Resume carries on, with the touch controls back', Boolean(resumed));

@@ -12,6 +12,7 @@ import { buildTrackMesh } from './TrackMesh.js';
 import { WeaponView } from './WeaponView.js';
 import { HazardView } from './HazardView.js';
 import { PickupView } from './PickupView.js';
+import { PhotoCamera } from './PhotoCamera.js';
 /**
  * One renderer, and so one WebGL context, for every race. A new one per race
  * left the last race's context and its GPU memory alive until the garbage
@@ -78,6 +79,13 @@ export class GameView {
     focusId = null;
     /** Fired with a 0..1 strength when the focused car lands or hits a wall, for haptics. */
     onJolt = null;
+    /**
+     * Photo mode: the free camera flies instead of the race camera following,
+     * and the frame is drawn through the depth of field. Null while racing.
+     */
+    photo = null;
+    photoCam = new PhotoCamera();
+    dof = null;
     constructor(host, track, quality) {
         this.host = host;
         this.track = track;
@@ -257,7 +265,8 @@ export class GameView {
         this.clock += dt;
         this.scenery.update(this.clock);
         const focus = this.focusId ? states.get(this.focusId) : undefined;
-        if (focus) {
+        // In photo mode the free camera is already posed (see `photoCam`).
+        if (focus && !this.photo) {
             this.rig.update(focus, dt);
         }
         this.viewChanged(focus);
@@ -268,7 +277,29 @@ export class GameView {
         this.renderer.getDrawingBufferSize(this.size);
         this.fx.setPointScale(this.size.y / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)));
         this.updateCutaway(states);
-        this.renderer.render(this.scene, cam);
+        if (this.photo && this.photo.blur > 0) {
+            this.dof ??= new DepthOfField(QUALITY[this.quality].antialias);
+            this.dof.render(this.renderer, this.scene, cam, this.size, this.photo);
+        }
+        else {
+            this.renderer.render(this.scene, cam);
+        }
+    }
+    /** How far the followed car is from the camera, in metres: photo mode's "focus on the car". */
+    focusDistance(states) {
+        const car = this.focusId ? states.get(this.focusId) : undefined;
+        if (!car)
+            return 20;
+        return this.rig.camera.position.distanceTo(this.v.set(car.x, car.y + 0.6, car.z));
+    }
+    /**
+     * Draw a frame and hand it back as a PNG. Read in the same task as the
+     * render, before the browser presents and clears the drawing buffer, as
+     * `samplePixels` does, so no `preserveDrawingBuffer`.
+     */
+    snapshot(states) {
+        this.render(states, 0);
+        return new Promise((resolve) => this.renderer.domElement.toBlob(resolve, 'image/png'));
     }
     /**
      * What the experimental views change in the scene: the followed car (and a
@@ -278,7 +309,8 @@ export class GameView {
      */
     viewChanged(focus) {
         const me = this.focusId ? this.cars.get(this.focusId) : undefined;
-        if (me && this.rig.hidesOwnCar) {
+        // A photo is taken from outside the car, whatever the race view was.
+        if (me && this.rig.hidesOwnCar && !this.photo) {
             me.mesh.root.visible = false;
             me.mesh.blob.visible = false;
             if (this.ghost && focus && Math.hypot(this.ghostState.x - focus.x, this.ghostState.z - focus.z) < 3)
@@ -287,7 +319,8 @@ export class GameView {
         else if (me) {
             me.mesh.blob.visible = true;
         }
-        const overhead = this.rig.view === 'overhead';
+        // The cut-away is for a camera overhead: a photo shows the buildings whole.
+        const overhead = this.rig.view === 'overhead' && !this.photo;
         if (overhead !== this.cutawayByView) {
             this.cutawayByView = overhead;
             this.setCutaway(overhead);
@@ -394,6 +427,8 @@ export class GameView {
      */
     dispose() {
         this.resizeObserver.disconnect();
+        this.dof?.dispose();
+        this.dof = null;
         this.renderer.domElement.remove();
         for (const view of this.cars.values()) {
             const blob = view.mesh.blob;
@@ -414,6 +449,119 @@ export class GameView {
         if (this.scene.background instanceof THREE.Texture)
             this.scene.background.dispose();
         this.renderer.renderLists.dispose();
+    }
+}
+/** Taps in the blur: a spiral out to the widest blur, the same count whatever the screen's size. */
+const DOF_TAPS = 96;
+/** The widest blur, as a fraction of the screen's height. */
+const DOF_MAX = 0.018;
+/**
+ * Depth of field, for photo mode only: the scene is drawn to a texture with
+ * its depth, then onto the screen through a gather blur whose size at each
+ * pixel grows with how far it is from the focus (its circle of confusion).
+ * A tap from further back only blurs over a nearer pixel as far as that
+ * pixel's own blur reaches, so a sharp car does not bleed into a blurred
+ * background, nor a blurred background over a sharp car.
+ *
+ * Built here rather than from three's examples: the page loads three alone
+ * from its CDN, and the test rig serves the same one file.
+ */
+class DepthOfField {
+    target;
+    material;
+    quad;
+    scene = new THREE.Scene();
+    camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    constructor(antialias) {
+        this.target = new THREE.WebGLRenderTarget(1, 1, { samples: antialias ? 4 : 0 });
+        this.target.texture.colorSpace = THREE.SRGBColorSpace;
+        this.target.depthTexture = new THREE.DepthTexture(1, 1);
+        this.material = new THREE.ShaderMaterial({
+            uniforms: {
+                tColor: { value: this.target.texture },
+                tDepth: { value: this.target.depthTexture },
+                uNear: { value: 0.1 },
+                uFar: { value: 600 },
+                uFocus: { value: 10 },
+                uAperture: { value: 0 },
+                uMaxBlur: { value: 20 },
+                uPixel: { value: new THREE.Vector2() },
+            },
+            vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position.xy, 0.0, 1.0);
+        }`,
+            fragmentShader: /* glsl */ `
+        #include <packing>
+        uniform sampler2D tColor;
+        uniform sampler2D tDepth;
+        uniform float uNear;
+        uniform float uFar;
+        uniform float uFocus;
+        uniform float uAperture;
+        uniform float uMaxBlur;
+        uniform vec2 uPixel;
+        varying vec2 vUv;
+        const float GOLDEN = 2.39996323;
+        float dist(vec2 uv) {
+          return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar);
+        }
+        // Circle of confusion, in pixels.
+        float coc(float d) {
+          return clamp(uAperture * abs(d - uFocus) / max(d, 0.05) * uMaxBlur * 1.5, 0.0, uMaxBlur);
+        }
+        void main() {
+          float centreDepth = dist(vUv);
+          float centreSize = coc(centreDepth);
+          vec3 colour = texture2D(tColor, vUv).rgb;
+          float total = 1.0;
+          float grow = uMaxBlur * uMaxBlur / (2.0 * float(${DOF_TAPS}));
+          float radius = grow;
+          // Each pixel's spiral starts at its own angle: too few taps for a wide blur then read as grain, not ghosts.
+          float angle = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) * 6.2831853;
+          for (int i = 0; i < ${DOF_TAPS}; i++) {
+            vec2 uv = vUv + vec2(cos(angle), sin(angle)) * uPixel * radius;
+            vec3 sampleColour = texture2D(tColor, uv).rgb;
+            float sampleDepth = dist(uv);
+            float sampleSize = coc(sampleDepth);
+            if (sampleDepth > centreDepth) sampleSize = clamp(sampleSize, 0.0, centreSize * 2.0);
+            float m = smoothstep(radius - 0.5, radius + 0.5, sampleSize);
+            colour += mix(colour / total, sampleColour, m);
+            total += 1.0;
+            radius += grow / radius;
+            angle += GOLDEN;
+          }
+          gl_FragColor = linearToOutputTexel(vec4(colour / total, 1.0));
+        }`,
+            depthTest: false,
+            depthWrite: false,
+        });
+        this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.material);
+        this.quad.frustumCulled = false;
+        this.scene.add(this.quad);
+    }
+    render(renderer, scene, camera, size, photo) {
+        if (this.target.width !== size.x || this.target.height !== size.y)
+            this.target.setSize(size.x, size.y);
+        const u = this.material.uniforms;
+        u.uNear.value = camera.near;
+        u.uFar.value = camera.far;
+        u.uFocus.value = photo.focus;
+        u.uAperture.value = photo.blur;
+        u.uMaxBlur.value = Math.max(4, size.y * DOF_MAX);
+        u.uPixel.value.set(1 / size.x, 1 / size.y);
+        renderer.setRenderTarget(this.target);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(null);
+        renderer.render(this.scene, this.camera);
+    }
+    dispose() {
+        this.target.depthTexture?.dispose();
+        this.target.dispose();
+        this.material.dispose();
+        this.quad.geometry.dispose();
     }
 }
 //# sourceMappingURL=GameView.js.map

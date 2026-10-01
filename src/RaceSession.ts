@@ -5,6 +5,8 @@ import type { SettingsStore } from './input/settings.js';
 import type { InputManager } from './input/InputManager.js';
 import type { NetRace } from './net/NetRace.js';
 import { GameView } from './render/GameView.js';
+import type { PhotoSettings } from './render/GameView.js';
+import type { PhotoMove } from './render/PhotoCamera.js';
 import type { AudioEngine, Ground, Heard, MissileVoiceInput } from './audio/AudioEngine.js';
 import { crossingWarning, trainAt } from './sim/train.js';
 import { ghostAt, LapTrace } from './sim/ghost.js';
@@ -160,6 +162,8 @@ export class RaceSession {
   frozen = false;
   /** The pause menu is open: offline that stops the world; online it only holds our car. */
   paused = false;
+  /** Photo mode's input, read every frame while it is on; null while racing. See `ui/PhotoMode.ts`. */
+  private photoInput: ((dt: number) => PhotoMove) | null = null;
   /** Drive the player's car with the autopilot (real input still wins). */
   autopilot: boolean;
   onHud: ((hud: HudSnapshot) => void) | null = null;
@@ -323,10 +327,11 @@ export class RaceSession {
     this.last = now;
 
     const read = this.input.read(dt);
+    // Paused, a shot is not saved up for later: Y and RB mean other things in photo mode.
     this.intent = {
       ...read,
-      fireFront: this.intent.fireFront || read.fireFront,
-      fireRear: this.intent.fireRear || read.fireRear,
+      fireFront: !this.paused && (this.intent.fireFront || read.fireFront),
+      fireRear: !this.paused && (this.intent.fireRear || read.fireRear),
     };
 
     let alpha: number;
@@ -357,6 +362,7 @@ export class RaceSession {
     this.startFrame();
     // Spectating: follow whoever is leading.
     if (!this.player) this.view.focusId = standings(this.world.entrants)[0]?.id ?? this.view.focusId;
+    if (this.photoInput) this.view.photoCam.update(this.view.rig.camera, this.photoInput(dt), dt);
     this.view.render(this.drawn, this.paused && !this.net ? 0 : dt);
 
     this.frames++;
@@ -382,6 +388,40 @@ export class RaceSession {
       this.lastLight = light;
       this.input.rumble(HAPTIC.count.weak, HAPTIC.count.strong, HAPTIC.count.ms);
     }
+  }
+
+  /**
+   * Photo mode, from the pause menu, offline only: the world stays stopped
+   * and a free camera takes over from where the race camera is, reading
+   * `read` every frame. `photo` is the depth of field, changed in place.
+   */
+  startPhoto(read: (dt: number) => PhotoMove, photo: PhotoSettings): void {
+    if (this.net) return;
+    const rig = this.view.rig;
+    const car = this.view.focusId ? this.drawn.get(this.view.focusId) : undefined;
+    this.view.photoCam.begin(rig.camera, car ?? rig.camera.position);
+    this.view.photo = photo;
+    this.photoInput = read;
+  }
+
+  /** Back to the race camera. */
+  stopPhoto(): void {
+    this.view.photo = null;
+    this.photoInput = null;
+  }
+
+  get photographing(): boolean {
+    return this.photoInput !== null;
+  }
+
+  /** The frame as it is now, as a PNG. */
+  snapshot(): Promise<Blob | null> {
+    return this.view.snapshot(this.drawn);
+  }
+
+  /** The followed car's distance from the camera: photo mode's "focus on the car". */
+  carDistance(): number {
+    return this.view.focusDistance(this.drawn);
   }
 
   /** The camera settings, at the start and whenever they change: the view, its Custom offset, the zoom and the shake. */

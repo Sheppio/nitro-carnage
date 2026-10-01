@@ -229,6 +229,54 @@ try {
     return w.steps === s0;
   });
   r.check('Esc pauses a solo drive: the world stops', paused);
+
+  /* ---------------------------------------------------------- photo mode */
+  // Photo mode, from the pause menu: the world stays stopped, the card goes,
+  // and the camera flies, looks and focuses; H hides the UI, P saves a PNG.
+  r.check('the pause menu offers Photo mode offline', await page.isVisible('#btn-pause-photo'));
+  await page.click('#btn-pause-photo');
+  const inPhoto = await until(() => page.evaluate(() => (window.nitro.photo.active && document.getElementById('pause-veil').hidden
+    && !document.getElementById('photo-bar').hidden && getComputedStyle(document.getElementById('hud-race')).visibility === 'hidden') || null));
+  r.check('Photo mode hides the pause card and the race HUD, and shows the photo controls', Boolean(inPhoto));
+  const shot0 = await page.evaluate(() => ({ steps: window.nitro.session.world.steps, cam: window.nitro.session.view.rig.camera.position.toArray() }));
+  for (const key of ['KeyW', 'KeyE']) await page.keyboard.down(key);
+  const flown = await until(() => page.evaluate((c0) => {
+    const c = window.nitro.session.view.rig.camera.position.toArray();
+    return c[1] > c0[1] + 2 && Math.hypot(c[0] - c0[0], c[2] - c0[2]) > 2 ? c : null;
+  }, shot0.cam), { timeout: 5000 });
+  for (const key of ['KeyW', 'KeyE']) await page.keyboard.up(key);
+  const stillPaused = await page.evaluate((s0) => window.nitro.session.world.steps === s0 && window.nitro.session.paused, shot0.steps);
+  r.check('W and E fly the camera forward and up, and the world stays stopped', Boolean(flown) && stillPaused, JSON.stringify({ from: shot0.cam, to: flown }));
+  // The depth of field: the blur slider, and F focuses on the car.
+  await page.evaluate(() => { const b = document.getElementById('photo-blur'); b.value = '50'; b.dispatchEvent(new Event('input')); });
+  await page.keyboard.press('BracketLeft');
+  await page.keyboard.press('KeyF');
+  const dof = await page.evaluate(() => {
+    const s = window.nitro.session;
+    const car = s.drawnStates.get(s.playerId);
+    const d = s.view.rig.camera.position.distanceTo({ x: car.x, y: car.y + 0.6, z: car.z });
+    return { ...window.nitro.photo.settings, d, out: document.getElementById('photo-blur-out').textContent, calls: s.view.drawCalls };
+  });
+  r.check('the blur slider sets the depth of field, and F focuses on the car', dof.blur === 0.5 && Math.abs(dof.focus - dof.d) < 0.5 && dof.out === '50%',
+    JSON.stringify(dof));
+  await page.keyboard.press('KeyH');
+  const clean = await page.evaluate(() => getComputedStyle(document.getElementById('photo-bar')).visibility === 'hidden');
+  await page.keyboard.press('KeyH');
+  const unhidden = await page.evaluate(() => getComputedStyle(document.getElementById('photo-bar')).visibility === 'visible');
+  r.check('H hides every bit of UI, and shows it again', clean && unhidden);
+  const download = page.waitForEvent('download', { timeout: 10000 });
+  await page.keyboard.press('KeyP');
+  const file = await download.catch(() => null);
+  const png = file ? fs.readFileSync(await file.path()) : null;
+  r.check('P saves the frame as a PNG', Boolean(png && png.length > 1000 && png.subarray(1, 4).toString() === 'PNG' && /\.png$/.test(file.suggestedFilename())),
+    file?.suggestedFilename() ?? 'no download');
+  await page.keyboard.press('Escape');
+  const toPause = await page.evaluate(() => ({
+    veil: !document.getElementById('pause-veil').hidden, photo: window.nitro.photo.active, body: document.body.className,
+    focus: document.activeElement?.id,
+  }));
+  r.check('Esc goes back to the pause menu, on Photo mode, with the race camera back', toPause.veil && !toPause.photo && !/photo/.test(toPause.body)
+    && toPause.focus === 'btn-pause-photo', JSON.stringify(toPause));
   // Leaving tears the race down completely.
   await page.click('#btn-pause-leave');
   await page.waitForSelector('#screen-track:not([hidden])');

@@ -548,10 +548,30 @@
             <p class="menu-note" id="pause-note"></p>
             <nav class="menu-actions">
               <button class="btn primary" id="btn-resume" data-nav-back data-nav-default>Resume</button>
+              <button class="btn" id="btn-pause-photo">Photo mode</button>
               <button class="btn" id="btn-pause-settings">Settings</button>
               <button class="btn" id="btn-pause-leave">Leave race</button>
             </nav>
             <p class="menu-note keys" id="pause-keys"></p>
+          </div>
+        </div>
+
+        <!-- Photo mode (offline): the world stays paused and the camera flies free. -->
+        <div class="photo-bar" id="photo-bar" hidden>
+          <p class="photo-keys" id="photo-keys"></p>
+          <div class="photo-controls">
+            <label class="photo-field">Focus
+              <input type="range" id="photo-focus" min="0" max="100" step="1" value="50" />
+              <output id="photo-focus-out">20 m</output>
+            </label>
+            <button class="btn small" id="btn-photo-car">On car</button>
+            <label class="photo-field">Blur
+              <input type="range" id="photo-blur" min="0" max="100" step="1" value="0" />
+              <output id="photo-blur-out">Off</output>
+            </label>
+            <button class="btn small" id="btn-photo-ui">Hide UI</button>
+            <button class="btn small primary" id="btn-photo-save">Save photo</button>
+            <button class="btn small" id="btn-photo-back">Back</button>
           </div>
         </div>
       </section>

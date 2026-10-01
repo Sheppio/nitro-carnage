@@ -271,6 +271,42 @@ try {
   r.check('up on the D-pad changes the camera view in a race, and not in the pause menu', v0 === 'overhead' && v1 === 'helicopter' && v2 === v1,
     `${v0} -> ${v1}, paused: ${v2}`);
 
+  // Photo mode by pad: down to it and A, which is not also taken as Save. The
+  // left stick flies, RT rises, Y hides the UI, A saves, B goes back to the
+  // pause menu, and Menu from photo mode goes straight back to the race.
+  {
+    await tap(page, B.MENU);
+    await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden));
+    const onPhoto = await padTo(page, 'btn-pause-photo', B.DOWN);
+    let saves = 0;
+    page.on('download', () => saves++);
+    await tap(page, B.A);
+    const photoOn = await until(() => page.evaluate(() => window.nitro.photo.active || null));
+    await frames(page);
+    const cam0 = await page.evaluate(() => window.nitro.session.view.rig.camera.position.toArray());
+    await page.evaluate((rt) => { window.__pad.pad.axes[1] = -1; window.__pad.set(rt, true); }, B.RT);
+    const flew = await until(() => page.evaluate((c0) => {
+      const c = window.nitro.session.view.rig.camera.position.toArray();
+      return c[1] > c0[1] + 2 && Math.hypot(c[0] - c0[0], c[2] - c0[2]) > 2 || null;
+    }, cam0), { timeout: 5000 });
+    await page.evaluate((rt) => { window.__pad.pad.axes[1] = 0; window.__pad.set(rt, false); }, B.RT);
+    const savesBefore = saves;
+    await tap(page, B.Y);
+    const hid = await page.evaluate(() => document.body.classList.contains('photo-clean'));
+    await tap(page, B.Y);
+    await tap(page, B.A);
+    const saved = await until(() => saves > savesBefore || null, { timeout: 5000 });
+    r.check('Photo mode from the pause menu by pad: A opens it without saving, the stick and RT fly, Y hides the UI, A saves',
+      Boolean(onPhoto) && Boolean(photoOn) && savesBefore === 0 && Boolean(flew) && hid && Boolean(saved), JSON.stringify({ savesBefore, flew, hid }));
+    await tap(page, B.B);
+    const backToPause = await until(() => page.evaluate(() => (!window.nitro.photo.active && !document.getElementById('pause-veil').hidden) || null));
+    await tap(page, B.A);
+    await until(() => page.evaluate(() => window.nitro.photo.active || null));
+    await tap(page, B.MENU);
+    const raced = await until(() => page.evaluate(() => (!window.nitro.photo.active && document.getElementById('pause-veil').hidden && !window.nitro.session.paused) || null));
+    r.check('B in photo mode goes back to the pause menu, and Menu straight back to the race', Boolean(backToPause) && Boolean(raced));
+  }
+
   await tap(page, B.MENU);
   await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden));
   const onLeave = await padTo(page, 'btn-pause-leave', B.DOWN);

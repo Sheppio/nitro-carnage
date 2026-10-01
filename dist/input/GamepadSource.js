@@ -1,6 +1,8 @@
 import { applyDeadzone1, EMPTY_SAMPLE, filterAxis, HARDWARE_DEADZONE } from './sources.js';
 const AXIS_LEFT_X = 0;
 const AXIS_LEFT_Y = 1;
+const AXIS_RIGHT_X = 2;
+const AXIS_RIGHT_Y = 3;
 /** Standard Gamepad mapping. Xbox names first, PlayStation equivalent in the comment. */
 export const BTN = {
     A: 0, // Cross
@@ -13,6 +15,7 @@ export const BTN = {
     RT: 7, // R2
     VIEW: 8, // Share / Create
     MENU: 9, // Options / Start
+    L3: 10, // the left stick, pressed
     DPAD_UP: 12,
     DPAD_DOWN: 13,
     DPAD_LEFT: 14,
@@ -166,6 +169,22 @@ export class GamepadSource {
         const pressed = down && !this.viewHeld;
         this.viewHeld = down;
         return pressed;
+    }
+    /** Photo mode's reading of the pad (see `ui/PhotoMode.ts`), or null with none connected. */
+    readPhoto() {
+        const pad = this.pad();
+        if (!pad)
+            return null;
+        const axis = (i) => filterAxis(pad.axes[i] ?? 0);
+        return {
+            lx: axis(AXIS_LEFT_X),
+            ly: axis(AXIS_LEFT_Y),
+            rx: axis(AXIS_RIGHT_X),
+            ry: axis(AXIS_RIGHT_Y),
+            lt: trigger(pad.buttons[BTN.LT]),
+            rt: trigger(pad.buttons[BTN.RT]),
+            buttons: pad.buttons.map((b) => b?.pressed === true),
+        };
     }
     /**
      * Edge-detected menu navigation, so the front end is fully playable from the

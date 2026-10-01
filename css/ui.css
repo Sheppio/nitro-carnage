@@ -1067,6 +1067,41 @@ body[data-pad="none"] .pad-only { display: none; }
 .track-info { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
 .track-info b { color: var(--text); font-family: var(--display); letter-spacing: 0.04em; }
 
+/* ------------------------------------------------------------ photo mode */
+
+/* Photo mode (main.ts, ui/PhotoMode.ts): the race HUD goes, leaving the
+   photo bar along the bottom; Hide UI takes that too, for a clean screen. */
+body.photo .screen.hud > :not(#photo-bar) { visibility: hidden; }
+body.photo-clean #photo-bar, body.photo-clean .notice { visibility: hidden; }
+.photo-bar {
+  position: absolute;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  pointer-events: auto;
+  touch-action: none;
+}
+.photo-bar[hidden] { display: none; }
+.photo-keys { margin: 0 0 6px; font-size: 12px; line-height: 1.4; color: var(--muted); text-align: center; }
+.photo-keys b { color: var(--text); font-weight: 600; }
+.photo-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; }
+.photo-field { display: flex; align-items: center; gap: 6px; font: 600 12px var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+.photo-field input[type='range'] { width: 110px; accent-color: var(--accent); }
+.photo-field output { min-width: 3.6em; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* A phone: room for the sliders, and no keys line, which is about keys nobody has. */
+@media (pointer: coarse) {
+  .photo-keys { font-size: 11px; }
+}
+@media (max-width: 560px) {
+  .photo-field input[type='range'] { width: 84px; }
+}
+
 /* ------------------------------------------------------------- TV layout */
 
 /* A TV across the room (on by default on a console): the whole overlay is
@@ -1099,3 +1134,6 @@ body.tv .ammo { font-size: 15px; }
 /* The Custom camera's sliders, with each value beside its name. */
 #screen-experimental .field output { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 6px; }
 #screen-experimental .menu-note.warn { margin: 0 0 14px; }
+/* Photo mode's bar on a TV: held in from the edges with the rest of the HUD, and readable from the sofa. */
+body.tv .photo-keys { font-size: 14px; }
+body.tv .photo-field input[type='range'] { width: 130px; }

@@ -249,6 +249,17 @@ try {
   }), { timeout: 30000 });
   r.check('after GO every car moves on every screen', Boolean(moving));
 
+  // A race with other people in it does not stop for a photo: no Photo mode in a room's pause menu.
+  await b.keyboard.press('Escape');
+  await b.waitForSelector('#pause-veil:not([hidden])');
+  const noPhoto = await b.evaluate(() => {
+    const hidden = document.getElementById('btn-pause-photo').hidden;
+    window.nitro.photo.open(window.nitro.session);
+    return hidden && !window.nitro.photo.active;
+  });
+  await b.click('#btn-resume');
+  r.check('a room\'s pause menu has no Photo mode, and photo mode will not open online', noPhoto);
+
   // Alice fires (her autopilot drives; the trigger is hers): Bob sees the shot.
   // Deliberately, rather than waiting for a bot to feel like it — in CI a
   // one-lap race once ended before any bot had.

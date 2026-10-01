@@ -4,6 +4,8 @@ import type { InputSettings } from './settings.js';
 
 const AXIS_LEFT_X = 0;
 const AXIS_LEFT_Y = 1;
+const AXIS_RIGHT_X = 2;
+const AXIS_RIGHT_Y = 3;
 
 /** Standard Gamepad mapping. Xbox names first, PlayStation equivalent in the comment. */
 export const BTN = {
@@ -17,6 +19,7 @@ export const BTN = {
   RT: 7, // R2
   VIEW: 8, // Share / Create
   MENU: 9, // Options / Start
+  L3: 10, // the left stick, pressed
   DPAD_UP: 12,
   DPAD_DOWN: 13,
   DPAD_LEFT: 14,
@@ -43,6 +46,18 @@ const trigger = (button: GamepadButton | undefined): number => {
   const v = button.value > 0.06 ? Math.min(1, (button.value - 0.06) / 0.9) : 0;
   return v > 0 ? v : button.pressed ? 1 : 0;
 };
+
+/** The pad as photo mode reads it: both sticks, the triggers, and which buttons are down. */
+export interface PhotoPad {
+  lx: number;
+  ly: number;
+  rx: number;
+  ry: number;
+  lt: number;
+  rt: number;
+  /** Down, by `BTN` index. */
+  buttons: boolean[];
+}
 
 /** Edge-triggered menu input, consumed by `ui/GamepadNavigator`. */
 export interface NavPulse {
@@ -203,6 +218,22 @@ export class GamepadSource implements InputSource {
     const pressed = down && !this.viewHeld;
     this.viewHeld = down;
     return pressed;
+  }
+
+  /** Photo mode's reading of the pad (see `ui/PhotoMode.ts`), or null with none connected. */
+  readPhoto(): PhotoPad | null {
+    const pad = this.pad();
+    if (!pad) return null;
+    const axis = (i: number): number => filterAxis(pad.axes[i] ?? 0);
+    return {
+      lx: axis(AXIS_LEFT_X),
+      ly: axis(AXIS_LEFT_Y),
+      rx: axis(AXIS_RIGHT_X),
+      ry: axis(AXIS_RIGHT_Y),
+      lt: trigger(pad.buttons[BTN.LT]),
+      rt: trigger(pad.buttons[BTN.RT]),
+      buttons: pad.buttons.map((b) => b?.pressed === true),
+    };
   }
 
   /**
