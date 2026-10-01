@@ -105,6 +105,11 @@ h2 {
 .tagline { color: var(--muted); margin: 0 0 24px; }
 .menu-note { color: var(--muted); font-size: 13px; margin: 16px 0 0; }
 .version { color: var(--muted); font-size: 12px; margin: 12px 0 0; opacity: 0.7; }
+/* The version on the left, a link to the changelog on the right, one line. */
+.version-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 12px 0 0; }
+.version-row .version { margin: 0; }
+.changelog-link { text-decoration: none; }
+.changelog-link:hover, .changelog-link:focus-visible, .changelog-link.nav-focus { text-decoration: underline; opacity: 1; }
 
 .menu-actions {
   display: flex;
