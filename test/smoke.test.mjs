@@ -307,6 +307,11 @@ try {
     && toPause.focus === 'btn-pause-photo', JSON.stringify(toPause));
   // Leaving tears the race down completely.
   await page.click('#btn-pause-leave');
+  // Asked first (#31).
+  await page.waitForSelector('#confirm-veil:not([hidden])');
+  const question = await page.evaluate(() => ({ title: document.getElementById('confirm-title').textContent, yes: document.getElementById('btn-confirm-yes').textContent }));
+  r.check('Leaving asks first (a hotlap here)', question.title === 'Leave the hotlap?' && question.yes === 'Leave', JSON.stringify(question));
+  await page.click('#btn-confirm-yes');
   await page.waitForSelector('#screen-track:not([hidden])');
   const torn = await page.evaluate(() => ({ canvases: document.querySelectorAll('canvas.game-canvas').length, session: window.nitro.session }));
   r.check('leaving returns to the track screen and disposes the renderer', torn.canvases === 0 && torn.session === null);

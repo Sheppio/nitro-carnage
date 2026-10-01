@@ -311,6 +311,16 @@ try {
   await until(() => page.evaluate(() => !document.getElementById('pause-veil').hidden));
   const onLeave = await padTo(page, 'btn-pause-leave', B.DOWN);
   await tap(page, B.A);
+  // Asked first (#31), on Stay: B stays in the paused race, and Leave race in the question leaves.
+  const askedLeave = await until(() => page.evaluate(() => (!document.getElementById('confirm-veil').hidden && document.activeElement?.id === 'btn-confirm-no') || null));
+  await tap(page, B.B);
+  const stayedRace = await until(() => page.evaluate(() => (document.getElementById('confirm-veil').hidden && !document.getElementById('pause-veil').hidden && window.nitro.session !== null) || null));
+  r.check('Leave race asks first, on Stay, and B stays in the paused race', Boolean(askedLeave) && Boolean(stayedRace));
+  await padTo(page, 'btn-pause-leave', B.DOWN);
+  await tap(page, B.A);
+  await until(() => page.evaluate(() => !document.getElementById('confirm-veil').hidden || null));
+  await padTo(page, 'btn-confirm-yes', B.LEFT, 3);
+  await tap(page, B.A);
   const menu = await until(() => page.evaluate(() => !document.getElementById('screen-track').hidden && window.nitro.session === null));
   r.check('and Leave race goes back to the track screen it was started from', Boolean(onLeave) && Boolean(menu),
     `focus ${onLeave ? 'reached' : 'missed'} Leave, ${menu ? 'back on the track screen' : `still on ${await page.evaluate(() => [...document.querySelectorAll('.screen:not([hidden])')].map((x) => x.id).join())}`}`);

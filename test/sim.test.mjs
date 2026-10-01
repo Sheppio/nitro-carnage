@@ -983,6 +983,31 @@ const S0 = straight(TRACKS[0] && new World(TRACKS[0]).track);
 }
 
 {
+  // A missile into a mine (#29): the mine goes off, the missile is gone, and
+  // the car beyond it is untouched. The meeting is a pure function of the
+  // two, so a copy of the missile that is not live finds it too.
+  const { w, cars: [a, b] } = armedWorld(2);
+  place(w, a, S0);
+  place(w, b, S0 + 30);
+  const fx = Math.sin(a.car.yaw), fz = Math.cos(a.car.yaw);
+  const mine = w.armoury.place('x', 1, a.car.x + fx * 15, a.car.z + fz * 15, w.time - 1);
+  a.script = intent({ fireFront: true });
+  w.step();
+  a.script = intent();
+  const evs = stepFor(w, 1.5);
+  const blast = evs.find((e) => e.kind === 'blast');
+  check('a missile into a mine sets it off: both gone, and the car beyond it unhurt',
+    mine.done && w.armoury.mines.length === 0 && w.armoury.missiles.length === 0 && blast?.size > 1
+      && Math.hypot(blast.x - mine.x, blast.z - mine.z) < 1e-9 && !evs.some((e) => e.kind === 'hit') && b.hp === W.health);
+
+  const m = { owner: 'y', seq: 1, kind: 'front', x0: 0, z0: 0, dx: 1, dz: 0, yaw: 0, speed: 60, t0: 10, end: 12, wall: false, live: false, done: false };
+  const at = (x, z, t0 = 0) => Armoury.meets(m, { owner: 'z', seq: 1, x, z, t0, armAt: t0 + W.mine.arm, expires: t0 + W.mine.life, done: false });
+  check('a missile meets a mine on its path, armed, before the missile is spent; not one off to the side, behind it, too far, or not yet armed',
+    Math.abs(at(30, 1) - (10 + (30 - Math.sqrt((W.mine.radius + W.missileRadius) ** 2 - 1)) / 60)) < 1e-9
+      && at(30, 3) === null && at(-5, 0) === null && at(200, 0) === null && at(30, 0, 10) === null);
+}
+
+{
   // Wreck: to zero health, burn, back on the road with full health, ghosted,
   // and the kill credited.
   const { w, cars: [a, b] } = armedWorld(2);
@@ -1113,6 +1138,26 @@ console.log('\nhazards');
   const clear = trainSegment(w.track, trainAt(w.track, w.time - w.goTime));
   check('a car parked on the crossing is hit by the train: shoved clear and badly hurt', hit && e.hp <= 100 - 20 && Math.hypot(e.car.x - pose.x, e.car.z - pose.z) > 2,
     `${(100 - e.hp).toFixed(0)} damage`);
+
+  // A bot times the train rather than fearing it (#32). With the train on the
+  // crossing now but clear of it in a moment, a bot well back at speed drives
+  // on: it will be there after the train has gone. One about to meet the
+  // train on the rails stops.
+  {
+    const q = new World(docks, { laps: 0, countdown: 0, weapons: false });
+    const bot = q.addBot('b0', 0, skillFor(0, 'expert'), 1);
+    const busy = (t) => crossingBlocked(q.track, t - q.goTime);
+    while (!(busy(q.time) && !busy(q.time + 1))) q.step();
+    const drive = (back, speed) => {
+      place(q, bot, q.track.rail.s - back);
+      Object.assign(bot.car, { vx: Math.sin(bot.car.yaw) * speed, vz: Math.cos(bot.car.yaw) * speed });
+      return q.stopLine(bot);
+    };
+    const goes = drive(120, 28) === null;
+    while (!(!busy(q.time) && busy(q.time + 1.5))) q.step();
+    const stops = drive(40, 25) !== null;
+    check('a bot well back drives on through a crossing the train will have left, and stops for one it would meet', goes && stops);
+  }
 
   // Six bots, three laps of the docks: they wait for the train, and nobody is hit by it.
   const r = new World(docks, { laps: 3, countdown: 1, weapons: false });
@@ -1625,7 +1670,7 @@ console.log('\npickups');
   for (const def of tracks) {
     const t = new Track(def);
     const spots = pickupSpots(t, true);
-    if (spots.length !== SIM.pickups.rows * 3) { placed = false; notes.push(`${def.name}: ${spots.length}`); }
+    if (spots.length !== SIM.pickups.rows * 2) { placed = false; notes.push(`${def.name}: ${spots.length}`); }
     for (const p of spots) {
       const pr = t.project(p.x, p.z);
       if (Math.abs(pr.d) > t.halfWidth - 1) { onRoad = false; notes.push(`${def.name} off road ${pr.d.toFixed(1)}`); }
@@ -1637,7 +1682,19 @@ console.log('\npickups');
   check('every box stands on the road, inside the kerbs', onRoad, notes.join('; '));
   check('and none on the grid', clear, notes.join('; '));
   const one = pickupSpots(new Track(TRACKS[0]), true);
-  check('each row has one of each: ammo, repair, turbo', ['ammo', 'repair', 'turbo'].every((k) => one.filter((p) => p.kind === k).length === SIM.pickups.rows));
+  // Two boxes a row, each a kind drawn from the track's seed (#30): over the
+  // tracks, rows of a mix and rows of two of a kind, and every kind dealt.
+  const rows = tracks.flatMap((def) => {
+    const sp = pickupSpots(new Track(def), true);
+    return Array.from({ length: sp.length / 2 }, (_, k) => [sp[2 * k].kind, sp[2 * k + 1].kind]);
+  });
+  const twoAcross = tracks.every((def) => {
+    const sp = pickupSpots(new Track(def), true);
+    return sp.every((p, i) => i % 2 || (p.s === sp[i + 1].s && Math.hypot(p.x - sp[i + 1].x, p.z - sp[i + 1].z) > 4));
+  });
+  check('each row is two boxes across the road, at random: some a mix, some two of a kind, every kind dealt',
+    twoAcross && rows.some(([a, b]) => a !== b) && rows.some(([a, b]) => a === b) && ['ammo', 'repair', 'turbo'].every((k) => rows.some((r) => r.includes(k))),
+    `${rows.filter(([a, b]) => a === b).length} of ${rows.length} rows two of a kind`);
   check('with weapons off every box is turbo', pickupSpots(new Track(TRACKS[0]), false).every((p) => p.kind === 'turbo'));
   const noTurbo = pickupSpots(new Track(TRACKS[0]), true, false);
   check('with the turbo off there are no turbo boxes, but the rows stay full',
@@ -1655,6 +1712,8 @@ console.log('\npickups');
   const e = w.addCar('p', 0, () => ({ throttle: 0, brake: 0, steer: 0, handbrake: false, turbo: false, fireFront: false, fireRear: false }));
   w.step();
   const pk = w.pickups;
+  // The kinds are dealt at random: deal this track's four boxes by hand.
+  ['ammo', 'ammo', 'repair', 'turbo'].forEach((k, i) => (pk.spots[i].kind = k));
   const at = (kind) => pk.spots.findIndex((p) => p.kind === kind);
   const put = (i) => { e.car.x = pk.spots[i].x; e.car.z = pk.spots[i].z; e.car.vx = e.car.vz = 0; };
   e.ammo = { front: 1, rear: 0, mines: 0 };

@@ -1,17 +1,24 @@
 import { SIM } from '../config.js';
+import { mulberry32 } from '../util.js';
 const P = SIM.pickups;
+const KINDS = ['ammo', 'repair', 'turbo'];
+/** A row's two boxes: either side of the middle of the road, as a fraction of its half-width. */
+const LANES = [-1, 1];
 /**
- * Where the boxes stand: `P.rows` rows spread round the lap, each a box per
- * lane. A row goes on the straightest piece of road near its share of the
- * lap, clear of the start line, the ramps and any level crossing. Only the
- * kinds that would do something are laid: with weapons off, ammo and repairs
- * would not; with the turbo off, a turbo box would not. Their lanes get the
- * row's other kinds instead, and with nothing left there are no rows at all.
+ * Where the boxes stand: `P.rows` rows spread round the lap, each two boxes
+ * across the road. A row goes on the straightest piece of road near its share
+ * of the lap, clear of the start line, the ramps and any level crossing.
+ * Each box is a kind drawn at random (#30) — a row may be a mix, or two of a
+ * kind — from the track's seed, so every client deals the same. Only the
+ * kinds that would do something are drawn: with weapons off, ammo and repairs
+ * would not; with the turbo off, a turbo box would not. With nothing left
+ * there are no rows at all.
  */
 export function pickupSpots(track, weapons, turbo = true) {
-    const useful = (k) => (k === 'turbo' ? turbo : weapons);
-    if (!weapons && !turbo)
+    const kinds = KINDS.filter((k) => (k === 'turbo' ? turbo : weapons));
+    if (!kinds.length)
         return [];
+    const rand = mulberry32(track.def.seed ^ 0x9e3779b9);
     const L = track.length;
     const spacing = L / track.n;
     const heading = (s) => track.poseAt(s).yaw;
@@ -27,7 +34,6 @@ export function pickupSpots(track, weapons, turbo = true) {
         const d = Math.abs(((s - at) % L + L * 1.5) % L - L / 2);
         return d < r;
     };
-    const kinds = [['ammo', 'repair', 'turbo'], ['turbo', 'ammo', 'repair'], ['repair', 'turbo', 'ammo']];
     const out = [];
     for (let r = 0; r < P.rows; r++) {
         const target = L * ((r + 0.5) / P.rows);
@@ -47,29 +53,19 @@ export function pickupSpots(track, weapons, turbo = true) {
                 best = s;
             }
         }
+        // Drawn whether or not the row finds road, so one row's luck never
+        // changes the next row's boxes.
+        const drawn = LANES.map(() => kinds[Math.floor(rand() * kinds.length)]);
         if (best < 0)
             continue;
         const pose = track.poseAt(best);
-        const lanes = [-1, 0, 1];
-        lanes.forEach((lane, k) => {
-            const [x, z] = track.offsetPoint(pose.i, lane * track.halfWidth * 0.55);
+        LANES.forEach((lane, k) => {
+            const [x, z] = track.offsetPoint(pose.i, lane * track.halfWidth * 0.5);
             const frac = best / spacing - pose.i;
-            out.push({
-                x: x + track.line.tx[pose.i] * frac, z: z + track.line.tz[pose.i] * frac, s: best,
-                kind: kindFor(kinds[r % kinds.length], k, useful),
-            });
+            out.push({ x: x + track.line.tx[pose.i] * frac, z: z + track.line.tz[pose.i] * frac, s: best, kind: drawn[k] });
         });
     }
     return out;
-}
-/** Lane `k`'s kind in a row, or the next useful one along the row. */
-function kindFor(row, k, useful) {
-    for (let o = 0; o < row.length; o++) {
-        const kind = row[(k + o) % row.length];
-        if (useful(kind))
-            return kind;
-    }
-    return row[k];
 }
 /** The boxes in one race, and when each is back. */
 export class Pickups {

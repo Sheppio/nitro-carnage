@@ -900,11 +900,21 @@ $('btn-results-menu').addEventListener('click', toMenu);
 $('btn-pause').addEventListener('click', () => openPause());
 $('btn-resume').addEventListener('click', closePause);
 $('btn-pause-photo').addEventListener('click', openPhoto);
-/** Leaving a room loses it (and tonight's scores): asked first. Offline, a race just ends. */
+/**
+ * Leaving a room loses it (and tonight's scores): asked first. Leaving a race
+ * offline is asked too (#31): Leave race sits one press from Resume, and the
+ * race it throws away can't be had back.
+ */
 async function leave() {
     if (room) {
         const code = room.net.room.roomId;
         const yes = await confirm.ask(`Leave room ${code}?`, 'You can come back with the same code, but tonight\'s scores stay behind.', 'Leave room');
+        if (!yes)
+            return;
+    }
+    else if (session) {
+        const hotlap = session.mode === 'hotlap';
+        const yes = await confirm.ask(hotlap ? 'Leave the hotlap?' : 'Leave the race?', hotlap ? 'Your best laps are kept.' : 'The race ends here, and nothing from it counts.', hotlap ? 'Leave' : 'Leave race');
         if (!yes)
             return;
     }

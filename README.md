@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.106**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.107**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -24,7 +24,8 @@ up to six players. Bots fill the empty grid slots.
 >   and a ☆ to make it a favourite. The Car type puts everyone in the host's car
 >   (*Single*), their own (*Any*), no two alike (*Distinct*) or a fresh deal each race
 >   (*Random*). The turbo is switched off for now (`FEATURES.turbo` in `config.ts`).
-> - **Game night.** Pickup boxes on the road (ammo, repairs). A room keeps
+> - **Game night.** Pickup boxes on the road (ammo, repairs; turbo too when it is on), two to a row, each
+>   a kind dealt at random from the track's seed, so a row may be a mix or a pair. A room keeps
 >   score across the evening, hands out awards, shows a kill feed and a podium, and
 >   the host can start a rematch straight from the results. A TV layout for consoles.
 > - **Championship.** The host lines up tracks in the lobby, built-in or seeded, and
@@ -68,7 +69,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 931 checks: simulation and networking (Node), and real browsers
+npm test           # 938 checks: simulation and networking (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, and `?quality=low` to
@@ -329,6 +330,9 @@ Below Hard a bot leaves the turbo alone, and at each lower level it fires less o
 Over 36 tracks each level is 5–9% slower a lap than the one above. At Indianapolis the
 best bot's lap is 31.8 s on Easy, 29.4 on Medium, 27.7 on Hard and 26.3 on Expert, and
 a test holds that order. In a room, the bots follow the host's setting.
+
+**Leave race asks first** ("Leave the race?", on Stay), since it is one press from
+Resume and a race thrown away can't be had back. A hotlap asks too, and keeps its best laps.
 
 **Leaving a race goes back to where it was started.** Leave race, or Back on the
 results, returns to the track screen, set up as it was, rather than the top menu. So
@@ -732,6 +736,11 @@ This follows PLAN §5.1, the same trade-off glitchburst made:
   to everyone.
 - **Mines work the other way round.** The car that drives over a mine notices it,
   takes the damage, and tells everyone to clear it.
+- **A missile into a mine sets it off**, and both are gone. Nobody decides it: a
+  missile's flight and a mine's spot are both fixed, so the moment one meets the other
+  is a pure function of the two (`Armoury.meets`), and every client finds it without a
+  message. A screen that hears of either late still finds the meeting. A mine only
+  counts once armed, so a rear missile doesn't blow up the mine its own car just dropped.
 - **A wreck is announced by its victim**, naming the killer, so every screen credits
   the same kill.
 
@@ -829,7 +838,14 @@ of race time (`sim/train.ts`), and every client already agrees on race time, so 
 client runs the same train. So does a late joiner, with no extra message. A network
 test races three clients on the Docks and finds the train at the same metre on all of
 them. The crossing's lights and booms come on 5 s before the train reaches the road.
-Bots read the same timetable and wait at the line. A car that doesn't wait is shoved
+Bots read the same timetable and wait at the line, but only when the train will be on
+the road while they would be (#32). They used to stop if the crossing was busy at any
+moment from now until they got there, timed at the speed they were doing. So a bot held
+for a train that would be long gone, and braked on the straight for one it would have
+beaten. Now each bot times its run to the rails along the racing line, at its own pace,
+soonest and latest, and stops only if the train is across the road in between. At
+Expert, six bots spend about a quarter less time at the line, and none is hit at any
+level. A car that doesn't wait is shoved
 clear and badly hurt, and that is the owner's own client applying it to its own car,
 like every other collision.
 
@@ -1397,8 +1413,9 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     autopilot lap within 5% of par.
   - **Hazards:** the train is a pure function of race time and alternates direction; it
     blocks the crossing for a few seconds with the lights on 5 s ahead; it never
-    reaches past its rails; a car parked on the crossing is hit; six bots race the
-    Docks, wait for the train, and none is hit; a car in the harbour is back on the road
+    reaches past its rails; a car parked on the crossing is hit; a bot well back drives
+    on through a crossing the train will have left, and stops for one it would meet;
+    six bots race the Docks, wait for the train, and none is hit; a car in the harbour is back on the road
     within a second; a car steering across oil barely turns.
   - **Physics:** 0–100 km/h time; top speed; turbo; braking distance; reverse; steering
     lock against speed; grip order tarmac > dirt > grass > oil; handbrake slides; no
@@ -1421,7 +1438,8 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     a front missile hits the car ahead for 20 and never its shooter; rear missiles
     once the mines are gone, with cooldowns; an empty rack fires nothing; nobody fires
     before the start grace; shots pass through ghosts and finishers; a mine is
-    harmless until armed, then hurts once and is gone (its owner too); a wreck
+    harmless until armed, then hurts once and is gone (its owner too); a missile into
+    a mine sets it off, both gone and the car beyond unhurt; a wreck
     credits the kill, burns, and returns with full health, ghosted; walls hurt only past
     12 m/s, and credit a recent shooter; six armed bots finish three laps with some
     wrecks, and the same armed race twice is identical.

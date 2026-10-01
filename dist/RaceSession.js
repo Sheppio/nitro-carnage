@@ -489,7 +489,7 @@ export class RaceSession {
                 this.input.rumble(HAPTIC.damage.weak, HAPTIC.damage.strong, HAPTIC.damage.ms);
         }
         else if (ev.kind === 'blast') {
-            this.view.explode(ev.x, ev.z, 0.6, focus);
+            this.view.explode(ev.x, ev.z, ev.size ?? 0.6, focus);
         }
         else if (ev.kind === 'wreck') {
             this.view.explode(ev.x, ev.z, 2, focus);
@@ -538,7 +538,7 @@ export class RaceSession {
                 a.explosion(this.hear(ev.x, ev.z), ev.weapon === 'mine' ? 1.3 : 1);
                 break;
             case 'blast':
-                a.explosion(this.hear(ev.x, ev.z), 0.6);
+                a.explosion(this.hear(ev.x, ev.z), ev.size ? 1.3 : 0.6);
                 break;
             case 'wreck':
                 a.explosion(this.hear(ev.x, ev.z), 1.8);

@@ -385,6 +385,16 @@ try {
 
   const onLeave = await goTo(page, 'btn-pause-leave');
   await page.keyboard.press('Enter');
+  // Asked first (#31): Esc stays, and Enter on Leave race leaves.
+  const askedLeave = await until(() => page.evaluate(() => !document.getElementById('confirm-veil').hidden && document.activeElement?.id === 'btn-confirm-no'));
+  await page.keyboard.press('Escape');
+  const stayedRace = await until(() => page.evaluate(() => document.getElementById('confirm-veil').hidden && !document.getElementById('pause-veil').hidden && window.nitro.session !== null));
+  r.check('Leave race asks first, and Esc stays in the paused race', Boolean(askedLeave) && Boolean(stayedRace));
+  await goTo(page, 'btn-pause-leave');
+  await page.keyboard.press('Enter');
+  await until(() => page.evaluate(() => !document.getElementById('confirm-veil').hidden));
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Enter');
   const left = await until(() => page.evaluate(() => !document.getElementById('screen-track').hidden && window.nitro.session === null
     && document.getElementById('track-mode').textContent === 'Quick race'));
   r.check('arrows and Enter on Leave race go back to the track screen it was started from', onLeave && Boolean(left));

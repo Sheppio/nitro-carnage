@@ -135,6 +135,26 @@ export class Armoury {
         }
         return best;
     }
+    /**
+     * When a missile flies into a mine (#29), or null if it never does: the
+     * moment its nose comes within the mine's trigger radius, while the mine
+     * is armed and before either is spent. A pure function of the two, like
+     * the flight itself, so every client finds the same meeting without a
+     * message — and one that hears of either late still finds it.
+     */
+    static meets(m, mine) {
+        const reach = W.mine.radius + W.missileRadius;
+        const wx = mine.x - m.x0, wz = mine.z - m.z0;
+        const along = wx * m.dx + wz * m.dz;
+        const side2 = wx * wx + wz * wz - along * along;
+        if (side2 >= reach * reach)
+            return null;
+        const half = Math.sqrt(reach * reach - side2);
+        if (along + half < 0)
+            return null; // behind the muzzle
+        const t = m.t0 + Math.max(0, along - half) / m.speed;
+        return t <= m.end && t >= mine.armAt && t < mine.expires ? t : null;
+    }
     /** Does a car's capsule sit on this mine? */
     static onMine(mine, c) {
         if (!c.hittable || c.y > 0.6)

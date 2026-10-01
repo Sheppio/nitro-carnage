@@ -123,7 +123,7 @@ export const SIM = {
     },
     /** Boxes on the road (see `sim/pickups.ts`). */
     pickups: {
-        /** Rows of three across the road, spread round the lap. */
+        /** Rows of two across the road, spread round the lap. */
         rows: 3,
         /** Seconds a taken box is gone. */
         respawn: 8,

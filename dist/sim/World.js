@@ -19,6 +19,8 @@ export const OFF_COURSE_RESPAWN = 1;
 export const GHOST_TIME = 2;
 /** How far back from its last good spot a respawned car is placed, metres. */
 const RESPAWN_BACK = 12;
+/** How far either side of the rails, along the road, a car can touch the train, metres. */
+const CROSSING_REACH = SIM.car.capsuleHalf + SIM.car.radius + TRAIN_HALF_WIDTH + 1;
 const W = SIM.weapons;
 /**
  * One race's worth of simulation, advanced in fixed 60 Hz steps.
@@ -48,6 +50,8 @@ export class World {
     wentGreen = false;
     /** When each pair of cars last touched, world seconds, keyed `a|b` with a < b. */
     contacts = new Map();
+    /** The skill of each bot, by car id: how fast it will take the road to the crossing. */
+    skills = new Map();
     /** Every missile and mine in the race. */
     armoury;
     /** The boxes on the road; none in a free drive or a hotlap. */
@@ -116,6 +120,7 @@ export class World {
         const state = createAutopilot(seed, skill);
         const line = racingLine(this.track);
         const entrant = this.addCar(id, slot, () => IDLE_INTENT, stats);
+        this.skills.set(id, skill);
         entrant.drive = () => autopilot(state, entrant.car, this.track, line, this.rivalsOf(entrant.id), this.time, STEP, this.stopLine(entrant));
         return entrant;
     }
@@ -145,10 +150,42 @@ export class World {
         // on into the train; short of the rails, it holds where it is.
         if (this.track.deltaS(e.s, rail.s - 6) < 0 || dist > 160)
             return null;
-        const v = Math.max(4, Math.hypot(e.car.vx, e.car.vz));
         const now = this.time - this.goTime;
-        // Busy from now until a little after we would be over the rails?
-        return crossingBusy(this.track, now, now + (dist + 2 * this.track.wallOffset + 10) / v + 1) ? line : null;
+        // Busy while we would be over the rails? Only that window counts (#32):
+        // asking whether the crossing was busy at any moment from now until then
+        // held a bot for a train that would be long gone by the time it got there,
+        // and, timed at the car's speed as it was, braked one on the straight for
+        // a train it would have beaten by seconds. The window runs from the
+        // earliest the car could reach the road under the train, driving the
+        // racing line flat out, to the latest it would be clear of it, driving it
+        // gently, with a margin either side.
+        const rails = this.track.deltaS(e.s, rail.s);
+        const v = Math.hypot(e.car.vx, e.car.vz);
+        const sk = this.skills.get(e.id);
+        const pace = sk?.pace ?? 1, top = (sk?.top ?? 1) * SIM.car.topSpeed;
+        const enter = this.driveTime(e.s, rails - CROSSING_REACH, v, pace * 1.05, SIM.car.topSpeed, 1) - 0.5;
+        const leave = this.driveTime(e.s, rails + CROSSING_REACH, v, pace * 0.95, top, 0.8) + 0.5;
+        return crossingBusy(this.track, now + Math.max(0, enter), now + leave) ? line : null;
+    }
+    /**
+     * Seconds to drive `dist` metres down the road from `s`, starting at `v`:
+     * pulling away as the engine does (times `pull`), up to `top`, and slowing
+     * for the corners the racing line slows for (its speed times `pace`).
+     */
+    driveTime(s, dist, v, pace, top, pull) {
+        const line = racingLine(this.track);
+        const spacing = this.track.length / this.track.n;
+        const C = SIM.car;
+        let t = 0;
+        for (let a = 0; a < dist; a += 2) {
+            const i = Math.floor(this.track.wrapS(s + a) / spacing) % this.track.n;
+            const r = v / C.topSpeed;
+            const accel = Math.max(0.5, ((C.engineForce * Math.max(0, 1 - r * r * r) - C.drag * v * v) / C.mass) * pull);
+            const next = Math.max(4, Math.min(Math.sqrt(v * v + 2 * accel * 2), line.speed[i] * pace, top));
+            t += 4 / (v + next || 1);
+            v = next;
+        }
+        return t;
     }
     /**
      * Report something that happened elsewhere — another client's shot or mine,
@@ -388,13 +425,33 @@ export class World {
         for (const m of arm.missiles) {
             if (m.done)
                 continue;
+            // The first mine in its way, if it gets there this step.
+            let mine = null;
+            let meet = Infinity;
+            for (const mn of arm.mines) {
+                if (mn.done)
+                    continue;
+                const at = Armoury.meets(m, mn);
+                if (at !== null && at <= t1 && at < meet) {
+                    meet = at;
+                    mine = mn;
+                }
+            }
             if (m.live && t1 > m.t0) {
-                const hit = arm.sweep(m, Math.max(t0, m.t0), Math.min(t1, m.end), targets);
+                const hit = arm.sweep(m, Math.max(t0, m.t0), Math.min(t1, m.end, meet), targets);
                 if (hit) {
                     m.done = true;
                     this.hit(hit.target.id, m.owner, m.seq, m.kind, W[m.kind].damage, hit.x, hit.z);
                     continue;
                 }
+            }
+            if (mine) {
+                // The mine goes off and takes the missile with it. Every client sees
+                // the same meeting (see `Armoury.meets`), so nothing is sent.
+                m.done = true;
+                mine.done = true;
+                this.events.push({ kind: 'blast', x: mine.x, z: mine.z, size: 1.4 });
+                continue;
             }
             if (t1 >= m.end) {
                 m.done = true;
