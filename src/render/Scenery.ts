@@ -122,9 +122,9 @@ export class Scenery {
   update(time: number): void {
     if (!this.sails) return;
     const m = new THREE.Matrix4();
-    // Tilted well back — a real windshaft tilts a little, these a lot — so
-    // from a camera looking down the turning cross shows, not an edge.
-    const tilt = new THREE.Matrix4().makeRotationX(-0.95);
+    // Near upright, tilted back about 11 degrees as a real windshaft is: the
+    // least that keeps a sail pointing straight down clear of the gallery.
+    const tilt = new THREE.Matrix4().makeRotationX(-0.2);
     const spin = new THREE.Matrix4();
     this.hubs.forEach((h, i) => {
       m.makeRotationY(h.yaw).setPosition(h.x + Math.sin(h.yaw) * 3.4, 15, h.z + Math.cos(h.yaw) * 3.4);
