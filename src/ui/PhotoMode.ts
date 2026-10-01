@@ -1,5 +1,6 @@
 import { BTN } from '../input/GamepadSource.js';
 import type { GamepadSource } from '../input/GamepadSource.js';
+import { isConsole } from '../input/settings.js';
 import type { RaceSession } from '../RaceSession.js';
 import type { PhotoSettings } from '../render/GameView.js';
 import type { PhotoMove } from '../render/PhotoCamera.js';
@@ -33,7 +34,8 @@ const KEYS = new Set([
  * Photo mode, from the pause menu in an offline race: the world stays
  * stopped, the pause card goes, and the player flies a free camera to frame
  * a shot, with depth of field, the UI off for a clean view, and a PNG saved
- * on a button.
+ * on a button: to the gallery through the share sheet on a phone, as a
+ * download elsewhere, and not at all on a console, whose browser blocks downloads.
  *
  * Keyboard: WASD moves, E and Q (or Space) go up and down, Shift is faster,
  * the arrows or a mouse drag look round, the wheel zooms. Pad: the left stick
@@ -43,8 +45,8 @@ const KEYS = new Set([
 export class PhotoMode {
   /** Back to the pause menu (Esc, B, Back). */
   onBack: (() => void) | null = null;
-  /** A photo was saved, or could not be. */
-  onSaved: ((ok: boolean) => void) | null = null;
+  /** A photo was saved, or could not be; null when the player closed the share sheet without saving. */
+  onSaved: ((ok: boolean | null) => void) | null = null;
 
   private session: RaceSession | null = null;
   private photo: PhotoSettings = { focus: 20, blur: 0 };
@@ -61,8 +63,11 @@ export class PhotoMode {
   private padWas: boolean[] | null = null;
   private family = '';
   private saving = false;
+  /** Xbox Edge and the PlayStation browser block downloads, so a console has no Save. */
+  private readonly canSave = !isConsole();
 
   constructor(private gamepad: GamepadSource, private surface: HTMLElement) {
+    $('btn-photo-save').hidden = !this.canSave;
     $('photo-focus').addEventListener('input', (e) => {
       this.photo.focus = fromSlider(Number((e.target as HTMLInputElement).value));
       this.showValues(false);
@@ -128,10 +133,15 @@ export class PhotoMode {
     window.removeEventListener('pointercancel', this.onPointerUp);
   }
 
-  /** Save the frame as a PNG: the scene only, never the page's UI. */
+  /**
+   * Save the frame as a PNG: the scene only, never the page's UI. On a phone
+   * it goes to the share sheet, whose Save Image (iOS) or Save to gallery
+   * (Android) puts it with the player's photos; a page cannot write there
+   * itself. Anywhere the sheet can't take a file, it downloads.
+   */
   async save(): Promise<void> {
     const s = this.session;
-    if (!s || this.saving) return;
+    if (!s || this.saving || !this.canSave) return;
     this.saving = true;
     try {
       const blob = await s.snapshot();
@@ -139,13 +149,23 @@ export class PhotoMode {
         this.onSaved?.(false);
         return;
       }
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `nitrocarnage-${stamp(new Date())}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      const name = `nitrocarnage-${stamp(new Date())}.png`;
+      const file = new File([blob], name, { type: 'image/png' });
+      if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] });
+          this.onSaved?.(true);
+          return;
+        } catch (e) {
+          // Closed without saving: nothing to say. Anything else (the tap's
+          // permission ran out while the frame rendered) falls back to a download.
+          if ((e as DOMException).name === 'AbortError') {
+            this.onSaved?.(null);
+            return;
+          }
+        }
+      }
+      download(blob, name);
       this.onSaved?.(true);
     } finally {
       this.saving = false;
@@ -273,14 +293,15 @@ export class PhotoMode {
     const l = (a: Parameters<typeof label>[0]): string => label(a, family);
     const stick = family === 'playstation' ? 'L3' : 'LS';
     const y = family === 'playstation' ? '△' : 'Y';
+    const save = (key: string): string => (this.canSave ? `<b>Save</b> ${key} · ` : '');
     $('photo-keys').innerHTML = touch
       ? '<b>Look</b> drag · <b>Move</b> two fingers · <b>Forward</b> pinch · <b>Focus</b> tap · <b>UI</b> tap when hidden'
       : family === 'none'
         ? '<b>Move</b> W A S D · <b>Up / down</b> E / Q · <b>Fast</b> Shift · <b>Look</b> arrows or drag · <b>Zoom</b> wheel · ' +
-          '<b>Focus</b> click, or [ ] · <b>On car</b> F · <b>Blur</b> − = · <b>Hide UI</b> H · <b>Save</b> P · <b>Back</b> Esc'
+          `<b>Focus</b> click, or [ ] · <b>On car</b> F · <b>Blur</b> − = · <b>Hide UI</b> H · ${save('P')}<b>Back</b> Esc`
         : `<b>Move</b> left stick · <b>Look</b> right stick · <b>Up / down</b> ${l('throttle')} / ${l('brake')} · <b>Fast</b> ${stick} · ` +
           `<b>Zoom</b> D-pad ↑↓ · <b>Focus</b> ${l('prev')} / ${l('next')} · <b>On car</b> ${l('delete')} · <b>Blur</b> D-pad ←→ · ` +
-          `<b>Hide UI</b> ${y} · <b>Save</b> ${l('confirm')} · <b>Back</b> ${l('back')} · <b>Resume</b> ${l('menu')}`;
+          `<b>Hide UI</b> ${y} · ${save(l('confirm'))}<b>Back</b> ${l('back')} · <b>Resume</b> ${l('menu')}`;
   }
 
   /* ---------------------------------------------------------------- input */
@@ -369,6 +390,17 @@ export class PhotoMode {
     const [a, b] = [...this.pointers.values()];
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
   }
+}
+
+/** Hand a file to the browser as a download. */
+function download(blob: Blob, name: string): void {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 
 /** 20261001-142233: a file name's date and time, in the player's own time zone. */

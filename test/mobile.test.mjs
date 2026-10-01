@@ -203,6 +203,35 @@ try {
   r.check('photo mode by touch: every control on screen and tappable, a drag looks, a pinch moves, a tap focuses, Hide UI hides and a tap shows it again',
     photoBad.length === 0 && photoOff.length === 0 && Boolean(v1) && Boolean(v2) && Boolean(tapFocus) && hiddenUi && Boolean(shownUi),
     JSON.stringify({ photoBad, photoOff, looked: Boolean(v1), moved: Boolean(v2), tapFocus, hiddenUi, shownUi }));
+
+  // Save photo on a phone goes to the share sheet, whose Save Image puts it in
+  // the gallery, not a download. Closing the sheet says nothing and downloads nothing.
+  let downloads = 0;
+  page.on('download', () => downloads++);
+  await page.evaluate(() => {
+    window.__shared = [];
+    window.__shareFails = false;
+    navigator.canShare = (data) => Array.isArray(data?.files) && data.files.length > 0;
+    navigator.share = async (data) => {
+      if (window.__shareFails) throw new DOMException('closed', 'AbortError');
+      window.__shared.push(...data.files.map((f) => ({ name: f.name, type: f.type, size: f.size })));
+    };
+  });
+  await page.tap('#btn-photo-save');
+  const shared = await until(() => page.evaluate(() => window.__shared[0] ?? null), { timeout: 5000 });
+  const savedNote = await until(() => page.evaluate(() => {
+    const n = document.querySelector('.notice');
+    return (n && !n.hidden && n.textContent.includes('Photo saved')) || null;
+  }), { timeout: 3000 });
+  await page.evaluate(() => { window.__shareFails = true; document.querySelector('.notice').hidden = true; });
+  await page.tap('#btn-photo-save');
+  await new Promise((done) => setTimeout(done, 800));
+  const afterCancel = await page.evaluate(() => ({ shared: window.__shared.length, notice: !document.querySelector('.notice').hidden }));
+  r.check('Save photo on a phone hands a PNG to the share sheet, not a download; closing the sheet says nothing',
+    shared?.type === 'image/png' && /^nitrocarnage-\d{8}-\d{6}\.png$/.test(shared.name) && shared.size > 0 && Boolean(savedNote)
+      && downloads === 0 && afterCancel.shared === 1 && !afterCancel.notice,
+    JSON.stringify({ shared, savedNote, downloads, afterCancel }));
+
   await page.tap('#btn-photo-back');
   await until(() => page.evaluate(() => (!window.nitro.photo.active && !document.getElementById('pause-veil').hidden) || null));
   await page.tap('#btn-resume');

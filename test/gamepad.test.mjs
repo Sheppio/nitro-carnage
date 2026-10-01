@@ -505,6 +505,25 @@ try {
   const dropped = await until(() => tv.evaluate(() => (!document.getElementById('pause-veil').hidden && window.nitro.session.paused
     && document.getElementById('pause-note').textContent.includes('Controller disconnected')) || null));
   r.check('a controller disconnecting mid-race pauses it and says why', Boolean(dropped));
+
+  // Photo mode on a console: downloads are blocked there, so no Save button,
+  // no Save in the controls line, and asking for one saves nothing.
+  let tvSaves = 0;
+  tv.on('download', () => tvSaves++);
+  await tv.evaluate(() => window.nitro.photo.open(window.nitro.session));
+  await frames(tv);
+  const tvPhoto = await tv.evaluate(() => ({
+    button: document.getElementById('btn-photo-save').hidden,
+    keys: document.getElementById('photo-keys').textContent,
+  }));
+  await tv.evaluate(() => window.nitro.photo.save());
+  await tv.keyboard.press('KeyP');
+  await new Promise((done) => setTimeout(done, 500));
+  const tvPhotoBad = await offscreen('#photo-bar');
+  await tv.evaluate(() => window.nitro.photo.close());
+  r.check('Xbox photo mode: no Save button or Save in the controls line, nothing downloads, and the bar fits',
+    tvPhoto.button && !tvPhoto.keys.includes('Save') && tvPhoto.keys.includes('Back') && tvSaves === 0 && !tvPhotoBad.length,
+    JSON.stringify({ ...tvPhoto, tvSaves, tvPhotoBad }));
   await tv.evaluate(() => window.nitro.leave());
   await tv.close();
 

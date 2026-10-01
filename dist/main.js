@@ -790,7 +790,10 @@ function closePhoto() {
     nav.focusOn($('btn-pause-photo'));
 }
 photo.onBack = closePhoto;
-photo.onSaved = (ok) => notice(ok ? 'Photo saved' : 'The photo could not be saved');
+photo.onSaved = (ok) => {
+    if (ok !== null)
+        notice(ok ? 'Photo saved' : 'The photo could not be saved');
+};
 /**
  * The race stops by itself when the player can't be driving: the controller
  * went (a flat battery, a cable), or the game lost the screen (the Xbox Guide
