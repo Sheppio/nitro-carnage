@@ -10,6 +10,12 @@
 - If a working branch already exists on GitHub, check whether it is behind
   `origin/main` before building on it.
 
+## Pushing
+
+- **Always push finished work to `main`** as well as the working branch, without
+  asking. Fetch `origin/main` first; if it has moved on, merge it in (and renumber
+  the changelog entry) before pushing.
+
 ## Working on GitHub issues
 
 - When starting work on a GitHub issue, assign it and add the `in progress` label;
