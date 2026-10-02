@@ -18,8 +18,9 @@
 
 ## Releasing
 
-- `main` is development: Cloudflare builds a development copy from every push to it.
-  `prod` is the live game: Cloudflare production builds only from `prod`.
+- `main` is development: Cloudflare builds https://dev.nitro-carnage.helloshep.com/
+  from every push to it. `prod` is the live game at https://nitro-carnage.helloshep.com/,
+  which Cloudflare builds only from `prod`. Check changes on the dev site.
 - Never commit to `prod`, and only move it when the user asks for a release.
 - A release fast-forwards `prod` to `main`: `git fetch origin main && git push origin
   origin/main:prod`. No merge commit and no new version: the live game gets exactly
