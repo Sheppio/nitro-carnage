@@ -37,6 +37,8 @@ export interface OptOut {
   automated?: boolean;
   /** This device was opted out with `?noanalytics` (one of ours). */
   device?: boolean;
+  /** This device was opted in with `?analytics=on`: a yes from the person, which outranks Do Not Track. */
+  optedIn?: boolean;
 }
 
 /**
@@ -57,7 +59,7 @@ export function analyticsStatus(hostname: string, search: string, out: OptOut = 
   if (params.get('analytics') === 'force' && (hostname === 'localhost' || hostname === '127.0.0.1')) return { env: 'test', off: null };
   if (out.automated) return off('automated');
   if (out.device) return off('device opted out');
-  if (out.doNotTrack) return off('do not track');
+  if (out.doNotTrack && !out.optedIn) return off('do not track');
   const env = ANALYTICS.sites[hostname] ?? null;
   return env ? { env, off: null } : off('not our site');
 }
@@ -213,17 +215,18 @@ export function deviceClass(tv: boolean): string {
 /**
  * Statistics for this page: on only on the game's own sites. `?noanalytics`
  * also opts this device out for good (our own devices, so our play stays out
- * of the numbers); `?analytics=on` opts it back in.
+ * of the numbers); `?analytics=on` opts it in for good, Do Not Track or not.
  */
 export function startAnalytics(store: { get(k: string): string; set(k: string, v: string): void }, key: string): Analytics {
   const params = new URLSearchParams(location.search);
   const optKey = `${key}.off`;
   if (params.has('noanalytics')) store.set(optKey, '1');
-  if (params.get('analytics') === 'on') store.set(optKey, '');
+  if (params.get('analytics') === 'on') store.set(optKey, 'on');
   const { env, off } = analyticsStatus(location.hostname, location.search, {
     doNotTrack: navigator.doNotTrack === '1' || (navigator as { globalPrivacyControl?: boolean }).globalPrivacyControl === true,
     automated: navigator.webdriver === true,
     device: store.get(optKey) === '1',
+    optedIn: store.get(optKey) === 'on',
   });
   let id = env ? store.get(key) : '';
   if (env && !id) {

@@ -22,7 +22,7 @@ export function analyticsStatus(hostname, search, out = {}) {
         return off('automated');
     if (out.device)
         return off('device opted out');
-    if (out.doNotTrack)
+    if (out.doNotTrack && !out.optedIn)
         return off('do not track');
     const env = ANALYTICS.sites[hostname] ?? null;
     return env ? { env, off: null } : off('not our site');
@@ -179,7 +179,7 @@ export function deviceClass(tv) {
 /**
  * Statistics for this page: on only on the game's own sites. `?noanalytics`
  * also opts this device out for good (our own devices, so our play stays out
- * of the numbers); `?analytics=on` opts it back in.
+ * of the numbers); `?analytics=on` opts it in for good, Do Not Track or not.
  */
 export function startAnalytics(store, key) {
     const params = new URLSearchParams(location.search);
@@ -187,11 +187,12 @@ export function startAnalytics(store, key) {
     if (params.has('noanalytics'))
         store.set(optKey, '1');
     if (params.get('analytics') === 'on')
-        store.set(optKey, '');
+        store.set(optKey, 'on');
     const { env, off } = analyticsStatus(location.hostname, location.search, {
         doNotTrack: navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true,
         automated: navigator.webdriver === true,
         device: store.get(optKey) === '1',
+        optedIn: store.get(optKey) === 'on',
     });
     let id = env ? store.get(key) : '';
     if (env && !id) {

@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.121**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.122**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -69,11 +69,11 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 969 checks: simulation, networking and statistics (Node), and real browsers
+npm test           # 970 checks: simulation, networking and statistics (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, `?noanalytics` to send no
-statistics from this device again (`?analytics=on` undoes it), `?analytics=debug` to log
+statistics from this device again (`?analytics=on` opts a device in, even with Do Not Track on), `?analytics=debug` to log
 whether they are sent, and why not, in the console, and `?quality=low` to override the
 graphics preset. With `?debug` the race readout says whether statistics are going out.
 
@@ -1386,7 +1386,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-969 checks across eight suites. The browser suites swap the CDN for a local three.js and a
+970 checks across eight suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
@@ -1484,7 +1484,7 @@ loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share 
     closing hands its traffic to the broker at once, is given up within 3.5 s, and
     links again when the network is back; a player without direct links races with
     the rest.
-- **`analytics.test.mjs`** (21, Node): the anonymous statistics send only from the game's
+- **`analytics.test.mjs`** (22, Node): the anonymous statistics send only from the game's
   own sites, never with `?noanalytics`, Do Not Track or a test tool driving the browser; a seed goes as the game reads it,
   20 characters at most and never with an `@`; batches carry no person profile, and a
   visit ends by beacon with its race totals; switched off it says why, and each batch

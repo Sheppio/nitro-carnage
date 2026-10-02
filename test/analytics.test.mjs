@@ -26,6 +26,8 @@ check('?analytics=force sends as test, but only on localhost', analyticsEnv('127
 const live = 'nitro-carnage.helloshep.com';
 const why = [analyticsStatus(live, '?noanalytics').off, analyticsStatus(live, '', { doNotTrack: true }).off, analyticsStatus(live, '', { automated: true }).off,
   analyticsStatus(live, '', { device: true }).off, analyticsStatus('example.com', '').off, analyticsStatus(live, '').off];
+check('a device opted in with ?analytics=on sends despite Do Not Track, but not from another site',
+  analyticsEnv(live, '', { doNotTrack: true, optedIn: true }) === 'prod' && analyticsEnv('example.com', '', { doNotTrack: true, optedIn: true }) === null);
 check('switched off, it says why', why.join() === 'noanalytics,do not track,automated,device opted out,not our site,', why.join());
 
 console.log('\n  seeds');

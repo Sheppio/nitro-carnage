@@ -94,7 +94,9 @@ export class GameView {
         this.renderer = rendererFor(preset.antialias);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatioCap));
         this.renderer.shadowMap.enabled = preset.shadowMapSize > 0;
-        this.renderer.shadowMap.type = preset.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+        // three r186 dropped PCFSoftShadowMap for PCFShadowMap, which softens by the light's
+        // `shadow.radius`: ShadowRig sets that from the preset's softShadows.
+        this.renderer.shadowMap.type = THREE.PCFShadowMap;
         this.renderer.domElement.className = 'game-canvas';
         host.appendChild(this.renderer.domElement);
         const theme = themeFor(track.def.theme);
