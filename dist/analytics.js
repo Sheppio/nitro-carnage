@@ -8,14 +8,24 @@ import { VERSION } from './version.js';
  * sends as `test`, for the smoke test that checks the events.
  */
 export function analyticsEnv(hostname, search, out = {}) {
+    return analyticsStatus(hostname, search, out).env;
+}
+/** As `analyticsEnv`, with the reason when nothing is sent. */
+export function analyticsStatus(hostname, search, out = {}) {
     const params = new URLSearchParams(search);
+    const off = (why) => ({ env: null, off: why });
     if (params.has('noanalytics'))
-        return null;
+        return off('noanalytics');
     if (params.get('analytics') === 'force' && (hostname === 'localhost' || hostname === '127.0.0.1'))
-        return 'test';
-    if (out.doNotTrack || out.automated || out.device)
-        return null;
-    return ANALYTICS.sites[hostname] ?? null;
+        return { env: 'test', off: null };
+    if (out.automated)
+        return off('automated');
+    if (out.device)
+        return off('device opted out');
+    if (out.doNotTrack)
+        return off('do not track');
+    const env = ANALYTICS.sites[hostname] ?? null;
+    return env ? { env, off: null } : off('not our site');
 }
 /** The longest seed the menu's box takes. */
 export const SEED_MAX = 20;
@@ -54,6 +64,14 @@ export class Analytics {
     racesQuit = 0;
     /** Called as the visit ends, before its totals: a race still running is reported as left. */
     onEnd = null;
+    /** Why nothing is sent, when it isn't. */
+    off = null;
+    /** How the last batch went: its size and status (an HTTP status, `beacon`, `sent` or `failed`). */
+    lastSend = null;
+    /** Events sent without an error, this visit. */
+    sentEvents = 0;
+    /** Each batch's outcome, as a line: `?analytics=debug` logs them. */
+    onLog = null;
     /**
      * @param env    the `env` property, or null to send nothing at all
      * @param id     the anonymous player id
@@ -71,6 +89,12 @@ export class Analytics {
     }
     get enabled() {
         return this.env !== null && ANALYTICS.token !== '';
+    }
+    /** One line for the `?debug` readout: on or off, and how the last batch went. */
+    get summary() {
+        if (!this.enabled)
+            return `stats: off (${this.off ?? 'no token'})`;
+        return `stats: ${this.env} · ${this.lastSend?.status ?? 'waiting'} · ${this.sentEvents} sent`;
     }
     /** The events waiting to go: for tests. */
     get pending() {
@@ -120,11 +144,22 @@ export class Analytics {
             return;
         const batch = this.queue;
         this.queue = [];
+        const done = (status) => {
+            this.lastSend = { at: this.now(), events: batch.length, status };
+            if (status !== 'failed' && !/^[45]/.test(status))
+                this.sentEvents += batch.length;
+            this.onLog?.(`statistics: sent ${batch.length} events → ${status}`);
+        };
+        // Dropped on failure: statistics are never worth an error.
         try {
-            this.send(`${ANALYTICS.host}/batch/`, JSON.stringify({ api_key: ANALYTICS.token, batch }), beacon);
+            const r = this.send(`${ANALYTICS.host}/batch/`, JSON.stringify({ api_key: ANALYTICS.token, batch }), beacon);
+            if (r)
+                void r.then(done, () => done('failed'));
+            else
+                done('sent');
         }
         catch {
-            /* dropped: statistics are never worth an error */
+            done('failed');
         }
     }
 }
@@ -153,7 +188,7 @@ export function startAnalytics(store, key) {
         store.set(optKey, '1');
     if (params.get('analytics') === 'on')
         store.set(optKey, '');
-    const env = analyticsEnv(location.hostname, location.search, {
+    const { env, off } = analyticsStatus(location.hostname, location.search, {
         doNotTrack: navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true,
         automated: navigator.webdriver === true,
         device: store.get(optKey) === '1',
@@ -163,13 +198,25 @@ export function startAnalytics(store, key) {
         id = crypto.randomUUID?.() ?? uuidv7(Date.now());
         store.set(key, id);
     }
-    const send = (url, body, beacon) => {
+    const send = async (url, body, beacon) => {
         // Plain text: a JSON content type would cost a CORS preflight per batch. PostHog reads the body either way.
         if (beacon && navigator.sendBeacon?.(url, new Blob([body], { type: 'text/plain' })))
-            return;
-        void fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'text/plain' }, keepalive: true }).catch(() => undefined);
+            return 'beacon';
+        try {
+            const r = await fetch(url, { method: 'POST', body, headers: { 'Content-Type': 'text/plain' }, keepalive: true });
+            return String(r.status);
+        }
+        catch {
+            return 'failed';
+        }
     };
     const a = new Analytics(env, id, send, location.origin + location.pathname);
+    a.off = off;
+    // `?analytics=debug`: on or off and why, and every batch's outcome, in the console.
+    if (params.get('analytics') === 'debug') {
+        a.onLog = (line) => console.info(line);
+        console.info(a.enabled ? `statistics: on as ${env}` : `statistics: off: ${off ?? 'no token'}`);
+    }
     if (!a.enabled)
         return a;
     window.setInterval(() => a.flush(), ANALYTICS.flushMs);

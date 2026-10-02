@@ -4,7 +4,7 @@
  * the sender is a function that keeps what it is given.
  */
 import { ANALYTICS } from '../dist/config.js';
-import { Analytics, analyticsEnv, seedProps, seedWord, uuidv7 } from '../dist/analytics.js';
+import { Analytics, analyticsEnv, analyticsStatus, seedProps, seedWord, uuidv7 } from '../dist/analytics.js';
 import { seedOf, trackName } from '../dist/sim/track/generate.js';
 import { VERSION } from '../dist/version.js';
 
@@ -22,6 +22,11 @@ check('?noanalytics and Do Not Track turn the live game off', analyticsEnv('nitr
 check('a browser driven by a test tool, or a device opted out, sends nothing even from the live game',
   analyticsEnv('nitro-carnage.helloshep.com', '', { automated: true }) === null && analyticsEnv('dev.nitro-carnage.helloshep.com', '', { device: true }) === null);
 check('?analytics=force sends as test, but only on localhost', analyticsEnv('127.0.0.1', '?analytics=force') === 'test' && analyticsEnv('example.com', '?analytics=force') === null);
+
+const live = 'nitro-carnage.helloshep.com';
+const why = [analyticsStatus(live, '?noanalytics').off, analyticsStatus(live, '', { doNotTrack: true }).off, analyticsStatus(live, '', { automated: true }).off,
+  analyticsStatus(live, '', { device: true }).off, analyticsStatus('example.com', '').off, analyticsStatus(live, '').off];
+check('switched off, it says why', why.join() === 'noanalytics,do not track,automated,device opted out,not our site,', why.join());
 
 console.log('\n  seeds');
 check('a seed is reported trimmed, in lower case, with its spaces collapsed', seedWord('  Oak   FIN ') === 'oak fin');
@@ -61,11 +66,27 @@ const last = sent[sent.length - 1];
 const end = last?.body.batch.find((e) => e.event === 'session_end');
 check('the visit ends by beacon, after a race still running is reported', left === 1 && last.beacon === true && end?.properties.races_started === 1 && end.properties.races_finished === 1 && end.properties.duration_s === 95);
 
+const outcomes = [];
+const told = new Analytics('dev', 'anon-2', (url, body) => (body.includes('"fail"') ? Promise.reject(new Error('blocked')) : Promise.resolve('200')));
+told.onLog = (line) => outcomes.push(line);
+told.track('ok');
+told.flush();
+await Promise.resolve();
+await Promise.resolve();
+const good = told.summary;
+told.track('fail');
+told.flush();
+await Promise.resolve();
+await Promise.resolve();
+check('each batch reports how it went: sent, or failed (a blocker, or offline)', good === 'stats: dev · 200 · 1 sent' && told.summary === 'stats: dev · failed · 1 sent'
+  && outcomes.join(' | ') === 'statistics: sent 1 events → 200 | statistics: sent 1 events → failed', `${good} / ${told.summary}`);
+
 const off = [];
 const quiet = new Analytics(null, '', () => off.push(1));
 quiet.track('session_start');
 quiet.end();
-check('switched off, nothing is queued and nothing is sent', !quiet.enabled && quiet.pending.length === 0 && off.length === 0);
+quiet.off = 'do not track';
+check('switched off, nothing is queued and nothing is sent, and the readout says why', !quiet.enabled && quiet.pending.length === 0 && off.length === 0 && quiet.summary === 'stats: off (do not track)');
 
 console.log(`\n  ${pass} passed, ${fail} failed\n`);
 if (fail) process.exitCode = 1;

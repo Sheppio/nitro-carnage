@@ -487,6 +487,7 @@ function begin(mode, s, track, label = track.name, bestKey = recordKey(track)) {
     if (params.has('autopilot'))
         s.autopilot = true;
     hud = new Hud(s, params.has('debug'));
+    hud.debugExtra = () => stats.summary;
     s.onHud = (h) => hud?.update(h);
     s.onWreck = (w) => hud?.wreck(w);
     s.onEvent = (ev) => {

@@ -58,6 +58,9 @@ export class Hud {
   /** Where you finished, for under RACE OVER: empty until you are home. */
   private finished = '';
 
+  /** More for the `?debug` readout: whether the statistics are going out. */
+  debugExtra: (() => string) | null = null;
+
   constructor(private session: RaceSession, debug: boolean) {
     this.minimap = new Minimap($<HTMLCanvasElement>('hud-minimap'), session.world.track);
     this.arrows = new RivalArrows($('hud-arrows'));
@@ -213,7 +216,7 @@ export class Hud {
     }
     $('hud-last').textContent = formatTime(hud.lastLap);
     $('hud-best').textContent = formatTime(hud.bestLap);
-    $('hud-debug').textContent = `${hud.fps.toFixed(0)} fps\n${hud.drawCalls} draws${hud.links ? `\n${hud.links}` : ''}`;
+    $('hud-debug').textContent = `${hud.fps.toFixed(0)} fps\n${hud.drawCalls} draws${hud.links ? `\n${hud.links}` : ''}${this.debugExtra ? `\n${this.debugExtra()}` : ''}`;
   }
 
   /** React to a race event: lap banners, the final lap, the finish. */

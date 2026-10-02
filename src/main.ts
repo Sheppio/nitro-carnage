@@ -515,6 +515,7 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
   session = s;
   if (params.has('autopilot')) s.autopilot = true;
   hud = new Hud(s, params.has('debug'));
+  hud.debugExtra = () => stats.summary;
   s.onHud = (h) => hud?.update(h);
   s.onWreck = (w) => hud?.wreck(w);
   s.onEvent = (ev) => {
