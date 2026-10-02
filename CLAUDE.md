@@ -15,6 +15,18 @@
 - When starting work on a GitHub issue, assign it and add the `in progress` label;
   remove the label when the fix is pushed.
 
+## Every commit
+
+- Add an entry to the top of `CHANGELOG.md` in the same commit. The pre-commit hook
+  bumps the patch version, so the entry is for the version `package.json` will have
+  after the commit: one more than it says now. Check `origin/main` first, since another
+  commit landing there first changes the number. Follow the existing format:
+  `## vX.Y.Z — YYYY-MM-DD`, the change in bold, then a few short bullets written for
+  the player, not about the code. Changes only to docs, tests or tooling still get a
+  one-line entry.
+- If you merge `main` into a branch, the version moves on. Renumber the branch's
+  changelog entry to match.
+
 ## Checking the front end
 
 - Look at every screen at Xbox 1080p (an Xbox user agent turns the TV layout on),

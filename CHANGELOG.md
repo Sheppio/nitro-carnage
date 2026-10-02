@@ -3,6 +3,9 @@
 Every change to Nitro Carnage, newest first. Each version is one commit; a
 few version numbers were skipped along the way.
 
+## v0.1.111 — 2026-10-02
+**Developer notes: update the changelog with every commit**
+
 ## v0.1.110 — 2026-10-01
 **A changelog, linked from the main menu**
 - This changelog: every change so far, newest first.
