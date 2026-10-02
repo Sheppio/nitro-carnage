@@ -34,7 +34,9 @@
   landing there first changes the number. Copy the shape of the entry below it: the
   version as the article's `id` and link, the change in the
   `<h2>`, then a `<ul>` of a few short bullets written for the player, not about the
-  code. Escape `&` and `<`. Leave out issue numbers and links to GitHub.
+  code. Escape `&` and `<`. Leave out issue numbers and links to GitHub. The bullets
+  cover only what changes in the game, never the changelog page itself, the docs or
+  the tooling.
 - If you merge `main` into a branch, the version moves on. Renumber the branch's
   changelog entry to match.
 
