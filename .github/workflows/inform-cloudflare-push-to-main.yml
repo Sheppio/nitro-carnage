@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Trigger external server
         run: |
-          curl -X POST -H "Content-Type: application/json" \
+          curl -fsS -X POST -H "Content-Type: application/json" \
           -d '{"event": "push", "branch": "main"}' \
           https://api.cloudflare.com/client/v4/workers/builds/deploy_hooks/25898afe-3d11-472a-8332-5881ee2fd838
