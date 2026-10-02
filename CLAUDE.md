@@ -32,9 +32,9 @@
   patch version, so the entry is for the version `package.json` will have after the
   commit: one more than it says now. Check `origin/main` first, since another commit
   landing there first changes the number. Copy the shape of the entry below it: the
-  version as the article's `id` and link, the date in `<time>`, the change in the
+  version as the article's `id` and link, the change in the
   `<h2>`, then a `<ul>` of a few short bullets written for the player, not about the
-  code. Escape `&` and `<`, and link issue numbers as the others are.
+  code. Escape `&` and `<`. Leave out issue numbers and links to GitHub.
 - If you merge `main` into a branch, the version moves on. Renumber the branch's
   changelog entry to match.
 

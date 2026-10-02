@@ -4,7 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#16131f" />
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>Changelog · NITRO CARNAGE</title>
     <meta name="description" content="Every change to Nitro Carnage, newest first." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -135,7 +137,6 @@
         text-decoration: none;
       }
       .ver:hover { text-decoration: underline; }
-      time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
       .release h2 {
         font-family: var(--display);
         font-weight: 700;
@@ -154,7 +155,7 @@
         .wrap { width: 960px; }
         .release h2 { font-size: 24px; }
         .release ul { font-size: 19px; }
-        .ver, time { font-size: 17px; }
+        .ver { font-size: 17px; }
       }
     </style>
   </head>
@@ -171,16 +172,25 @@
       <div class="chequer" aria-hidden="true"></div>
 
       <main>
+        <article class="release" id="v0.1.118">
+          <header><a class="ver" href="#v0.1.118">v0.1.118</a></header>
+          <h2>A Nitro Carnage icon in your browser tab</h2>
+          <ul>
+            <li>The game's tab now shows an orange NC badge instead of a blank page, so it's easy to find among your other tabs.</li>
+            <li>Adding the game to an iPhone or iPad home screen gives it the same badge.</li>
+            <li>The changelog no longer sends you off to GitHub issues, and leaves out the dates.</li>
+          </ul>
+        </article>
         <article class="release" id="v0.1.116">
-          <header><a class="ver" href="#v0.1.116">v0.1.116</a> <time datetime="2026-10-02">2026-10-02</time></header>
+          <header><a class="ver" href="#v0.1.116">v0.1.116</a></header>
           <h2>The changelog is a page of its own</h2>
           <ul>
             <li>The Changelog link on the main menu opens a Nitro Carnage page on this site instead of GitHub.</li>
-            <li>Each version can be linked to directly, and issue numbers link to their issues.</li>
+            <li>Each version can be linked to directly.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.115">
-          <header><a class="ver" href="#v0.1.115">v0.1.115</a> <time datetime="2026-10-02">2026-10-02</time></header>
+          <header><a class="ver" href="#v0.1.115">v0.1.115</a></header>
           <h2>No more freeze when the hotlap ghost first appears</h2>
           <ul>
             <li>On a new track, the game no longer stalls for a moment at the start of the second lap, when your ghost first takes to the road.</li>
@@ -188,7 +198,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.112">
-          <header><a class="ver" href="#v0.1.112">v0.1.112</a> <time datetime="2026-10-02">2026-10-02</time></header>
+          <header><a class="ver" href="#v0.1.112">v0.1.112</a></header>
           <h2>Hosting a room: you can step off Track of the day again</h2>
           <ul>
             <li>On the room's track screen, the ‹ › kind of track could get stuck on Track of the day with a pad, so the host had to race it. Stepping right went to an empty Favourites and jumped back. Stepping left went to Seeded, which still held today's date, so the room read it as Track of the day again.</li>
@@ -197,7 +207,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.110">
-          <header><a class="ver" href="#v0.1.110">v0.1.110</a> <time datetime="2026-10-01">2026-10-01</time></header>
+          <header><a class="ver" href="#v0.1.110">v0.1.110</a></header>
           <h2>A changelog, linked from the main menu</h2>
           <ul>
             <li>This changelog: every change so far, newest first.</li>
@@ -205,14 +215,14 @@
           </ul>
         </article>
         <article class="release" id="v0.1.109">
-          <header><a class="ver" href="#v0.1.109">v0.1.109</a> <time datetime="2026-10-01">2026-10-01</time></header>
+          <header><a class="ver" href="#v0.1.109">v0.1.109</a></header>
           <h2>Windmill sails near upright</h2>
           <ul>
             <li>Windmill sails now lean back about 11°, as a real windshaft does, instead of 54°.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.108">
-          <header><a class="ver" href="#v0.1.108">v0.1.108</a> <time datetime="2026-10-01">2026-10-01</time></header>
+          <header><a class="ver" href="#v0.1.108">v0.1.108</a></header>
           <h2>Photo mode: save to the gallery on a phone, no Save on consoles</h2>
           <ul>
             <li>On a phone, Save photo opens the share sheet, so the photo goes into your gallery rather than the browser's downloads.</li>
@@ -220,17 +230,17 @@
           </ul>
         </article>
         <article class="release" id="v0.1.107">
-          <header><a class="ver" href="#v0.1.107">v0.1.107</a> <time datetime="2026-10-01">2026-10-01</time></header>
+          <header><a class="ver" href="#v0.1.107">v0.1.107</a></header>
           <h2>Bots time the train, missiles set off mines, two random boxes a row, Leave race asks</h2>
           <ul>
-            <li>Bots time their run to the level crossing at their own pace and stop only if the train will really be in the way. Expert bots wait about a quarter less, and none get hit (<a href="https://github.com/Sheppio/nitro-carnage/issues/32">#32</a>).</li>
-            <li>A missile that flies into an armed mine sets it off, and the car beyond is unhurt (<a href="https://github.com/Sheppio/nitro-carnage/issues/29">#29</a>).</li>
-            <li>Each row of pickups is two boxes, each a random useful kind (<a href="https://github.com/Sheppio/nitro-carnage/issues/30">#30</a>).</li>
-            <li>Leave race in the pause menu asks first, with Stay as the default. A hotlap asks too (<a href="https://github.com/Sheppio/nitro-carnage/issues/31">#31</a>).</li>
+            <li>Bots time their run to the level crossing at their own pace and stop only if the train will really be in the way. Expert bots wait about a quarter less, and none get hit.</li>
+            <li>A missile that flies into an armed mine sets it off, and the car beyond is unhurt.</li>
+            <li>Each row of pickups is two boxes, each a random useful kind.</li>
+            <li>Leave race in the pause menu asks first, with Stay as the default. A hotlap asks too.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.106">
-          <header><a class="ver" href="#v0.1.106">v0.1.106</a> <time datetime="2026-10-01">2026-10-01</time></header>
+          <header><a class="ver" href="#v0.1.106">v0.1.106</a></header>
           <h2>Photo mode: click or tap to focus</h2>
           <ul>
             <li>Click or tap the scene to focus the depth of field on that exact spot. A ring marks it for a moment.</li>
@@ -238,7 +248,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.105">
-          <header><a class="ver" href="#v0.1.105">v0.1.105</a> <time datetime="2026-10-01">2026-10-01</time></header>
+          <header><a class="ver" href="#v0.1.105">v0.1.105</a></header>
           <h2>Photo mode from the pause menu in offline races</h2>
           <ul>
             <li>The pause menu in offline races has Photo mode. The world stays paused while a free camera flies around by keys, mouse, pad or touch.</li>
@@ -246,7 +256,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.104">
-          <header><a class="ver" href="#v0.1.104">v0.1.104</a> <time datetime="2026-10-01">2026-10-01</time></header>
+          <header><a class="ver" href="#v0.1.104">v0.1.104</a></header>
           <h2>Experimental camera views</h2>
           <ul>
             <li>A new Experimental… page in Settings lets you choose the race camera: Overhead, Helicopter, Chase far and near, Bonnet, Bumper, Cockpit, or Custom.</li>
@@ -255,7 +265,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.102">
-          <header><a class="ver" href="#v0.1.102">v0.1.102</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.102">v0.1.102</a></header>
           <h2>An always-on throttle setting</h2>
           <ul>
             <li>With Always-on throttle on, the car is flat out unless you brake, reverse or use the handbrake. The touch pad drops its accelerator button.</li>
@@ -263,84 +273,84 @@
           </ul>
         </article>
         <article class="release" id="v0.1.101">
-          <header><a class="ver" href="#v0.1.101">v0.1.101</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.101">v0.1.101</a></header>
           <h2>Handbrake above the accelerator on the touch pad</h2>
           <ul>
             <li>The handbrake moved to sit directly above the accelerator, a short reach for the same thumb.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.100">
-          <header><a class="ver" href="#v0.1.100">v0.1.100</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.100">v0.1.100</a></header>
           <h2>No weapon buttons on the touch pad when weapons are off</h2>
           <ul>
             <li>With weapons off, or in a hotlap, the touch pad leaves out the missile and mine buttons.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.99">
-          <header><a class="ver" href="#v0.1.99">v0.1.99</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Rounder corners on seeded tracks and real circuits (<a href="https://github.com/Sheppio/nitro-carnage/issues/20">#20</a>, <a href="https://github.com/Sheppio/nitro-carnage/issues/22">#22</a>)</h2>
+          <header><a class="ver" href="#v0.1.99">v0.1.99</a></header>
+          <h2>Rounder corners on seeded tracks and real circuits</h2>
           <ul>
             <li>Bends on seeded flowing loops and real circuits now sweep smoothly instead of reading as short straights joined by sharp corners. Hairpins stay hairpins, and city grids keep their right angles.</li>
             <li>Records and ghosts on reshaped tracks start afresh.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.98">
-          <header><a class="ver" href="#v0.1.98">v0.1.98</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>A fanfare for the winner (<a href="https://github.com/Sheppio/nitro-carnage/issues/23">#23</a>)</h2>
+          <header><a class="ver" href="#v0.1.98">v0.1.98</a></header>
+          <h2>A fanfare for the winner</h2>
           <ul>
             <li>When the winner crosses the line: fireworks, confetti, a cheering crowd and a brass fanfare.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.97">
-          <header><a class="ver" href="#v0.1.97">v0.1.97</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Touch buttons with pictures, in their own colours (<a href="https://github.com/Sheppio/nitro-carnage/issues/24">#24</a>)</h2>
+          <header><a class="ver" href="#v0.1.97">v0.1.97</a></header>
+          <h2>Touch buttons with pictures, in their own colours</h2>
           <ul>
             <li>Each touch button has a drawn icon (missile, mine, handbrake, pedals, steering chevrons) on lit glass in its own colour.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.96">
-          <header><a class="ver" href="#v0.1.96">v0.1.96</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Touch steering by ◀ ▶ buttons, as a setting (<a href="https://github.com/Sheppio/nitro-carnage/issues/26">#26</a>)</h2>
+          <header><a class="ver" href="#v0.1.96">v0.1.96</a></header>
+          <h2>Touch steering by ◀ ▶ buttons, as a setting</h2>
           <ul>
             <li>A new Touch steering setting offers the floating slider or left and right buttons.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.95">
-          <header><a class="ver" href="#v0.1.95">v0.1.95</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>A Full screen setting (<a href="https://github.com/Sheppio/nitro-carnage/issues/27">#27</a>)</h2>
+          <header><a class="ver" href="#v0.1.95">v0.1.95</a></header>
+          <h2>A Full screen setting</h2>
           <ul>
             <li>A new Full screen box in Settings. It isn't shown on consoles.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.93">
-          <header><a class="ver" href="#v0.1.93">v0.1.93</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>A fresh grid order for every race (<a href="https://github.com/Sheppio/nitro-carnage/issues/21">#21</a>)</h2>
+          <header><a class="ver" href="#v0.1.93">v0.1.93</a></header>
+          <h2>A fresh grid order for every race</h2>
           <ul>
             <li>Your grid slot is shuffled for every race, offline and in rooms.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.92">
-          <header><a class="ver" href="#v0.1.92">v0.1.92</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Reverse pulls like first gear (<a href="https://github.com/Sheppio/nitro-carnage/issues/25">#25</a>)</h2>
+          <header><a class="ver" href="#v0.1.92">v0.1.92</a></header>
+          <h2>Reverse pulls like first gear</h2>
           <ul>
             <li>Reverse has the engine's full force, up to 15 m/s.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.91">
-          <header><a class="ver" href="#v0.1.91">v0.1.91</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Hide the touch controls under the pause menu (<a href="https://github.com/Sheppio/nitro-carnage/issues/28">#28</a>)</h2>
+          <header><a class="ver" href="#v0.1.91">v0.1.91</a></header>
+          <h2>Hide the touch controls under the pause menu</h2>
         </article>
         <article class="release" id="v0.1.90">
-          <header><a class="ver" href="#v0.1.90">v0.1.90</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Choose the kind of track first, and keep favourites (<a href="https://github.com/Sheppio/nitro-carnage/issues/18">#18</a>, <a href="https://github.com/Sheppio/nitro-carnage/issues/14">#14</a>)</h2>
+          <header><a class="ver" href="#v0.1.90">v0.1.90</a></header>
+          <h2>Choose the kind of track first, and keep favourites</h2>
           <ul>
             <li>The track screens ask the kind first (Track of the day, Favourites, Real world, Built in or Seeded), then the track.</li>
             <li>A star saves tracks and seeds as favourites on this device.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.87">
-          <header><a class="ver" href="#v0.1.87">v0.1.87</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Car type: Single, Any, Distinct or Random (<a href="https://github.com/Sheppio/nitro-carnage/issues/17">#17</a>)</h2>
+          <header><a class="ver" href="#v0.1.87">v0.1.87</a></header>
+          <h2>Car type: Single, Any, Distinct or Random</h2>
           <ul>
             <li>Single: everyone drives the host's body.</li>
             <li>Any: everyone drives their own.</li>
@@ -349,39 +359,39 @@
           </ul>
         </article>
         <article class="release" id="v0.1.86">
-          <header><a class="ver" href="#v0.1.86">v0.1.86</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>The car picture from the Garage's angle, nose to the left (<a href="https://github.com/Sheppio/nitro-carnage/issues/16">#16</a>)</h2>
+          <header><a class="ver" href="#v0.1.86">v0.1.86</a></header>
+          <h2>The car picture from the Garage's angle, nose to the left</h2>
         </article>
         <article class="release" id="v0.1.85">
-          <header><a class="ver" href="#v0.1.85">v0.1.85</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>A bigger dice button, as tall as the seed box (<a href="https://github.com/Sheppio/nitro-carnage/issues/15">#15</a>)</h2>
+          <header><a class="ver" href="#v0.1.85">v0.1.85</a></header>
+          <h2>A bigger dice button, as tall as the seed box</h2>
         </article>
         <article class="release" id="v0.1.84">
-          <header><a class="ver" href="#v0.1.84">v0.1.84</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Laps: 1 to 10, then 25, 50, 75 and 100 (<a href="https://github.com/Sheppio/nitro-carnage/issues/13">#13</a>)</h2>
+          <header><a class="ver" href="#v0.1.84">v0.1.84</a></header>
+          <h2>Laps: 1 to 10, then 25, 50, 75 and 100</h2>
         </article>
         <article class="release" id="v0.1.83">
-          <header><a class="ver" href="#v0.1.83">v0.1.83</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>A trophy beside the fastest lap in the results (<a href="https://github.com/Sheppio/nitro-carnage/issues/12">#12</a>)</h2>
+          <header><a class="ver" href="#v0.1.83">v0.1.83</a></header>
+          <h2>A trophy beside the fastest lap in the results</h2>
         </article>
         <article class="release" id="v0.1.82">
-          <header><a class="ver" href="#v0.1.82">v0.1.82</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Turbo switched off (<a href="https://github.com/Sheppio/nitro-carnage/issues/19">#19</a>)</h2>
+          <header><a class="ver" href="#v0.1.82">v0.1.82</a></header>
+          <h2>Turbo switched off</h2>
           <ul>
             <li>The turbo is gone from races, the HUD and the controls. Its code is kept behind a switch so it can come back.</li>
             <li>Hotlaps are driven without turbo and keep separate records.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.81">
-          <header><a class="ver" href="#v0.1.81">v0.1.81</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.81">v0.1.81</a></header>
           <h2>"You finished 6th" under RACE OVER</h2>
         </article>
         <article class="release" id="v0.1.80">
-          <header><a class="ver" href="#v0.1.80">v0.1.80</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.80">v0.1.80</a></header>
           <h2>Your name instead of YOU, in yellow; bigger speed and minimap on desktops</h2>
         </article>
         <article class="release" id="v0.1.79">
-          <header><a class="ver" href="#v0.1.79">v0.1.79</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.79">v0.1.79</a></header>
           <h2>Bigger RACE OVER and HUD on big screens</h2>
           <ul>
             <li>RACE OVER stays up for 5 s, then the screen fades to the results over 2 s.</li>
@@ -389,41 +399,41 @@
           </ul>
         </article>
         <article class="release" id="v0.1.78">
-          <header><a class="ver" href="#v0.1.78">v0.1.78</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.78">v0.1.78</a></header>
           <h2>RACE OVER when the race ends, then a fade to the results</h2>
         </article>
         <article class="release" id="v0.1.77">
-          <header><a class="ver" href="#v0.1.77">v0.1.77</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.77">v0.1.77</a></header>
           <h2>The race fades to the results instead of cutting</h2>
         </article>
         <article class="release" id="v0.1.76">
-          <header><a class="ver" href="#v0.1.76">v0.1.76</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.76">v0.1.76</a></header>
           <h2>Rear missiles switched off for now</h2>
           <ul>
             <li>The rear button only drops mines, which means fewer controls to learn.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.75">
-          <header><a class="ver" href="#v0.1.75">v0.1.75</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.75">v0.1.75</a></header>
           <h2>Wind sound removed</h2>
           <ul>
             <li>It sounded like a computer's fans.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.74">
-          <header><a class="ver" href="#v0.1.74">v0.1.74</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.74">v0.1.74</a></header>
           <h2>The start line on the map lies across the road</h2>
         </article>
         <article class="release" id="v0.1.73">
-          <header><a class="ver" href="#v0.1.73">v0.1.73</a> <time datetime="2026-09-30">2026-09-30</time></header>
-          <h2>Every generated loop and long straight dives into its infield (<a href="https://github.com/Sheppio/nitro-carnage/issues/3">#3</a>)</h2>
+          <header><a class="ver" href="#v0.1.73">v0.1.73</a></header>
+          <h2>Every generated loop and long straight dives into its infield</h2>
           <ul>
             <li>No more round-blob seeded tracks. Every loop and straights layout has a pocket, and some have a kidney bend.</li>
             <li>Hotlap records on those layouts start afresh.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.72">
-          <header><a class="ver" href="#v0.1.72">v0.1.72</a> <time datetime="2026-09-30">2026-09-30</time></header>
+          <header><a class="ver" href="#v0.1.72">v0.1.72</a></header>
           <h2>Controller and TV pass</h2>
           <ul>
             <li>Leaving a room asks first, and B never drops you out of a room by accident.</li>
@@ -433,7 +443,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.71">
-          <header><a class="ver" href="#v0.1.71">v0.1.71</a> <time datetime="2026-09-29">2026-09-29</time></header>
+          <header><a class="ver" href="#v0.1.71">v0.1.71</a></header>
           <h2>Sound you can place</h2>
           <ul>
             <li>Stereo panning, Doppler, per-car engines with gear changes, road noise by surface, and whining missiles.</li>
@@ -441,7 +451,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.70">
-          <header><a class="ver" href="#v0.1.70">v0.1.70</a> <time datetime="2026-09-29">2026-09-29</time></header>
+          <header><a class="ver" href="#v0.1.70">v0.1.70</a></header>
           <h2>The lobby in one column, its track on its own screen, real cars in the roster</h2>
           <ul>
             <li>The lobby is a single column of settings, easy to walk with a pad.</li>
@@ -450,56 +460,56 @@
           </ul>
         </article>
         <article class="release" id="v0.1.69">
-          <header><a class="ver" href="#v0.1.69">v0.1.69</a> <time datetime="2026-09-29">2026-09-29</time></header>
-          <h2>Shadows reach the edge of the screen (<a href="https://github.com/Sheppio/nitro-carnage/issues/10">#10</a>)</h2>
+          <header><a class="ver" href="#v0.1.69">v0.1.69</a></header>
+          <h2>Shadows reach the edge of the screen</h2>
           <ul>
             <li>On the docks, building shadows used to stop 75 m from the car. They now cover everything on screen.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.68">
-          <header><a class="ver" href="#v0.1.68">v0.1.68</a> <time datetime="2026-09-29">2026-09-29</time></header>
-          <h2>Championships (<a href="https://github.com/Sheppio/nitro-carnage/issues/8">#8</a>)</h2>
+          <header><a class="ver" href="#v0.1.68">v0.1.68</a></header>
+          <h2>Championships</h2>
           <ul>
             <li>The host lines up to ten tracks in the lobby, raced in turn for points (10, 6, 4, 3, 2, 1).</li>
             <li>The last race crowns the champion. The room keeps the points table even when the host leaves.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.67">
-          <header><a class="ver" href="#v0.1.67">v0.1.67</a> <time datetime="2026-09-29">2026-09-29</time></header>
-          <h2>Docks shadows no longer stripe or flicker (<a href="https://github.com/Sheppio/nitro-carnage/issues/6">#6</a>)</h2>
+          <header><a class="ver" href="#v0.1.67">v0.1.67</a></header>
+          <h2>Docks shadows no longer stripe or flicker</h2>
         </article>
         <article class="release" id="v0.1.66">
-          <header><a class="ver" href="#v0.1.66">v0.1.66</a> <time datetime="2026-09-29">2026-09-29</time></header>
+          <header><a class="ver" href="#v0.1.66">v0.1.66</a></header>
           <h2>Expert and Hard bots plan their corners</h2>
           <ul>
             <li>Expert and Hard bots use power slides, handbrake stabs and the Scandinavian flick. Expert is about 7% quicker.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.65">
-          <header><a class="ver" href="#v0.1.65">v0.1.65</a> <time datetime="2026-09-29">2026-09-29</time></header>
-          <h2>The menu's Garage button shows your real car (<a href="https://github.com/Sheppio/nitro-carnage/issues/7">#7</a>)</h2>
+          <header><a class="ver" href="#v0.1.65">v0.1.65</a></header>
+          <h2>The menu's Garage button shows your real car</h2>
         </article>
         <article class="release" id="v0.1.64">
-          <header><a class="ver" href="#v0.1.64">v0.1.64</a> <time datetime="2026-09-29">2026-09-29</time></header>
-          <h2>A Garage button on the main menu (<a href="https://github.com/Sheppio/nitro-carnage/issues/1">#1</a>)</h2>
+          <header><a class="ver" href="#v0.1.64">v0.1.64</a></header>
+          <h2>A Garage button on the main menu</h2>
         </article>
         <article class="release" id="v0.1.63">
-          <header><a class="ver" href="#v0.1.63">v0.1.63</a> <time datetime="2026-09-29">2026-09-29</time></header>
-          <h2>The browser's Back button goes up a menu level instead of leaving (<a href="https://github.com/Sheppio/nitro-carnage/issues/2">#2</a>)</h2>
+          <header><a class="ver" href="#v0.1.63">v0.1.63</a></header>
+          <h2>The browser's Back button goes up a menu level instead of leaving</h2>
         </article>
         <article class="release" id="v0.1.62">
-          <header><a class="ver" href="#v0.1.62">v0.1.62</a> <time datetime="2026-09-29">2026-09-29</time></header>
+          <header><a class="ver" href="#v0.1.62">v0.1.62</a></header>
           <h2>Generated loops and straights dive into the infield</h2>
           <ul>
             <li>Fewer oval-blob tracks. Hotlap records on those layouts start afresh.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.61">
-          <header><a class="ver" href="#v0.1.61">v0.1.61</a> <time datetime="2026-09-29">2026-09-29</time></header>
-          <h2>No stall at the end of the first hotlap lap (<a href="https://github.com/Sheppio/nitro-carnage/issues/4">#4</a>)</h2>
+          <header><a class="ver" href="#v0.1.61">v0.1.61</a></header>
+          <h2>No stall at the end of the first hotlap lap</h2>
         </article>
         <article class="release" id="v0.1.58">
-          <header><a class="ver" href="#v0.1.58">v0.1.58</a> <time datetime="2026-09-29">2026-09-29</time></header>
+          <header><a class="ver" href="#v0.1.58">v0.1.58</a></header>
           <h2>Direct WebRTC links between players</h2>
           <ul>
             <li>Car updates go peer to peer, with the MQTT broker as the fallback.</li>
@@ -507,42 +517,42 @@
           </ul>
         </article>
         <article class="release" id="v0.1.56">
-          <header><a class="ver" href="#v0.1.56">v0.1.56</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.56">v0.1.56</a></header>
           <h2>‹ › arrows in place of the short dropdowns</h2>
         </article>
         <article class="release" id="v0.1.55">
-          <header><a class="ver" href="#v0.1.55">v0.1.55</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.55">v0.1.55</a></header>
           <h2>Car colour in the Garage, silver, a shorter track screen, a wider podium</h2>
         </article>
         <article class="release" id="v0.1.54">
-          <header><a class="ver" href="#v0.1.54">v0.1.54</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.54">v0.1.54</a></header>
           <h2>Rooms side by side on the menu, a Track of the day mode, a new bot driver</h2>
         </article>
         <article class="release" id="v0.1.53">
-          <header><a class="ver" href="#v0.1.53">v0.1.53</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.53">v0.1.53</a></header>
           <h2>Race option: every car on the grid in one body</h2>
         </article>
         <article class="release" id="v0.1.52">
-          <header><a class="ver" href="#v0.1.52">v0.1.52</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.52">v0.1.52</a></header>
           <h2>Garage: a Formula 1 body</h2>
         </article>
         <article class="release" id="v0.1.51">
-          <header><a class="ver" href="#v0.1.51">v0.1.51</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.51">v0.1.51</a></header>
           <h2>Power-ups and turbo can be switched off, like weapons</h2>
         </article>
         <article class="release" id="v0.1.50">
-          <header><a class="ver" href="#v0.1.50">v0.1.50</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.50">v0.1.50</a></header>
           <h2>The frame rate no longer drops from the second race on (Xbox judder)</h2>
           <ul>
             <li>Each race leaked GPU memory. It is now freed, and one renderer serves every race.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.49">
-          <header><a class="ver" href="#v0.1.49">v0.1.49</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.49">v0.1.49</a></header>
           <h2>Pickups: rows of ammo, repair and turbo boxes round the lap</h2>
         </article>
         <article class="release" id="v0.1.48">
-          <header><a class="ver" href="#v0.1.48">v0.1.48</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.48">v0.1.48</a></header>
           <h2>TV layout, a swooping race start and a podium</h2>
           <ul>
             <li>A Text size setting. Large is on automatically for Xbox and PlayStation.</li>
@@ -550,15 +560,15 @@
           </ul>
         </article>
         <article class="release" id="v0.1.47">
-          <header><a class="ver" href="#v0.1.47">v0.1.47</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.47">v0.1.47</a></header>
           <h2>A laps option for quick races, five laps by default</h2>
         </article>
         <article class="release" id="v0.1.46">
-          <header><a class="ver" href="#v0.1.46">v0.1.46</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.46">v0.1.46</a></header>
           <h2>Rooms keep score: points, awards, rematch and a kill feed</h2>
         </article>
         <article class="release" id="v0.1.45">
-          <header><a class="ver" href="#v0.1.45">v0.1.45</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.45">v0.1.45</a></header>
           <h2>Leaner netcode</h2>
           <ul>
             <li>One message per client per tick, nearly halving the traffic. Important events are sent three times.</li>
@@ -566,11 +576,11 @@
           </ul>
         </article>
         <article class="release" id="v0.1.44">
-          <header><a class="ver" href="#v0.1.44">v0.1.44</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.44">v0.1.44</a></header>
           <h2>Pad: Y fires forward, X drops mines</h2>
         </article>
         <article class="release" id="v0.1.43">
-          <header><a class="ver" href="#v0.1.43">v0.1.43</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.43">v0.1.43</a></header>
           <h2>Xbox fixes</h2>
           <ul>
             <li>A opens the game's own keyboard and dropdown lists.</li>
@@ -580,35 +590,35 @@
           </ul>
         </article>
         <article class="release" id="v0.1.42">
-          <header><a class="ver" href="#v0.1.42">v0.1.42</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.42">v0.1.42</a></header>
           <h2>Track of the Day: the seed is the bare date</h2>
         </article>
         <article class="release" id="v0.1.41">
-          <header><a class="ver" href="#v0.1.41">v0.1.41</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.41">v0.1.41</a></header>
           <h2>Any day's Track of the Day by date; future days locked</h2>
         </article>
         <article class="release" id="v0.1.40">
-          <header><a class="ver" href="#v0.1.40">v0.1.40</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.40">v0.1.40</a></header>
           <h2>Link previews: a share card for WhatsApp, iMessage, Slack, Discord and X</h2>
         </article>
         <article class="release" id="v0.1.39">
-          <header><a class="ver" href="#v0.1.39">v0.1.39</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.39">v0.1.39</a></header>
           <h2>Lobby: a map of the room's track, and colour squares</h2>
         </article>
         <article class="release" id="v0.1.38">
-          <header><a class="ver" href="#v0.1.38">v0.1.38</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.38">v0.1.38</a></header>
           <h2>A steady speed readout; ten more bot names</h2>
         </article>
         <article class="release" id="v0.1.37">
-          <header><a class="ver" href="#v0.1.37">v0.1.37</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.37">v0.1.37</a></header>
           <h2>Fixed Start doing nothing after the host went back to the lobby early</h2>
         </article>
         <article class="release" id="v0.1.36">
-          <header><a class="ver" href="#v0.1.36">v0.1.36</a> <time datetime="2026-09-28">2026-09-28</time></header>
+          <header><a class="ver" href="#v0.1.36">v0.1.36</a></header>
           <h2>A ?daily link: today's Track of the Day, one press from driving</h2>
         </article>
         <article class="release" id="v0.1.35">
-          <header><a class="ver" href="#v0.1.35">v0.1.35</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.35">v0.1.35</a></header>
           <h2>About 30 s a lap, and roads a quarter wider</h2>
           <ul>
             <li>Every track was resized so the best bot laps in about 29 s.</li>
@@ -616,18 +626,18 @@
           </ul>
         </article>
         <article class="release" id="v0.1.34">
-          <header><a class="ver" href="#v0.1.34">v0.1.34</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.34">v0.1.34</a></header>
           <h2>Lobby: change your name, Back to lobby, named bots</h2>
         </article>
         <article class="release" id="v0.1.33">
-          <header><a class="ver" href="#v0.1.33">v0.1.33</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.33">v0.1.33</a></header>
           <h2>Smooth remote cars in rooms</h2>
           <ul>
             <li>Every tab keeps to the room clock, so other players' cars no longer jitter.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.32">
-          <header><a class="ver" href="#v0.1.32">v0.1.32</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.32">v0.1.32</a></header>
           <h2>Faster, cleaner bots and a Rival skill setting</h2>
           <ul>
             <li>Bots follow a better racing line and steer more smoothly.</li>
@@ -635,45 +645,45 @@
           </ul>
         </article>
         <article class="release" id="v0.1.31">
-          <header><a class="ver" href="#v0.1.31">v0.1.31</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.31">v0.1.31</a></header>
           <h2>Field of view: a Settings slider and the mouse wheel</h2>
         </article>
         <article class="release" id="v0.1.30">
-          <header><a class="ver" href="#v0.1.30">v0.1.30</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.30">v0.1.30</a></header>
           <h2>Road lines stop at the chequered start line</h2>
         </article>
         <article class="release" id="v0.1.29">
-          <header><a class="ver" href="#v0.1.29">v0.1.29</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.29">v0.1.29</a></header>
           <h2>Fixed speckled windows on the towers</h2>
         </article>
         <article class="release" id="v0.1.28">
-          <header><a class="ver" href="#v0.1.28">v0.1.28</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.28">v0.1.28</a></header>
           <h2>Driver names over cars, a bigger roof number, the Garage on the track screen</h2>
         </article>
         <article class="release" id="v0.1.27">
-          <header><a class="ver" href="#v0.1.27">v0.1.27</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.27">v0.1.27</a></header>
           <h2>Races end on the first cool-down lap, the last finisher, or 60 s</h2>
         </article>
         <article class="release" id="v0.1.26">
-          <header><a class="ver" href="#v0.1.26">v0.1.26</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.26">v0.1.26</a></header>
           <h2>Turbo flames, Tractor and Forklift bodies, a flying hotlap start</h2>
           <ul>
             <li>A wrecked car comes back with full health.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.25">
-          <header><a class="ver" href="#v0.1.25">v0.1.25</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.25">v0.1.25</a></header>
           <h2>Twenty-one real circuits</h2>
           <ul>
             <li>Spa, Monza, Monaco, Silverstone, Le Mans, Brands Hatch (GP and Indy), Hockenheim, Indianapolis, Daytona, Laguna Seca, Sebring, Road America, Watkins Glen, Gilles Villeneuve, Suzuka, Mount Panorama, Interlagos, Yas Marina, the Red Bull Ring and Barcelona.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.24">
-          <header><a class="ver" href="#v0.1.24">v0.1.24</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.24">v0.1.24</a></header>
           <h2>Menu: modes and settings only; the track gets a screen of its own</h2>
         </article>
         <article class="release" id="v0.1.23">
-          <header><a class="ver" href="#v0.1.23">v0.1.23</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.23">v0.1.23</a></header>
           <h2>The city by day, farmland and a working port</h2>
           <ul>
             <li>A new built-in track, Downtown by Day.</li>
@@ -682,18 +692,18 @@
           </ul>
         </article>
         <article class="release" id="v0.1.22">
-          <header><a class="ver" href="#v0.1.22">v0.1.22</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.22">v0.1.22</a></header>
           <h2>Seeded tracks in three layouts; a dice on the seed box; Garage arrows</h2>
           <ul>
             <li>Seeded tracks are a flowing loop, a city grid or long straights.</li>
           </ul>
         </article>
         <article class="release" id="v0.1.20">
-          <header><a class="ver" href="#v0.1.20">v0.1.20</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.20">v0.1.20</a></header>
           <h2>Random seeds: three three-letter words, like egg-cup-top</h2>
         </article>
         <article class="release" id="v0.1.19">
-          <header><a class="ver" href="#v0.1.19">v0.1.19</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.19">v0.1.19</a></header>
           <h2>Hotlap ghost, and track previews on the menu</h2>
           <ul>
             <li>A see-through ghost drives your record lap, beside you or up to 2 s ahead to show the line.</li>
@@ -701,11 +711,11 @@
           </ul>
         </article>
         <article class="release" id="v0.1.18">
-          <header><a class="ver" href="#v0.1.18">v0.1.18</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.18">v0.1.18</a></header>
           <h2>Smoother touch steering</h2>
         </article>
         <article class="release" id="v0.1.17">
-          <header><a class="ver" href="#v0.1.17">v0.1.17</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.17">v0.1.17</a></header>
           <h2>Track of the day, your own seeds, hotlap, and race only</h2>
           <ul>
             <li>Any word makes a track, the same on every device. The date gives the Track of the day.</li>
@@ -714,15 +724,15 @@
           </ul>
         </article>
         <article class="release" id="v0.1.16">
-          <header><a class="ver" href="#v0.1.16">v0.1.16</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.16">v0.1.16</a></header>
           <h2>Your fire buttons work while the autopilot drives</h2>
         </article>
         <article class="release" id="v0.1.15">
-          <header><a class="ver" href="#v0.1.15">v0.1.15</a> <time datetime="2026-09-25">2026-09-25</time></header>
+          <header><a class="ver" href="#v0.1.15">v0.1.15</a></header>
           <h2>The Garage: five body styles, liveries, wheels and race numbers</h2>
         </article>
         <article class="release" id="v0.1.14">
-          <header><a class="ver" href="#v0.1.14">v0.1.14</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.14">v0.1.14</a></header>
           <h2>Greenbelt and Tidewater Docks, the train, water and oil, sound</h2>
           <ul>
             <li>Two new tracks: Greenbelt parkland and Tidewater Docks, with a railway crossing.</li>
@@ -731,7 +741,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.12">
-          <header><a class="ver" href="#v0.1.12">v0.1.12</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.12">v0.1.12</a></header>
           <h2>Weapons, damage and wrecks; keyboard navigation everywhere</h2>
           <ul>
             <li>Front missiles, mines and rear missiles, plus health, wrecks and kill credit.</li>
@@ -739,7 +749,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.9">
-          <header><a class="ver" href="#v0.1.9">v0.1.9</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.9">v0.1.9</a></header>
           <h2>Multiplayer rooms, and console and handheld support</h2>
           <ul>
             <li>Online rooms for up to six players, with host failover, a shared clock and late joiners.</li>
@@ -747,11 +757,11 @@
           </ul>
         </article>
         <article class="release" id="v0.1.8">
-          <header><a class="ver" href="#v0.1.8">v0.1.8</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.8">v0.1.8</a></header>
           <h2>Faster bots in corners</h2>
         </article>
         <article class="release" id="v0.1.5">
-          <header><a class="ver" href="#v0.1.5">v0.1.5</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.5">v0.1.5</a></header>
           <h2>Racing against bots</h2>
           <ul>
             <li>Laps, timing, positions, collisions between cars and respawns.</li>
@@ -759,15 +769,15 @@
           </ul>
         </article>
         <article class="release" id="v0.1.4">
-          <header><a class="ver" href="#v0.1.4">v0.1.4</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.4">v0.1.4</a></header>
           <h2>More steering before understeer</h2>
         </article>
         <article class="release" id="v0.1.3">
-          <header><a class="ver" href="#v0.1.3">v0.1.3</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.3">v0.1.3</a></header>
           <h2>Handling fix: no push off the throttle, no spin on it</h2>
         </article>
         <article class="release" id="v0.1.1">
-          <header><a class="ver" href="#v0.1.1">v0.1.1</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.1">v0.1.1</a></header>
           <h2>First playable: one car driving on Neon Downtown in 3D</h2>
           <ul>
             <li>Car physics with drift, handbrake and turbo, plus ramps and jumps.</li>
@@ -776,7 +786,7 @@
           </ul>
         </article>
         <article class="release" id="v0.1.0">
-          <header><a class="ver" href="#v0.1.0">Before v0.1.1</a> <time datetime="2026-09-24">2026-09-24</time></header>
+          <header><a class="ver" href="#v0.1.0">Before v0.1.1</a></header>
           <h2>Project plan: architecture and milestones</h2>
         </article>
       </main>

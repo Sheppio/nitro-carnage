@@ -24,6 +24,7 @@ const RIG = join(HERE, 'rig');
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
   '.css': 'text/css', '.map': 'application/json', '.png': 'image/png',
+  '.svg': 'image/svg+xml',
 };
 
 /**
@@ -56,6 +57,7 @@ export async function buildRig() {
     .replace(/"mqtt":\s*"[^"]+"/, '"mqtt": "./mqtt-stub.js"')
     .replace('href="./css/ui.css"', 'href="../../css/ui.css"')
     .replace('src="./dist/main.js"', 'src="../../dist/main.js"')
+    .replace(/href="\.\/(favicon[^"]*|apple-touch-icon[^"]*)"/g, 'href="../../$1"')
     // Google Fonts are unavailable offline and would stall `networkidle`.
     .replace(/\s*<link rel="preconnect"[^>]*>/g, '')
     .replace(/\s*<link\s+href="https:\/\/fonts\.googleapis[^>]*>/g, '');
