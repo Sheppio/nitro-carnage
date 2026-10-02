@@ -1710,8 +1710,12 @@ share:image` makes it again. A smoke check reads the tags and the file's size.
 
 ## Deployment
 
-GitHub Pages deploys from a branch: `main`, folder `/ (root)`. `.nojekyll` is present
-so nothing is filtered. To deploy, run `npm run build`, commit `dist/`, and push.
+Cloudflare serves the game from two branches. `main` is development: every push to it
+rebuilds a development copy. `prod` is the live game: Cloudflare production builds only
+from `prod`, and nothing is committed to it directly. To release, fast-forward `prod` to
+`main` (`git push origin origin/main:prod`), with no merge commit and no new version.
+Each branch tells Cloudflare through its own deploy hook
+(`.github/workflows/inform-cloudflare-push-to-main.yml` and `…-to-prod.yml`).
 
 CI (`.github/workflows/ci.yml`) deliberately **does not deploy**. It typechecks,
 fails if the committed `dist/` has drifted from `src/`, checks that this README's test

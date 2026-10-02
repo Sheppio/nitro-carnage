@@ -1,7 +1,9 @@
+# Development build: every push to main rebuilds Cloudflare's development copy.
+# Production is built from prod instead (inform-cloudflare-push-to-prod.yml).
 on:
   push:
     branches:
-      - main  # This ensures the workflow only runs for the main branch
+      - main
 
 jobs:
   trigger_webhook:

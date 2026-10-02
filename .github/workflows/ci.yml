@@ -1,11 +1,12 @@
 name: CI
 
-# Publishing is handled by GitHub Pages' own deploy-from-branch build, so this
-# workflow deliberately does NOT deploy. Browser tests are timing sensitive on
+# Cloudflare builds the game itself (main for development, prod for the live
+# game; see the inform-cloudflare-* workflows), so this workflow deliberately
+# does NOT deploy. Browser tests are timing sensitive on
 # shared runners, and a slow runner must not be able to stop the site going up.
 on:
   push:
-    branches: [main]
+    branches: [main, prod]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -31,7 +32,7 @@ jobs:
       - run: npm run check
       - run: npm run build
 
-      # dist/ is committed because Pages serves it straight from the branch, so
+      # dist/ is committed because it is served straight from the branch, so
       # it must never drift from src/ — that would silently publish stale code.
       - name: Verify committed dist/ is up to date
         run: |

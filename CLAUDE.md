@@ -16,6 +16,15 @@
   asking. Fetch `origin/main` first; if it has moved on, merge it in (and renumber
   the changelog entry) before pushing.
 
+## Releasing
+
+- `main` is development: Cloudflare builds a development copy from every push to it.
+  `prod` is the live game: Cloudflare production builds only from `prod`.
+- Never commit to `prod`, and only move it when the user asks for a release.
+- A release fast-forwards `prod` to `main`: `git fetch origin main && git push origin
+  origin/main:prod`. No merge commit and no new version: the live game gets exactly
+  the build that was tested on `main`.
+
 ## Working on GitHub issues
 
 - When starting work on a GitHub issue, assign it and add the `in progress` label;
