@@ -17,13 +17,15 @@
 
 ## Every commit
 
-- Add an entry to the top of `CHANGELOG.md` in the same commit. The pre-commit hook
-  bumps the patch version, so the entry is for the version `package.json` will have
-  after the commit: one more than it says now. Check `origin/main` first, since another
-  commit landing there first changes the number. Follow the existing format:
-  `## vX.Y.Z — YYYY-MM-DD`, the change in bold, then a few short bullets written for
-  the player, not about the code. Changes only to docs, tests or tooling still get a
-  one-line entry.
+- Add an entry to the top of `changelog.html` (the first `<article>` inside `<main>`)
+  in the same commit. The pre-commit hook bumps the patch version, so the entry is
+  for the version `package.json` will have after the commit: one more than it says
+  now. Check `origin/main` first, since another commit landing there first changes
+  the number. Copy the shape of the entry below it: the version as the article's
+  `id` and link, the date in `<time>`, the change in the `<h2>`, then a `<ul>` of a
+  few short bullets written for the player, not about the code. Escape `&` and `<`,
+  and link issue numbers as the others are. Changes only to docs, tests or tooling
+  still get an entry with just the `<h2>`.
 - If you merge `main` into a branch, the version moves on. Renumber the branch's
   changelog entry to match.
 
