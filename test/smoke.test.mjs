@@ -12,8 +12,9 @@ const { server, url } = await startServer(8199);
 const browser = await launch();
 
 const errors = [];
-async function openPage(query, viewport = { width: 800, height: 450 }) {
+async function openPage(query, viewport = { width: 800, height: 450 }, init = null) {
   const page = await browser.newPage({ viewport });
+  if (init) await page.addInitScript(init);
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`console: ${m.text()}`);
@@ -791,7 +792,28 @@ try {
   /* ------------------------------------------------------------- hotlap */
   // The track of the day, generated in the browser: the same track Node
   // generates from the same seed, to the byte.
-  const hl = await openPage('quality=potato&hotlap&track=day&autopilot');
+  // Each frame's shader links and first uses, to see the ghost appear without one (#4).
+  const hl = await openPage('quality=potato&hotlap&track=day&autopilot', undefined, () => {
+    window.glWork = new Map();
+    let frame = 0;
+    const raf = window.requestAnimationFrame.bind(window);
+    // The frame the ghost is first drawn: set within the frame's own callback.
+    window.ghostFrame = null;
+    window.requestAnimationFrame = (cb) => raf((t) => {
+      frame++;
+      cb(t);
+      if (window.ghostFrame === null && window.nitro?.session?.view.scene.getObjectByName('ghost')?.visible) window.ghostFrame = frame;
+    });
+    for (const C of [WebGLRenderingContext, WebGL2RenderingContext]) {
+      for (const name of ['linkProgram', 'getProgramInfoLog']) {
+        const f = C.prototype[name];
+        C.prototype[name] = function (...a) {
+          window.glWork.set(frame, (window.glWork.get(frame) ?? 0) + 1);
+          return f.apply(this, a);
+        };
+      }
+    }
+  });
   const sameTrack = await hl.evaluate(async () => {
     // The same modules the page itself runs, resolved from its own script.
     const main = document.querySelector('script[type="module"][src]').src;
@@ -834,6 +856,10 @@ try {
     g.traverse((o) => { if (o.material && !(o.material.transparent && o.material.opacity < 0.5)) seeThrough = false; });
     return { d, seeThrough };
   }), { timeout: 20000, interval: 100 });
+  // compile() only starts the ghost's shaders: they were finished on its first frame, a freeze at the start of lap 2.
+  const firstFrame = await hl.evaluate(() => ({ frame: window.ghostFrame, work: window.glWork.get(window.ghostFrame) ?? 0 }));
+  r.check('the ghost\'s first appearance links no shaders: they were finished while the track loaded (#4)',
+    firstFrame.frame !== null && firstFrame.work === 0, JSON.stringify(firstFrame));
   r.check('a see-through ghost drives the record lap on the road beside you', ghost && ghost.d < 9 && ghost.seeThrough, ghost ? `${ghost.d.toFixed(1)} m off the centre line` : 'no ghost');
   // The ghost's lead: Off hides it; a second ahead puts it a second's driving up the road.
   const ahead = await hl.evaluate(async () => {

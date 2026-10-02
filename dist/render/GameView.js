@@ -173,9 +173,12 @@ export class GameView {
         this.ghost.update(st, 1 / 60);
     }
     /**
-     * Build the ghost ahead of time, hidden, and compile its see-through
-     * shaders now: made on the spot, at the end of the first lap, the new
-     * shader programs stalled the game for a moment just as the ghost appeared.
+     * Build the ghost ahead of time, hidden, and get its see-through shaders
+     * ready now: made on the spot, at the end of the first lap, the new shader
+     * programs stalled the game for a moment just as the ghost appeared.
+     * `compile()` alone only starts them; the browser finishes linking a
+     * program the first time it is used, so the ghost is also drawn once,
+     * unseen, while the track loads.
      */
     prepareGhost() {
         if (this.ghost)
@@ -204,6 +207,26 @@ export class GameView {
         // compile() skips hidden objects: show it for the compile, then hide it.
         g.root.visible = true;
         this.renderer.compile(this.scene, this.rig.camera);
+        // The draw that finishes them: the whole scene, so the lights and fog pick
+        // the same programs as a race does; the ghost clear (opacity is only a
+        // uniform) and drawn wherever the camera points.
+        const mats = [];
+        const culled = [];
+        g.root.traverse((o) => {
+            const mesh = o;
+            if (!mesh.material)
+                return;
+            culled.push([mesh, mesh.frustumCulled]);
+            mesh.frustumCulled = false;
+            mats.push(...(Array.isArray(mesh.material) ? mesh.material : [mesh.material]));
+        });
+        for (const m of mats)
+            m.opacity = 0;
+        this.renderer.render(this.scene, this.rig.camera);
+        for (const m of mats)
+            m.opacity = 0.38;
+        for (const [o, c] of culled)
+            o.frustumCulled = c;
         g.root.visible = false;
     }
     pickupView = null;

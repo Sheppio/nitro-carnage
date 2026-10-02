@@ -3,6 +3,11 @@
 Every change to Nitro Carnage, newest first. Each version is one commit; a
 few version numbers were skipped along the way.
 
+## v0.1.115 — 2026-10-02
+**No more freeze when the hotlap ghost first appears**
+- On a new track, the game no longer stalls for a moment at the start of the second lap, when your ghost first takes to the road.
+- The ghost is now made fully ready while the track loads, not just started.
+
 ## v0.1.114 — 2026-10-02
 **Link previews work from either site**
 - A shared link's preview card names whichever site was shared, GitHub Pages or nitro-carnage.helloshep.com, and its picture comes from Cloudflare.
