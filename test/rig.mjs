@@ -91,7 +91,23 @@ export async function launch({ uncapped = false } = {}) {
   const args = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
     '--disable-features=WebRtcHideLocalIpsWithMdns'];
   if (uncapped) args.push('--disable-frame-rate-limit');
-  return chromium.launch({ executablePath: chromePath(), args });
+  const browser = await chromium.launch({ executablePath: chromePath(), args });
+  // Every test page is a returning player's, with a name saved, so past the
+  // first visit's welcome and Garage (newPage makes its context through
+  // newContext). The welcome test takes the name away with an init script of its own.
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const ctx = await newContext(options);
+    await ctx.addInitScript(() => {
+      try {
+        if (!localStorage.getItem('nitrocarnage.name')) localStorage.setItem('nitrocarnage.name', 'DRIVER');
+      } catch {
+        /* a page with no storage: nothing to skip */
+      }
+    });
+    return ctx;
+  };
+  return browser;
 }
 
 export function reporter(title) {

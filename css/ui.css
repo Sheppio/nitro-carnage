@@ -171,13 +171,6 @@ h2 {
 .track-pick { min-width: 0; }
 .track-pick .seed-row { margin: 0 0 12px; }
 
-/* The name and the Garage button beside it, drawn as your car: the button is the box's height. */
-.name-row { display: flex; align-items: flex-end; gap: 8px; margin: 0 0 12px; }
-.name-row .field { flex: 1 1 auto; min-width: 0; margin: 0; }
-.name-row input { min-width: 0; width: 100%; }
-.btn.car-btn { flex: none; display: grid; place-items: center; align-self: stretch; margin-top: 24px; padding: 0 10px; }
-.btn.car-btn .car-icon { margin: 0; }
-
 select {
   font: 15px var(--body);
   color: var(--text);
@@ -1152,6 +1145,8 @@ body.tv .ammo { font-size: 15px; }
 /* The settings list is long: its rows sit closer, so it fits a phone, a Deck or a TV without scrolling.
    One column, so down and up on a pad or the arrow keys visit every row in turn. */
 #screen-settings .field { margin-bottom: 7px; }
+/* The name beside its label like every other setting: a box for twelve letters, not the row's width. */
+#screen-settings .field input[type='text'] { width: 11em; min-width: 0; padding: 7px 10px; font-size: 16px; }
 #screen-settings h2 { margin-bottom: 10px; }
 /* Experimental… beside Back, so the long list gets no taller. */
 .menu-actions.row { flex-direction: row; }

@@ -64,7 +64,7 @@ const photo = new PhotoMode(input.gamepad, gameRoot);
 /* ---------------------------------------------------------------- screens */
 const screens = [
     'screen-menu', 'screen-join', 'screen-connecting', 'screen-lobby', 'screen-full', 'screen-settings', 'screen-hud', 'screen-results',
-    'screen-garage', 'screen-track', 'screen-lobby-track', 'screen-experimental',
+    'screen-garage', 'screen-track', 'screen-lobby-track', 'screen-experimental', 'screen-welcome',
 ];
 let current = 'screen-menu';
 /** The results' podium: its own WebGL context, made the first time a race ends. */
@@ -130,13 +130,44 @@ const store = {
         }
     },
 };
-const nameInput = $('input-name');
-nameInput.value = store.get(NAME_KEY);
-nameInput.addEventListener('input', () => {
-    nameInput.value = nameInput.value.toUpperCase().replace(/[^A-Z0-9_\- ]/g, '');
-    store.set(NAME_KEY, nameInput.value);
-});
-const playerName = () => sanitizeName(nameInput.value);
+/** A driver must have a name: spaces alone are not one. */
+const isName = (v) => v.trim() !== '';
+/** The name in Settings, and on the welcome screen of a first visit: one name, kept in step. */
+const nameInputs = [$('input-name'), $('input-welcome-name')];
+for (const field of nameInputs) {
+    field.value = store.get(NAME_KEY);
+    field.addEventListener('input', () => {
+        field.value = field.value.toUpperCase().replace(/[^A-Z0-9_\- ]/g, '');
+        // An emptied box keeps the last name: Settings puts it back on the way out.
+        if (isName(field.value))
+            store.set(NAME_KEY, field.value);
+        for (const other of nameInputs)
+            if (other !== field)
+                other.value = field.value;
+        welcomeReady();
+    });
+}
+// Read from the box, not from storage: two tabs of one browser keep a name each.
+const playerName = () => sanitizeName(nameInputs[0].value);
+/** The last name back in the boxes, should one have been left empty. */
+let lastName = store.get(NAME_KEY);
+function restoreName() {
+    if (isName(nameInputs[0].value))
+        lastName = nameInputs[0].value;
+    for (const field of nameInputs)
+        field.value = lastName;
+}
+/**
+ * A brand new player is asked their name and their car before the menu (#33).
+ * The name is what marks a player as one who has been here: whoever has one
+ * saved goes straight to the menu.
+ */
+const onboarded = () => isName(store.get(NAME_KEY));
+/** The welcome screen's Next waits for a name. */
+function welcomeReady() {
+    $('btn-welcome-next').disabled = !isName($('input-welcome-name').value);
+}
+welcomeReady();
 const TRACK_KEY = `${SLUG}.track`;
 const SEED_KEY = `${SLUG}.seed`;
 const WEAPONS_KEY = `${SLUG}.weapons`;
@@ -355,27 +386,34 @@ function openGarage(from) {
 }
 $('btn-garage').addEventListener('click', () => openGarage('screen-track'));
 $('btn-lobby-garage').addEventListener('click', () => openGarage('screen-lobby'));
-$('btn-menu-garage').addEventListener('click', () => openGarage('screen-menu'));
 $('btn-garage-back').addEventListener('click', () => {
     garage?.close();
-    // Redrawn once on the way out, not on every pick: each still is a WebGL context.
-    showMenuCar();
     if (garageFrom === 'screen-lobby' && room) {
         show('screen-lobby');
         lobby?.render();
     }
+    else if (garageFrom === 'screen-welcome') {
+        // The last step of a first visit: on to the menu, or wherever the link was going.
+        show('screen-menu');
+        land();
+    }
     else {
-        // Back to the menu or the track screen, whichever it was opened from.
-        show(garageFrom === 'screen-menu' ? 'screen-menu' : 'screen-track');
+        show('screen-track');
     }
 });
-/** The main menu's Garage button (#1) wears the player's own car, drawn by the game's renderer (#7). */
-function showMenuCar() {
-    $('btn-menu-garage').replaceChildren(carPortrait(look, colourId, 64, 32));
-}
+/* ---------------------------------------------------------------- welcome */
+$('btn-welcome-next').addEventListener('click', () => {
+    if (!isName($('input-welcome-name').value))
+        return;
+    restoreName();
+    openGarage('screen-welcome');
+});
+$('input-welcome-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter')
+        $('btn-welcome-next').click();
+});
 const savedColour = store.get(COLOUR_KEY);
 let colourId = isColourId(savedColour) ? savedColour : 'vermilion';
-showMenuCar();
 /* --------------------------------------------------------- race sessions */
 let session = null;
 let hud = null;
@@ -609,7 +647,7 @@ async function openRoom(code) {
         if (current === 'screen-lobby' && net.isHost !== wasHost) {
             wasHost = net.isHost;
             const at = document.activeElement?.id;
-            if (!at || ['btn-copy-link', 'btn-lobby-garage', 'btn-start-race'].includes(at))
+            if (!at || ['btn-copy-link', 'btn-lobby-garage', 'btn-lobby-settings', 'btn-start-race'].includes(at))
                 nav.focusFirst();
         }
     };
@@ -1066,10 +1104,11 @@ addEventListener('resize', hudScale);
 $('set-names').addEventListener('change', (e) => settings.set('nameTags', e.target.value));
 $('set-sfx').addEventListener('input', (e) => settings.set('sfxVolume', Number(e.target.value)));
 $('set-music').addEventListener('input', (e) => settings.set('musicVolume', Number(e.target.value)));
-/** Where Settings' Back goes: the menu, or the pause menu of the race it was opened from. */
-let settingsFromPause = false;
-function openSettings(fromPause) {
-    settingsFromPause = fromPause;
+/** Where Settings' Back goes: the menu, the lobby, or the pause menu of the race it was opened from. */
+let settingsFrom = 'menu';
+function openSettings(from) {
+    settingsFrom = from;
+    const fromPause = from === 'pause';
     // A console has a controller and a TV, and no touchscreen to put buttons on.
     $('set-touch-row').hidden = isConsole();
     showSteerRow(settings.current.touchControls);
@@ -1095,7 +1134,8 @@ function openSettings(fromPause) {
         $('pause-veil').hidden = true;
     show('screen-settings');
 }
-$('btn-settings').addEventListener('click', () => openSettings(false));
+$('btn-settings').addEventListener('click', () => openSettings('menu'));
+$('btn-lobby-settings').addEventListener('click', () => openSettings('lobby'));
 /* ------------------------------------------------------------ experimental */
 /** The Custom camera's sliders: setting, element and how its value reads. */
 const camSliders = [
@@ -1147,12 +1187,21 @@ window.addEventListener('keydown', (e) => {
         return;
     nextCameraView();
 });
-$('btn-pause-settings').addEventListener('click', () => openSettings(true));
+$('btn-pause-settings').addEventListener('click', () => openSettings('pause'));
 $('btn-settings-back').addEventListener('click', () => {
-    if (settingsFromPause && session) {
-        settingsFromPause = false;
+    restoreName();
+    const from = settingsFrom;
+    settingsFrom = 'menu';
+    if (from === 'pause' && session) {
         show('screen-hud');
         openPause();
+    }
+    else if (from === 'lobby' && room) {
+        // A new name goes to the room once, on the way out, not at every letter.
+        room.net.room.setIdentity(playerName(), colourId, encodeLook(look));
+        show('screen-lobby');
+        lobby?.render();
+        nav.focusOn($('btn-lobby-settings'));
     }
     else {
         show('screen-menu');
@@ -1226,35 +1275,47 @@ window.addEventListener('keydown', (e) => {
     if (current === 'screen-hud' && session)
         togglePause();
 });
-show('screen-menu');
 /**
- * A link to a ready-to-go track screen: `?daily` is today's Track of the Day
- * as a hotlap, and `?pick=hotlap` or `?pick=race` with `&track=` or `&seed=`
- * any other. The player lands on the track screen with Start focused, so one
- * press drives. (`?hotlap` and `?race` skip even that: for tests.)
+ * Where the address was going: a track, a race or a room. A first visit
+ * asks for a name and a car before any of it, and lands here after the Garage.
  */
-if (params.has('daily') || params.has('pick')) {
-    // `?daily=2026-09-20` is that day's (a future day shows as locked).
-    const day = params.get('daily');
-    if (day) {
-        menuTrack.value = 'seed';
-        menuSeed.value = day;
+function land() {
+    /**
+     * A link to a ready-to-go track screen: `?daily` is today's Track of the Day
+     * as a hotlap, and `?pick=hotlap` or `?pick=race` with `&track=` or `&seed=`
+     * any other. The player lands on the track screen with Start focused, so one
+     * press drives. (`?hotlap` and `?race` skip even that: for tests.)
+     */
+    if (params.has('daily') || params.has('pick')) {
+        // `?daily=2026-09-20` is that day's (a future day shows as locked).
+        const day = params.get('daily');
+        if (day) {
+            menuTrack.value = 'seed';
+            menuSeed.value = day;
+        }
+        else if (params.has('daily')) {
+            menuTrack.value = 'day';
+            showMenuSeed();
+        }
+        chooseTrack(params.get('pick') === 'race' ? 'race' : 'hotlap');
     }
-    else if (params.has('daily')) {
-        menuTrack.value = 'day';
-        showMenuSeed();
+    if (params.has('drive') || params.has('hotlap'))
+        startOffline('hotlap');
+    if (params.has('race'))
+        startOffline('race');
+    const linked = params.get('room');
+    if (linked) {
+        $('input-room').value = linked.toUpperCase();
+        joinReady();
+        void openRoom(linked);
     }
-    chooseTrack(params.get('pick') === 'race' ? 'race' : 'hotlap');
 }
-if (params.has('drive') || params.has('hotlap'))
-    startOffline('hotlap');
-if (params.has('race'))
-    startOffline('race');
-const linked = params.get('room');
-if (linked) {
-    $('input-room').value = linked.toUpperCase();
-    joinReady();
-    void openRoom(linked);
+if (onboarded()) {
+    show('screen-menu');
+    land();
+}
+else {
+    show('screen-welcome');
 }
 window.nitro = {
     settings,

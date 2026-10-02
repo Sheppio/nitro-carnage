@@ -102,16 +102,6 @@ try {
     r.check('menu: every control is reachable with the arrow keys', x.ok, x.note);
   }
 
-  // Typing into the name: arrows left and right stay with the caret.
-  await goTo(page, 'input-name');
-  await page.keyboard.press('Control+a');
-  await page.keyboard.type('KEYS');
-  await page.keyboard.press('ArrowLeft');
-  const stillName = (await focused(page)) === 'input-name';
-  await page.keyboard.press('Backspace');
-  const name = await page.evaluate(() => document.getElementById('input-name').value);
-  r.check('in the name field, left/right move the caret and Backspace deletes', stillName && name === 'KES', `"${name}"`);
-
   /* ------------------------------------------------------------ settings */
   await goTo(page, 'btn-settings');
   await page.keyboard.press('Enter');
@@ -121,6 +111,15 @@ try {
     const x = await reach(page);
     r.check('settings: every control is reachable with the arrow keys', x.ok, x.note);
   }
+  // Typing into the name: arrows left and right stay with the caret.
+  await goTo(page, 'input-name');
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type('KEYS');
+  await page.keyboard.press('ArrowLeft');
+  const stillName = (await focused(page)) === 'input-name';
+  await page.keyboard.press('Backspace');
+  const name = await page.evaluate(() => document.getElementById('input-name').value);
+  r.check('in the name field, left/right move the caret and Backspace deletes', stillName && name === 'KES', `"${name}"`);
   // The select is hidden behind its arrow stepper, which is what takes focus.
   const onQuality = await goTo(page, 'set-quality-pick');
   const q0 = await page.evaluate(() => document.getElementById('set-quality').value);

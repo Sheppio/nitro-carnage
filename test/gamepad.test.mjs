@@ -134,8 +134,12 @@ try {
   await page.evaluate((id) => window.__pad.rename(id), XBOX);
 
   /* ----------------------------------------------- on-screen keyboard */
-  // Focus starts on Create room; up reaches the name field; A opens the keyboard.
+  // Focus starts on Create room. The name is in Settings: A there, then up
+  // from Graphics reaches the name field, and A opens the keyboard.
   await until(async () => (await focused(page)) === 'btn-create');
+  await padTo(page, 'btn-settings', B.DOWN);
+  await tap(page, B.A);
+  await until(async () => (await focused(page)) === 'set-quality-pick');
   const onName = await padTo(page, 'input-name', B.UP);
   // Passing over it is not editing it: read-only, so Xbox Edge raises no keyboard of its own.
   const passing = await page.evaluate(() => document.getElementById('input-name').readOnly && document.getElementById('keyboard-veil').hidden);
@@ -164,9 +168,12 @@ try {
   const real = await page.evaluate(() => { const f = document.getElementById('input-name'); return { value: f.value, readOnly: f.readOnly }; });
   r.check('a real key typed into a pad-locked field unlocks it and types', real.value.endsWith('NOVAX') && !real.readOnly, JSON.stringify(real));
   await page.keyboard.press('Backspace');
+  // B goes back to the menu, the ring on Create room.
+  await tap(page, B.B);
+  await until(async () => (await focused(page)) === 'btn-create');
 
   /* ---------------------------------------------------- race and pause */
-  // Down from the name, past Create and Join, to Quick race; A opens the track screen with Start already focused, and A again starts.
+  // Down from Create, past Join, to Quick race; A opens the track screen with Start already focused, and A again starts.
   const onRace = await padTo(page, 'btn-race', B.DOWN);
   await tap(page, B.A);
   const onStart = await until(() => page.evaluate(() => (!document.getElementById('screen-track').hidden && document.activeElement?.id === 'btn-track-go') || null));
@@ -466,13 +473,17 @@ try {
   tvBad.settings = await offscreen('#screen-settings');
   await tap(tv, B.B);
   await tv.waitForSelector('#screen-menu:not([hidden])');
-  // The Garage from the main menu, and Done (B) back to the menu.
-  await tv.evaluate(() => document.getElementById('btn-menu-garage').click());
+  // The Garage from the track screen, and Done (B) back to it.
+  await tv.evaluate(() => document.getElementById('btn-race').click());
+  await tv.waitForSelector('#screen-track:not([hidden])');
+  await tv.evaluate(() => document.getElementById('btn-garage').click());
   await tv.waitForSelector('#screen-garage:not([hidden])');
   const garageFocus = await until(() => tv.evaluate(() => document.activeElement?.id === 'garage-body'));
   tvBad.garage = await offscreen('#screen-garage');
   await tap(tv, B.B);
-  const garageOut = await until(() => tv.evaluate(() => !document.getElementById('screen-menu').hidden));
+  const garageOut = await until(() => tv.evaluate(() => !document.getElementById('screen-track').hidden));
+  await tv.evaluate(() => document.getElementById('btn-track-back').click());
+  await tv.waitForSelector('#screen-menu:not([hidden])');
   r.check('Xbox at 1080p: the TV layout is on, the menu, Settings and the Garage fit, and they start on their first setting',
     tvOn && !tvBad.menu.length && !tvBad.settings.length && !tvBad.garage.length && Boolean(setFocus) && Boolean(garageFocus) && touchRow && Boolean(garageOut),
     JSON.stringify({ tvOn, tvBad, setFocus, garageFocus, touchRow, garageOut }));
@@ -482,6 +493,12 @@ try {
   const hostStart = await until(() => tv.evaluate(() => window.nitro.room?.net.isHost && document.activeElement?.id === 'btn-start-race'));
   const tvLobbyBad = await offscreen('#screen-lobby');
   r.check('Xbox lobby: Start race is on screen, and the host lands on it', Boolean(hostStart) && !tvLobbyBad.length, tvLobbyBad.join(', '));
+  // Settings from the lobby, and B back to the room, the ring on Settings.
+  await tv.evaluate(() => document.getElementById('btn-lobby-settings').click());
+  await tv.waitForSelector('#screen-settings:not([hidden])');
+  await tap(tv, B.B);
+  const lobbyBack = await until(() => tv.evaluate(() => (!document.getElementById('screen-lobby').hidden && window.nitro.room !== null && document.activeElement?.id === 'btn-lobby-settings') || null));
+  r.check('Settings from the lobby: B comes back to the room, on Settings', Boolean(lobbyBack));
 
   await tap(tv, B.B);
   const asked = await until(() => tv.evaluate(() => (!document.getElementById('confirm-veil').hidden && document.activeElement?.id === 'btn-confirm-no') || null));

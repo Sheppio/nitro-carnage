@@ -48,14 +48,6 @@
         <div class="menu-card">
           <h1 class="title" data-brand>NITRO CARNAGE</h1>
           <p class="tagline">Top-down combat racing. Up to six players, no server.</p>
-          <div class="name-row">
-            <label class="field stacked">
-              <span>Your name</span>
-              <input type="text" id="input-name" maxlength="12" autocomplete="off" spellcheck="false" placeholder="DRIVER" />
-            </label>
-            <!-- The Garage, drawn as your own car: filled in by the page. -->
-            <button class="btn car-btn" id="btn-menu-garage" type="button" title="Garage: change your car" aria-label="Garage: change your car"></button>
-          </div>
           <nav class="menu-actions">
             <div class="btn-row">
               <button class="btn primary" id="btn-create" data-nav-default>Create room</button>
@@ -77,6 +69,23 @@
             <p class="version" id="version"></p>
             <a class="version changelog-link" href="./changelog.html" target="_blank" rel="noopener" data-nav>Changelog</a>
           </div>
+        </div>
+      </section>
+
+      <!-- --------------------------------------------------------- WELCOME -->
+      <!-- A new player's first visit: a name, then the Garage, then the menu. -->
+      <section class="screen menu" id="screen-welcome" hidden>
+        <div class="menu-card">
+          <h1 class="title" data-brand>NITRO CARNAGE</h1>
+          <p class="tagline">Welcome! Who's driving?</p>
+          <label class="field stacked">
+            <span>Your name</span>
+            <input type="text" id="input-welcome-name" maxlength="12" autocomplete="off" spellcheck="false" placeholder="DRIVER" data-nav-default />
+          </label>
+          <p class="menu-note">Other players see it over your car. You can change it in Settings.</p>
+          <nav class="menu-actions">
+            <button class="btn primary" id="btn-welcome-next">Next: choose your car</button>
+          </nav>
         </div>
       </section>
 
@@ -273,8 +282,9 @@
                 <!-- A guest has no Start race: the focus ring lands on the Garage instead. -->
                 <div class="btn-row">
                   <button class="btn" id="btn-lobby-garage" data-nav-fallback>Garage</button>
-                  <button class="btn" id="btn-lobby-leave" data-nav-back>Leave room</button>
+                  <button class="btn" id="btn-lobby-settings">Settings</button>
                 </div>
+                <button class="btn" id="btn-lobby-leave" data-nav-back>Leave room</button>
               </nav>
             </div>
           </div>
@@ -373,6 +383,10 @@
       <section class="screen menu" id="screen-settings" hidden>
         <div class="menu-card">
           <h2>Settings</h2>
+          <label class="field">
+            <span>Your name</span>
+            <input type="text" id="input-name" maxlength="12" autocomplete="off" spellcheck="false" placeholder="DRIVER" />
+          </label>
           <label class="field">
             <span>Graphics</span>
             <select id="set-quality" data-nav-default>

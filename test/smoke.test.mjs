@@ -780,14 +780,52 @@ try {
   const kept = await gp.evaluate(() => window.nitro.look);
   r.check('the chosen look is kept for next time: after a reload it is the last one picked', kept.body === 'f1' && kept.pattern === 'roundel' && kept.stripe === 'jade',
     `${kept.body} / ${kept.pattern} / ${kept.stripe}`);
-  // The main menu's Garage button (#1): drawn as your own car, and Done comes back to the menu.
-  const menuCar = await gp.evaluate(() => document.querySelector('#btn-menu-garage .car-icon')?.dataset.body ?? null);
-  await gp.click('#btn-menu-garage');
-  await gp.waitForSelector('#screen-garage:not([hidden])');
-  await gp.click('#btn-garage-back');
-  const backOnMenu = await until(() => gp.evaluate(() => !document.getElementById('screen-menu').hidden || null), { timeout: 5000 });
-  r.check('the main menu has a Garage button drawn as your car, and Done returns to the menu', menuCar === 'f1' && Boolean(backOnMenu), `icon ${menuCar}`);
+  // The main menu has no name box or Garage button now: those are the first visit's (#33).
+  const bareMenu = await gp.evaluate(() => !document.querySelector('#screen-menu input, #btn-menu-garage'));
+  r.check('the main menu has no name box or Garage button', bareMenu);
   await gp.close();
+
+  /* ------------------------------------------------------------ welcome */
+  // A first visit (#33): no name saved, so the welcome screen asks for one,
+  // then the Garage, then the address's own destination (here today's track).
+  {
+    const wp = await browser.newPage({ viewport: { width: 800, height: 450 } });
+    await wp.addInitScript(() => {
+      if (!sessionStorage.getItem('seen')) localStorage.removeItem('nitrocarnage.name');
+      sessionStorage.setItem('seen', '1');
+    });
+    wp.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    await wp.goto(`${url}?quality=potato&daily`);
+    await wp.waitForSelector('#screen-welcome:not([hidden])');
+    const first = await wp.evaluate(() => ({
+      menu: document.getElementById('screen-menu').hidden && document.getElementById('screen-track').hidden,
+      focus: document.activeElement?.id,
+      locked: document.getElementById('btn-welcome-next').disabled,
+    }));
+    r.check('a first visit opens on the welcome screen, on the name, with Next waiting for one', first.menu && first.focus === 'input-welcome-name' && first.locked, JSON.stringify(first));
+    await wp.click('#input-welcome-name');
+    await wp.keyboard.type('  ');
+    const blank = await wp.evaluate(() => document.getElementById('btn-welcome-next').disabled);
+    await wp.keyboard.press('Control+a');
+    await wp.keyboard.type('ace');
+    await wp.keyboard.press('Enter');
+    await wp.waitForSelector('#screen-garage:not([hidden])');
+    await wp.click('#btn-garage-back');
+    const landed = await until(() => wp.evaluate(() => (!document.getElementById('screen-track').hidden && document.getElementById('input-name').value) || null), { timeout: 5000 });
+    r.check('spaces are no name; a name and Enter open the Garage, and Done goes on to where the link was going', blank && landed === 'ACE', `blank ${blank}, landed ${landed}`);
+    await wp.reload();
+    await wp.waitForSelector('#screen-track:not([hidden]), #screen-welcome:not([hidden])');
+    const again = await wp.evaluate(() => document.getElementById('screen-welcome').hidden);
+    r.check('with a name saved, the next visit skips the welcome', again);
+    // Settings keeps the name: emptied and left, it comes back.
+    await wp.evaluate(() => document.getElementById('btn-track-back').click());
+    await wp.evaluate(() => document.getElementById('btn-settings').click());
+    await wp.fill('#input-name', '');
+    await wp.click('#btn-settings-back');
+    const kept = await wp.evaluate(() => [document.getElementById('input-name').value, localStorage.getItem('nitrocarnage.name')].join());
+    r.check('a name emptied in Settings is not saved: the last one comes back', kept === 'ACE,ACE', kept);
+    await wp.close();
+  }
 
   /* ------------------------------------------------------------- hotlap */
   // The track of the day, generated in the browser: the same track Node
