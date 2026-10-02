@@ -994,8 +994,19 @@ const lobbySettings = (): void => {
 };
 $('lobby-cars').addEventListener('change', lobbySettings);
 $('lobby-laps').addEventListener('change', lobbySettings);
+/**
+ * The host's own seed word, to put back when they step from the Track of the
+ * Day to Seeded, as the menu does. Left as today's date, the seed was the
+ * day's, so the room took it for the Track of the Day again and the chooser
+ * snapped back there: the ‹ › stepper could never leave it.
+ */
+let lobbySeedWord = store.get(SEED_KEY);
+const isTodaysDate = (text: string): boolean => dateSeed(text, Date.now())?.day === utcDay(Date.now());
 $('lobby-track').addEventListener('change', () => {
-  if ($<HTMLSelectElement>('lobby-track').value === 'day') $<HTMLInputElement>('lobby-seed').value = utcDay(Date.now());
+  const pick = $<HTMLSelectElement>('lobby-track').value;
+  const seedBox = $<HTMLInputElement>('lobby-seed');
+  if (pick === 'day') seedBox.value = utcDay(Date.now());
+  else if (pick === 'seed' && isTodaysDate(seedBox.value) && !isTodaysDate(lobbySeedWord)) seedBox.value = lobbySeedWord;
   lobbySettings();
 });
 $('lobby-weapons').addEventListener('change', lobbySettings);
@@ -1005,13 +1016,14 @@ $('lobby-body').addEventListener('change', lobbySettings);
 $('lobby-seed').addEventListener('change', lobbySettings);
 // As in the menu, typing a seed switches the room to it; the rest of the room hears when the typing is done.
 $('lobby-seed').addEventListener('input', () => {
+  lobbySeedWord = $<HTMLInputElement>('lobby-seed').value;
   const sel = $<HTMLSelectElement>('lobby-track');
   if (sel.value === 'seed') return;
   sel.value = 'seed';
   lobbySettings();
 });
 $('lobby-seed-random').addEventListener('click', () => {
-  $<HTMLInputElement>('lobby-seed').value = randomSeedText();
+  $<HTMLInputElement>('lobby-seed').value = lobbySeedWord = randomSeedText();
   $<HTMLSelectElement>('lobby-track').value = 'seed';
   lobbySettings();
 });

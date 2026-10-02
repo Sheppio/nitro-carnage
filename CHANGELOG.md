@@ -3,6 +3,12 @@
 Every change to Nitro Carnage, newest first. Each version is one commit; a
 few version numbers were skipped along the way.
 
+## v0.1.112 — 2026-10-02
+**Hosting a room: you can step off Track of the day again**
+- On the room's track screen, the ‹ › kind of track could get stuck on Track of the day with a pad, so the host had to race it. Stepping right went to an empty Favourites and jumped back. Stepping left went to Seeded, which still held today's date, so the room read it as Track of the day again.
+- An empty Favourites now stays put until you step past it, and Seeded brings back your own seed word.
+- The same empty-Favourites fix applies to the quick race's track screen.
+
 ## v0.1.111 — 2026-10-02
 **Developer notes: update the changelog with every commit**
 

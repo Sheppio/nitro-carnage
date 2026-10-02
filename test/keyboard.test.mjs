@@ -309,6 +309,35 @@ try {
     const x = await reach(page);
     r.check('track screen: every control is reachable with the arrow keys', x.ok, x.note);
   }
+  // Stepping onto the Track of the Day and off again, both ways. With no
+  // favourites, right snapped back from the empty Favourites; left reached
+  // Seeded with today's date still in the seed box, which the room read as
+  // the day again. Either way the host was stuck on the day.
+  {
+    const kind = () => page.evaluate(() => document.getElementById('lobby-cat').value);
+    const stepTo = async (key, want) => {
+      for (let i = 0; i < 6 && (await kind()) !== want; i++) {
+        await page.keyboard.press(key);
+        await page.waitForTimeout(300);
+      }
+      return kind();
+    };
+    await goTo(page, 'lobby-cat-pick');
+    const day = await stepTo('ArrowRight', 'day');
+    await page.keyboard.press('ArrowRight');
+    const fav = await until(() => page.evaluate(() => (document.getElementById('lobby-cat').value === 'fav' ? 'fav' : null)), { timeout: 2000 });
+    await page.keyboard.press('ArrowRight');
+    const right = await until(() => page.evaluate(() => (window.nitro.room.net.state.seed === 0 ? document.getElementById('lobby-cat').value : null)), { timeout: 3000 });
+    await stepTo('ArrowLeft', 'day');
+    await page.keyboard.press('ArrowLeft');
+    const left = await until(() => page.evaluate(() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const seedBox = document.getElementById('lobby-seed').value;
+      return document.getElementById('lobby-cat').value === 'seed' && seedBox !== today && window.nitro.room.net.state.seed !== 0 ? seedBox || '(empty)' : null;
+    }), { timeout: 3000 });
+    r.check('track screen: the host steps onto the Track of the Day and off it again, right past an empty Favourites and left to Seeded',
+      day === 'day' && fav === 'fav' && right === 'real' && left !== null, JSON.stringify({ day, fav, right, left }));
+  }
   await page.keyboard.press('Escape');
   const backOnCard = await until(() => page.evaluate(() => (!document.getElementById('screen-lobby').hidden && document.activeElement?.id === 'btn-lobby-track') || null));
   r.check('Esc on the track screen goes back to the lobby, on the track card', Boolean(backOnCard));

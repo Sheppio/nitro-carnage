@@ -113,8 +113,13 @@ export class TrackChooser {
     sync() {
         const v = this.model.value;
         const derived = this.categoryOf(v);
-        // Favourites stays up while the pick is one of them; anything else shows its own kind.
-        if (!(this.category === 'fav' && this.favKey(v) !== null && this.favs.has(this.favKey(v))))
+        // Favourites stays up while the pick is one of them, or while there are none
+        // (the list says how to make one, and the next step moves on past it: snapping
+        // back to the pick's own kind left a ‹ › stepper unable to get past an empty
+        // Favourites); anything else shows its own kind.
+        const favKey = this.favKey(v);
+        const keepFav = this.category === 'fav' && (this.favs.all.length === 0 || (favKey !== null && this.favs.has(favKey)));
+        if (!keepFav)
             this.category = derived;
         this.cat.value = this.category;
         this.fillList();
