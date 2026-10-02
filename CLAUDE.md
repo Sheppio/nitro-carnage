@@ -17,15 +17,18 @@
 
 ## Every commit
 
-- Add an entry to the top of `changelog.html` (the first `<article>` inside `<main>`)
-  in the same commit. The pre-commit hook bumps the patch version, so the entry is
-  for the version `package.json` will have after the commit: one more than it says
-  now. Check `origin/main` first, since another commit landing there first changes
-  the number. Copy the shape of the entry below it: the version as the article's
-  `id` and link, the date in `<time>`, the change in the `<h2>`, then a `<ul>` of a
-  few short bullets written for the player, not about the code. Escape `&` and `<`,
-  and link issue numbers as the others are. Changes only to docs, tests or tooling
-  still get an entry with just the `<h2>`.
+- Only commits that change the game (`index.html`, `css/`, `src/` or `dist/`) get a
+  new version and a changelog entry. The pre-commit hook skips the bump for anything
+  else, so commits that touch only docs, tests, tooling or the README (updating the
+  test count, say) keep the current version and get no changelog entry.
+- For a game change, add an entry to the top of `changelog.html` (the first
+  `<article>` inside `<main>`) in the same commit. The pre-commit hook bumps the
+  patch version, so the entry is for the version `package.json` will have after the
+  commit: one more than it says now. Check `origin/main` first, since another commit
+  landing there first changes the number. Copy the shape of the entry below it: the
+  version as the article's `id` and link, the date in `<time>`, the change in the
+  `<h2>`, then a `<ul>` of a few short bullets written for the player, not about the
+  code. Escape `&` and `<`, and link issue numbers as the others are.
 - If you merge `main` into a branch, the version moves on. Renumber the branch's
   changelog entry to match.
 

@@ -1,5 +1,8 @@
 #!/bin/sh
-# Bump the patch version, rebuild, and stage the result.
+# Bump the patch version, rebuild, and stage the result — but only when the
+# commit changes the game itself: index.html, css/, src/ or dist/. Commits that
+# touch only docs, tests, tooling or notes (the README's test count, say) keep
+# the current version, so the number on the menu only moves when the build does.
 #
 # The rebuild is not optional: src/version.ts feeds dist/, dist/ is committed
 # because Pages serves it directly, and CI fails the build if the two disagree.
@@ -8,6 +11,10 @@
 # README.md is staged too: it carries the version in a generated span, and the
 # consistency check fails if it lags behind package.json.
 set -e
+
+if ! git diff --cached --name-only | grep -qE '^(index\.html$|css/|src/|dist/)'; then
+  exit 0
+fi
 
 version=$(node scripts/bump-version.mjs)
 npm run build --silent
