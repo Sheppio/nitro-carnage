@@ -596,7 +596,9 @@ try {
     const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
     const meta = (p) => html.match(new RegExp(`property="${p}" content="([^"]+)"`))?.[1];
     const img = meta('og:image') ?? '';
-    const file = new URL('../' + img.replace('https://sheppio.github.io/nitro-carnage/', ''), import.meta.url);
+    // The picture's path in the repo, whichever host it names (GitHub Pages adds the project's folder).
+    const path = img.startsWith('https://') ? new URL(img).pathname.replace(/^\/nitro-carnage\//, '/') : '';
+    const file = new URL('..' + path, import.meta.url);
     const bytes = fs.existsSync(file) ? fs.statSync(file).size : 0;
     const jpg = bytes ? fs.readFileSync(file) : null;
     // A JPEG's size, from its first start-of-frame marker.
@@ -609,6 +611,8 @@ try {
     r.check('a pasted link previews: og:title, og:description and an absolute og:image, 1200x630 and under 300 KB',
       Boolean(meta('og:title') && meta('og:description')) && img.startsWith('https://') && size === '1200x630' && bytes < 300 * 1024,
       `${img} ${size} ${(bytes / 1024).toFixed(0)} KB`);
+    // Served from GitHub Pages and Cloudflare: an og:url would pin every card to one of them.
+    r.check('no og:url, so a card names whichever site was shared', meta('og:url') === undefined, meta('og:url') ?? '');
   }
 
   /* --------------------------------------------------- the daily link */

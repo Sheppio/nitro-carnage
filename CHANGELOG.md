@@ -3,6 +3,10 @@
 Every change to Nitro Carnage, newest first. Each version is one commit; a
 few version numbers were skipped along the way.
 
+## v0.1.114 — 2026-10-02
+**Link previews work from either site**
+- A shared link's preview card names whichever site was shared, GitHub Pages or nitro-carnage.helloshep.com, and its picture comes from Cloudflare.
+
 ## v0.1.113 — 2026-10-02
 **Cloudflare: an .assetsignore for a static assets deploy**
 - Only the game itself is uploaded: index.html, the stylesheet, the compiled scripts and the link preview image.
