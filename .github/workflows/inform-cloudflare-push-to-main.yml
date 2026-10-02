@@ -11,4 +11,4 @@ jobs:
         run: |
           curl -X POST -H "Content-Type: application/json" \
           -d '{"event": "push", "branch": "main"}' \
-          https://api.cloudflare.com/client/v4/workers/builds/deploy_hooks/6b1428cb-4b1f-4fca-a9b9-8b14271b5e4f
+          https://api.cloudflare.com/client/v4/workers/builds/deploy_hooks/25898afe-3d11-472a-8332-5881ee2fd838
