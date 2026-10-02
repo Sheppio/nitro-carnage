@@ -3,6 +3,10 @@
 Every change to Nitro Carnage, newest first. Each version is one commit; a
 few version numbers were skipped along the way.
 
+## v0.1.113 — 2026-10-02
+**Cloudflare: an .assetsignore for a static assets deploy**
+- Only the game itself is uploaded: index.html, the stylesheet, the compiled scripts and the link preview image.
+
 ## v0.1.112 — 2026-10-02
 **Hosting a room: you can step off Track of the day again**
 - On the room's track screen, the ‹ › kind of track could get stuck on Track of the day with a pad, so the host had to race it. Stepping right went to an empty Favourites and jumped back. Stepping left went to Seeded, which still held today's date, so the room read it as Track of the day again.

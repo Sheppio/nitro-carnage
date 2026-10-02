@@ -1,0 +1,35 @@
+# Files Cloudflare's static assets upload leaves out (gitignore syntax).
+#
+# The site is the repository root: index.html, css/, dist/ and docs/share.jpg
+# (the link preview image). Everything else is source, tooling or notes, and
+# node_modules alone would blow the upload's file count.
+
+# Tooling and version control
+.git/
+.github/
+.githooks/
+.gitignore
+.nojekyll
+.assetsignore
+.wrangler/
+.dev.vars*
+wrangler.toml
+wrangler.json
+wrangler.jsonc
+node_modules/
+package.json
+package-lock.json
+tsconfig.json
+
+# Source, tests and scripts: the browser runs the compiled dist/
+src/
+test/
+scripts/
+
+# Source maps point into src/, which isn't uploaded
+dist/**/*.map
+
+# Notes and README images; the changelog link goes to GitHub
+*.md
+docs/*
+!docs/share.jpg
