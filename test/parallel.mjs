@@ -15,7 +15,7 @@ import { buildRig, ROOT } from './rig.mjs';
 const LANES = [
   ['smoke'],
   ['multiplayer', 'keyboard', 'gamepad', 'mobile'],
-  ['sim', 'net'],
+  ['sim', 'net', 'analytics'],
 ];
 
 await buildRig();

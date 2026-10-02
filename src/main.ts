@@ -41,6 +41,8 @@ import { cupOn, nextCupRace } from './sim/championship.js';
 import { isBotId } from './sim/bots.js';
 import { makePlayerId, makeRoomCode } from './util.js';
 import { VERSION } from './version.js';
+import { deviceClass, seedNumProps, seedProps, startAnalytics } from './analytics.js';
+import type { Analytics, Props } from './analytics.js';
 
 /*
  * Wiring. Everything interesting lives elsewhere; this file connects the
@@ -139,6 +141,8 @@ const store = {
     }
   },
 };
+/** Anonymous statistics (#35): on only on the game's own sites. */
+const stats = startAnalytics(store, `${SLUG}.anon`);
 /** A driver must have a name: spaces alone are not one. */
 const isName = (v: string): boolean => v.trim() !== '';
 /** The name in Settings, and on the welcome screen of a first visit: one name, kept in step. */
@@ -247,6 +251,8 @@ const trackParam = params.get('seed') ? 'seed' : params.get('track') === 'day' ?
 const savedTrack = store.get(TRACK_KEY);
 menuTrack.value = trackParam !== '-1' ? trackParam : [...menuTrack.options].some((o) => o.value === savedTrack) ? savedTrack : '0';
 menuSeed.value = params.get('seed') ?? store.get(SEED_KEY);
+/** How the seed in the box got there, for the statistics. */
+let seedSource = params.get('seed') ? 'link' : 'saved';
 /** Touching the seed means racing it: the track switches to Custom seed. */
 const useMenuSeed = (): void => {
   menuTrack.value = 'seed';
@@ -257,6 +263,7 @@ const useMenuSeed = (): void => {
 // Three words from the list, hyphenated: "egg-cup-top".
 $('menu-seed-random').addEventListener('click', () => {
   menuSeed.value = randomSeedText();
+  seedSource = 'dice';
   useMenuSeed();
 });
 /**
@@ -272,10 +279,14 @@ menuTrack.addEventListener('change', () => {
   store.set(TRACK_KEY, menuTrack.value);
   showMenuSeed();
 });
-menuSeed.addEventListener('input', useMenuSeed);
+menuSeed.addEventListener('input', (e) => {
+  // The chooser puts a favourite seed in the box with an event of its own.
+  seedSource = e.isTrusted ? 'typed' : 'favourite';
+  useMenuSeed();
+});
 /** The track screens' choosers (#18), and the favourites they share (#14). */
 const favourites = new Favourites(`${SLUG}.favs`, store);
-new TrackChooser('menu', TRACKS, favourites);
+const menuChooser = new TrackChooser('menu', TRACKS, favourites);
 new TrackChooser('lobby', TRACKS, favourites);
 // The room's track screen opens on the kind of track, as the old track list did.
 $('lobby-cat-pick').dataset.navDefault = '';
@@ -445,6 +456,61 @@ let lastMode: OfflineMode = 'race';
 /** `?laps=1` shortens races, for tests and for trying things quickly. */
 const lapsOverride = Number(params.get('laps')) || 0;
 
+/* ------------------------------------------------------------ statistics */
+
+/** The race being driven, as the statistics know it: what its finish or its leaving reports. */
+let raceStat: { props: Props; over: boolean } | null = null;
+
+/** A track's properties: its id, or a generated track's seed (and the word, when there is one). */
+function trackProps(def: TrackDef, seedText?: string): Props {
+  if (!def.id.startsWith('seed-')) return { track_id: def.id };
+  return { track_id: 'seed', ...(seedText === undefined ? seedNumProps(parseInt(def.id.slice(5), 36)) : seedProps(seedText)) };
+}
+
+/** Which kind of track a room's track is: a room's races carry only the track. */
+function trackKind(def: TrackDef): string {
+  if (def.id.startsWith('seed-')) return parseInt(def.id.slice(5), 36) === daySeed(Date.now()) ? 'day' : 'seed';
+  return def.circuit ? 'real' : 'own';
+}
+
+/** A race has started: counted, and reported with how it was set up. */
+function raceStarted(props: Props): void {
+  const base: Props = {
+    mode: props.mode, track_id: props.track_id, seed_num: props.seed_num, race_no: stats.raceStarted(),
+    // An autopilot's laps are not a player's: kept apart in the times.
+    autopilot: params.has('autopilot') || settings.current.autopilot,
+  };
+  stats.track('mode_start', { ...props, ...base });
+  raceStat = { props: base, over: false };
+}
+
+/** The race went to its results. */
+function raceFinished(rows: readonly ResultRow[]): void {
+  if (!raceStat || raceStat.over) return;
+  raceStat.over = true;
+  stats.racesFinished++;
+  const me = rows.find((r) => r.car.you);
+  stats.track('race_finish', {
+    ...raceStat.props,
+    position: me?.position ?? null,
+    field: rows.length,
+    humans: rows.filter((r) => !isBotId(r.car.id)).length,
+    race_ms: me?.time != null ? Math.round(me.time * 1000) : null,
+    best_lap_ms: me?.best != null ? Math.round(me.best * 1000) : null,
+  });
+}
+
+/** The race was left before its results: from the menu, or by closing the page. */
+function raceLeft(how: 'left' | 'closed'): void {
+  if (session && raceStat && !raceStat.over) {
+    const h = session.hud();
+    stats.racesQuit++;
+    stats.track('race_quit', { ...raceStat.props, how, lap: h.lap, laps: h.laps, position: h.position, field: h.of });
+  }
+  raceStat = null;
+}
+stats.onEnd = () => raceLeft('closed');
+
 function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track.name, bestKey = recordKey(track)): void {
   session = s;
   if (params.has('autopilot')) s.autopilot = true;
@@ -464,6 +530,7 @@ function begin(mode: SessionMode, s: RaceSession, track: TrackDef, label = track
     }
   };
   s.onOver = (rows) => {
+    if (session === s) raceFinished(rows);
     // A room goes back to the lobby `resultsMs` after the race ends, not after the results appear.
     const lobbyAt = performance.now() + NET.resultsMs;
     hud?.raceOver();
@@ -591,10 +658,20 @@ function startOffline(mode: OfflineMode): void {
   );
   const bestKey = daily ? dailyKey(track) : hotlapKey(track);
   if (!race) s.record = loadRecord(bestKey);
+  const seeded = track.id.startsWith('seed-');
+  raceStarted({
+    mode,
+    track_kind: daily ? 'day' : menuChooser.kind,
+    ...trackProps(track, seeded ? (daily ? utcDay(Date.now()) : menuSeed.value) : undefined),
+    seed_source: !seeded ? undefined : daily ? 'daily' : dateSeed(menuSeed.value, Date.now()) ? 'past date' : seedSource,
+    laps: s.world.laps,
+    ...(race ? { weapons: menuWeapons.value !== '0', pickups: menuPickups.value !== '0', car_mode: carModeOf(Number(menuBody.value)) } : {}),
+  });
   begin(race ? 'race' : 'hotlap', s, track, daily && FEATURES.turbo ? `${choice.label} · no turbo` : choice.label, bestKey);
 }
 
 function stopSession(): void {
+  raceLeft('left');
   if (session) {
     audio.music.setTheme(null);
     audio.music.play('menu');
@@ -695,7 +772,9 @@ async function openRoom(code: string): Promise<void> {
     const track = net.world?.track.def ?? TRACKS[net.state.track] ?? TRACKS[0]!;
     const st = net.state;
     const label = cupOn(st) ? `Race ${st.race} of ${st.cup.length} · ${track.name}` : track.name;
-    begin('net', new RaceSession(gameRoot, { mode: 'net', track, quality, colourId, bots: 0, laps: 0 }, input, settings, net), track, label);
+    const s = new RaceSession(gameRoot, { mode: 'net', track, quality, colourId, bots: 0, laps: 0 }, input, settings, net);
+    raceStarted({ mode: net.isHost ? 'room_host' : 'room_join', track_kind: trackKind(track), ...trackProps(track), laps: s.world.laps, championship: cupOn(st) });
+    begin('net', s, track, label);
   });
   net.events.on('raceEnd', () => {
     if (room !== client) return;
@@ -1314,6 +1393,28 @@ function land(): void {
     void openRoom(linked);
   }
 }
+stats.track('session_start', {
+  device_class: deviceClass(document.body.classList.contains('tv')),
+  tv: document.body.classList.contains('tv'),
+  orientation: innerWidth >= innerHeight ? 'landscape' : 'portrait',
+  quality: qualityOverride ?? settings.current.quality,
+  first_visit: !onboarded(),
+  referrer_type: params.has('room') ? 'room link' : !document.referrer ? 'direct' : new URL(document.referrer).host === location.host ? 'internal' : 'other',
+});
+/** The first control the player touches: keys, a pad or a touchscreen. */
+{
+  let told = false;
+  const first = (kind: string): void => {
+    if (told) return;
+    told = true;
+    stats.track('first_input', { input: kind });
+  };
+  addEventListener('keydown', () => first('keys'), { once: true });
+  addEventListener('touchstart', () => first('touch'), { once: true, passive: true });
+  input.events.on('schemeChange', ({ scheme }) => {
+    if (scheme === 'pad') first('pad');
+  });
+}
 if (onboarded()) {
   show('screen-menu');
   land();
@@ -1337,6 +1438,7 @@ declare global {
       start: (mode: 'race' | 'hotlap' | 'daily') => void;
       openRoom: (code: string) => Promise<void>;
       leave: () => void;
+      stats: Analytics;
     };
   }
 }
@@ -1363,4 +1465,5 @@ window.nitro = {
   start: startOffline,
   openRoom,
   leave: toMenu,
+  stats,
 };

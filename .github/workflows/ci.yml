@@ -58,6 +58,7 @@ jobs:
       - run: npm run build
       - run: node test/sim.test.mjs
       - run: node test/net.test.mjs
+      - run: node test/analytics.test.mjs
 
   test-browser:
     name: Browser (${{ matrix.suite }})

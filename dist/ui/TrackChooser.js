@@ -109,6 +109,10 @@ export class TrackChooser {
         });
         this.sync();
     }
+    /** The kind of track on show: how the player got to the pick. */
+    get kind() {
+        return this.category;
+    }
     /** Redraw from the model: its value, and whether it is disabled (a championship under way). */
     sync() {
         const v = this.model.value;

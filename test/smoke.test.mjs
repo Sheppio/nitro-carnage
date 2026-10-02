@@ -434,7 +434,13 @@ try {
 
   /* ---------------------------------------------------------------- race */
   // A one-lap race against five bots, with the player's car on autopilot.
-  const race = await openPage('quality=potato&race&autopilot&laps=1');
+  // `analytics=force` turns the statistics on here, and the route keeps what they send.
+  const race = await openPage('quality=potato&race&autopilot&laps=1&analytics=force');
+  const statsSent = [];
+  await race.route('**/batch/', (route) => {
+    statsSent.push(...JSON.parse(route.request().postData() ?? '{}').batch ?? []);
+    return route.fulfill({ status: 200, body: '{"status":1}' });
+  });
   const countdown = await until(() => race.evaluate(() => {
     const t = document.getElementById('hud-countdown').textContent;
     return ['3', '2', '1'].includes(t) ? t : null;
@@ -532,6 +538,15 @@ try {
   r.check('a second race holds no more on the GPU than the first: the last race is freed', Boolean(again)
     && gpu2.geometries <= gpu1.geometries + 3 && gpu2.textures <= gpu1.textures + 1,
     `geometries ${gpu1.geometries} → ${gpu2.geometries}, textures ${gpu1.textures} → ${gpu2.textures}`);
+
+  await race.evaluate(() => window.nitro.stats.flush());
+  await until(() => (statsSent.some((e) => e.event === 'mode_start' && e.properties.race_no === 2) ? true : null), { timeout: 5000 }).catch(() => null);
+  const sentAs = (name) => statsSent.filter((e) => e.event === name);
+  const fin = sentAs('race_finish')[0]?.properties;
+  r.check('the statistics report the visit, both races and the finish, with no name in them',
+    sentAs('session_start').length === 1 && sentAs('mode_start').map((e) => e.properties.race_no).join() === '1,2'
+    && fin?.race_no === 1 && fin.track_id && fin.field === 6 && fin.position >= 1 && statsSent.every((e) => !('name' in e.properties) && e.properties.env === 'test'),
+    statsSent.map((e) => e.event).join(', '));
   await race.close();
 
   /* --------------------------------------------------------------- weapons */

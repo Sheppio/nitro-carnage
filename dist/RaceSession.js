@@ -52,6 +52,10 @@ export class RaceSession {
     fps = 0;
     running = false;
     over = false;
+    /** Whether the race has ended and gone to its results. */
+    get isOver() {
+        return this.over;
+    }
     pilot = createAutopilot(7, SKILLS[0]);
     net;
     offNet = [];

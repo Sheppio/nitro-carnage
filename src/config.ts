@@ -242,6 +242,23 @@ export interface BrokerDef {
  * on these topics. Pages is HTTPS, so every endpoint must be `wss://`: a
  * plaintext `ws://` connection is blocked as mixed content.
  */
+/**
+ * Anonymous gameplay statistics (#35), sent to PostHog's EU capture API. The
+ * token is PostHog's public project key: it can only add events, never read
+ * them, and every page that uses PostHog ships one.
+ */
+export const ANALYTICS = {
+  token: 'phc_kGkjPiqYGb26eVePAafopxpr74UWhUE5VJFwmhLeZECw',
+  host: 'https://eu.i.posthog.com',
+  /** The sites that send, and the `env` each one's events carry. Anywhere else (localhost, the test rig) sends nothing. */
+  sites: { 'nitro-carnage.helloshep.com': 'prod', 'dev.nitro-carnage.helloshep.com': 'dev' } as Record<string, string>,
+  /** Queued events go out this often, or sooner once `batch` are waiting. */
+  flushMs: 10000,
+  batch: 20,
+  /** Errors reported per page load, at most. */
+  maxErrors: 5,
+};
+
 export const BROKERS: readonly BrokerDef[] = [
   { id: 'hivemq', label: 'HiveMQ (public)', url: 'wss://broker.hivemq.com:8884/mqtt' },
   { id: 'emqx', label: 'EMQX (public)', url: 'wss://broker.emqx.io:8084/mqtt' },

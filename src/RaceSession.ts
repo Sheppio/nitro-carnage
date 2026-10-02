@@ -155,6 +155,10 @@ export class RaceSession {
   private fps = 0;
   private running = false;
   private over = false;
+  /** Whether the race has ended and gone to its results. */
+  get isOver(): boolean {
+    return this.over;
+  }
   private pilot = createAutopilot(7, SKILLS[0]!);
   private net: NetRace | null;
   private offNet: Array<() => void> = [];

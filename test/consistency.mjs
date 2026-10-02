@@ -15,7 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SUITES = ['sim', 'net', 'smoke', 'multiplayer', 'gamepad', 'keyboard', 'mobile'];
+const SUITES = ['sim', 'net', 'analytics', 'smoke', 'multiplayer', 'gamepad', 'keyboard', 'mobile'];
 
 // Checks inside a loop over the tracks are written `tcheck(` and run once per
 // track, so they count that many times. The track list comes from the build.
