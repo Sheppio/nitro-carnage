@@ -605,6 +605,45 @@ try {
   r.check('high quality renders with shadows inside 150 draw calls', shadows && calls > 0 && calls < 150, `${calls} draw calls`);
   await hi.close();
 
+  /* ----------------------------------------------------------- shadow box */
+  // The shadow box is sized for the camera at top speed (#36): sized for the
+  // camera as it was, it grew a step as the car picked up speed (60 m to 75 m
+  // at 16:9), and every shadow on screen jumped.
+  const sb = await openPage('quality=high&race&track=downtown&bots=0', { width: 640, height: 360 });
+  await until(() => sb.evaluate(() => {
+    const s = window.nitro.session;
+    return s && s.world.time > s.world.goTime + 1 ? true : null;
+  }), { timeout: 60000 });
+  const box = await sb.evaluate(async () => {
+    const s = window.nitro.session;
+    s.running = false;
+    cancelAnimationFrame(s.raf);
+    const v = s.view, rig = v.rig, sh = v.shadows, car = s.player.car;
+    const pose = (frac) => {
+      rig.speedFrac = frac;
+      rig.update(car, 0);
+      rig.camera.updateMatrixWorld();
+      sh.follow(rig.camera, rig.sizingCamera());
+      return sh.extent;
+    };
+    const slow = pose(0);
+    const fast = pose(1);
+    // At top speed, where the screen's corners meet the ground, seen from the sun.
+    const T = await import('three');
+    sh.sun.updateMatrixWorld();
+    sh.sun.shadow.updateMatrices(sh.sun);
+    const cam = rig.camera;
+    const inside = [[-1, -1], [1, -1], [-1, 1], [1, 1]].every(([x, y]) => {
+      const a = new T.Vector3(x, y, -1).unproject(cam), b = new T.Vector3(x, y, 1).unproject(cam);
+      const g = a.clone().lerp(b, a.y / (a.y - b.y)).project(sh.sun.shadow.camera);
+      return Math.abs(g.x) <= 1 && Math.abs(g.y) <= 1;
+    });
+    return { slow, fast, inside };
+  });
+  r.check('the shadow box keeps its size at any speed, so the shadows never jump', box.slow > 0 && box.slow === box.fast, `${box.slow} m stopped, ${box.fast} m flat out`);
+  r.check('and at top speed it still reaches every corner of the screen', box.inside);
+  await sb.close();
+
   /* ------------------------------------------------------- link preview */
   // What WhatsApp and friends read when a link is pasted: an absolute
   // og:image, and that picture really is in the repo at 1200x630 and small.

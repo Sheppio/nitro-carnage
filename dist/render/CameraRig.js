@@ -42,6 +42,8 @@ export class CameraRig {
     heading = 0;
     headingVel = 0;
     turning = false;
+    /** The camera the shadow box is sized for; see `sizingCamera`. */
+    sizing = null;
     constructor(aspect) {
         this.camera = new THREE.PerspectiveCamera(CAMERA.fov, aspect, 5, 600);
     }
@@ -113,17 +115,7 @@ export class CameraRig {
         this.lead.y += this.leadVel.y * h;
         // Speed pulls the camera up and widens the lens a little, framerate-independently.
         this.speedFrac += (frac - this.speedFrac) * (1 - Math.exp(-dt * 1.5));
-        const height = CAMERA.height + (CAMERA.heightFast - CAMERA.height) * this.speedFrac;
-        // Speed widens the lens by the same few degrees whatever the player's zoom.
-        let fov = this.baseFov + (CAMERA.fovFast - CAMERA.fov) * this.speedFrac;
-        // A phone in portrait: widen until the narrow axis still shows `minSpan`
-        // metres of ground, or the screen is a keyhole.
-        const aspect = this.camera.aspect;
-        if (aspect < 1) {
-            const hHalf = Math.atan(CAMERA.minSpan / 2 / height);
-            const vNeeded = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hHalf) / aspect));
-            fov = Math.min(95, Math.max(fov, vNeeded));
-        }
+        const { height, fov } = this.framing(this.speedFrac);
         if (Math.abs(this.camera.fov - fov) > 1e-3) {
             this.camera.fov = fov;
             this.camera.updateProjectionMatrix();
@@ -146,6 +138,44 @@ export class CameraRig {
         this.camera.lookAt(this.focus);
         if (shake > 0)
             this.camera.rotateZ(shake * 0.012 * noise(t, 3.7));
+    }
+    /** The overhead view's height and lens at a fraction of top speed. */
+    framing(frac) {
+        const height = CAMERA.height + (CAMERA.heightFast - CAMERA.height) * frac;
+        // Speed widens the lens by the same few degrees whatever the player's zoom.
+        let fov = this.baseFov + (CAMERA.fovFast - CAMERA.fov) * frac;
+        // A phone in portrait: widen until the narrow axis still shows `minSpan`
+        // metres of ground, or the screen is a keyhole.
+        const aspect = this.camera.aspect;
+        if (aspect < 1) {
+            const hHalf = Math.atan(CAMERA.minSpan / 2 / height);
+            const vNeeded = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hHalf) / aspect));
+            fov = Math.min(95, Math.max(fov, vNeeded));
+        }
+        return { height, fov };
+    }
+    /**
+     * The overhead camera as it would stand at top speed over the same spot,
+     * with no shake and no start swing: what the shadow box is sized for (#36).
+     * Sized for the camera as it is, the box grew a step as the car picked up
+     * speed, and every shadow on screen jumped. Null in the turning views,
+     * whose shadow box follows the camera itself.
+     */
+    sizingCamera() {
+        if (this.preset)
+            return null;
+        const { height, fov } = this.framing(1);
+        const cam = (this.sizing ??= new THREE.PerspectiveCamera());
+        cam.fov = fov;
+        cam.aspect = this.camera.aspect;
+        cam.near = this.camera.near;
+        cam.far = this.camera.far;
+        cam.updateProjectionMatrix();
+        const back = height * Math.tan(THREE.MathUtils.degToRad(CAMERA.tiltDeg));
+        cam.position.set(this.focus.x, height, this.focus.z + back);
+        cam.lookAt(this.focus.x, 0, this.focus.z);
+        cam.updateMatrixWorld();
+        return cam;
     }
     /**
      * A view that turns with the car: the preset's offset in the car's frame,

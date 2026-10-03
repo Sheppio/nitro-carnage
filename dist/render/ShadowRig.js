@@ -58,11 +58,47 @@ export class ShadowRig {
             this.resize(MIN_EXTENT);
         }
     }
-    /** Fit the shadow box around what `camera` sees, snapped to the texel grid in light space. */
-    follow(camera) {
-        // Where the frustum's corner rays meet the ground and the rooftops, in
-        // light space. Casters and their shadows share light-space x/y, so a box
-        // around the visible receivers takes in everything that shades them.
+    /**
+     * Fit the shadow box around what `camera` sees, snapped to the texel grid in light space.
+     *
+     * `sizing`, when given, is the camera the box is sized for: the race camera
+     * at top speed (#36). The box then keeps one size whatever the speed, and
+     * only its position follows `camera`. A change of size changes every texel,
+     * and every shadow on screen jumps with it.
+     */
+    follow(camera, sizing = null) {
+        const view = this.footprint(camera);
+        if (this.mapSize > 0) {
+            const steady = sizing ? this.footprint(sizing).need : 0;
+            if (steady >= view.need) {
+                // The top-speed size holds still, so it is taken exactly: no step to spare.
+                this.resize(steady);
+            }
+            else if (view.need > this.extent || view.need < this.extent - 2 * STEP) {
+                // Wider than that (the high start view): grow at once, and shrink only
+                // once well clear, so it does not flicker between steps.
+                this.resize(view.need);
+            }
+        }
+        // Snap the components across the light's view; the depth is only where
+        // the sun stands back from.
+        const r = Math.round(view.r / this.texel) * this.texel;
+        const u = Math.round(view.u / this.texel) * this.texel;
+        const d = view.d;
+        this.sun.target.position.set(0, 0, 0)
+            .addScaledVector(this.right, r)
+            .addScaledVector(this.up, u)
+            .addScaledVector(this.dir, d);
+        this.sun.position.copy(this.sun.target.position).addScaledVector(this.dir, -this.depth);
+        this.sun.target.updateMatrixWorld();
+    }
+    /**
+     * Where the frustum's corner rays meet the ground and the rooftops, in
+     * light space: the centre across the light, the mean depth along it, and the
+     * half-width a box needs. Casters and their shadows share light-space x/y,
+     * so a box around the visible receivers takes in everything that shades them.
+     */
+    footprint(camera) {
         let minR = Infinity, maxR = -Infinity, minU = Infinity, maxU = -Infinity, sumD = 0;
         for (const h of [0, CEILING]) {
             for (const [x, y] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
@@ -82,23 +118,7 @@ export class ShadowRig {
                 sumD += this.p.dot(this.dir);
             }
         }
-        if (this.mapSize > 0) {
-            const need = Math.max(maxR - minR, maxU - minU) / 2 + 4;
-            // Grow at once; shrink only once well clear, so it does not flicker between steps.
-            if (need > this.extent || need < this.extent - 2 * STEP)
-                this.resize(need);
-        }
-        // Snap the components across the light's view; the depth is only where
-        // the sun stands back from.
-        const r = Math.round((minR + maxR) / 2 / this.texel) * this.texel;
-        const u = Math.round((minU + maxU) / 2 / this.texel) * this.texel;
-        const d = sumD / 8;
-        this.sun.target.position.set(0, 0, 0)
-            .addScaledVector(this.right, r)
-            .addScaledVector(this.up, u)
-            .addScaledVector(this.dir, d);
-        this.sun.position.copy(this.sun.target.position).addScaledVector(this.dir, -this.depth);
-        this.sun.target.updateMatrixWorld();
+        return { r: (minR + maxR) / 2, u: (minU + maxU) / 2, d: sumD / 8, need: Math.max(maxR - minR, maxU - minU) / 2 + 4 };
     }
     resize(need) {
         const extent = Math.min(MAX_EXTENT, Math.max(MIN_EXTENT, Math.ceil(need / STEP) * STEP));

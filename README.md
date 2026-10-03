@@ -1,6 +1,6 @@
 # NITRO CARNAGE
 
-<!-- version -->**v0.1.123**<!-- /version --> — the build currently on Pages.
+<!-- version -->**v0.1.124**<!-- /version --> — the build currently on Pages.
 
 A top-down 3D combat racer that runs entirely in the browser, for 1–6 players with
 **no game server**. It is a spiritual successor to the Amiga-era arcade combat racers:
@@ -69,7 +69,7 @@ Developing needs the compiler:
 ```bash
 npm install
 npm run watch      # tsc --watch, rebuilding dist/ on save
-npm test           # 970 checks: simulation, networking and statistics (Node), and real browsers
+npm test           # 972 checks: simulation, networking and statistics (Node), and real browsers
 ```
 
 Add `?debug` to the URL for an fps and draw-call readout, `?noanalytics` to send no
@@ -1386,7 +1386,7 @@ Esc opens the pause menu, which the same keys then navigate.
 npm test
 ```
 
-970 checks across eight suites. The browser suites swap the CDN for a local three.js and a
+972 checks across eight suites. The browser suites swap the CDN for a local three.js and a
 loopback MQTT stub that relays over a `BroadcastChannel`, so several tabs share one
 "broker" offline, and run Chromium on SwiftShader.
 
