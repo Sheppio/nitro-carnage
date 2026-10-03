@@ -248,7 +248,7 @@ export interface BrokerDef {
  * them, and every page that uses PostHog ships one.
  */
 export const ANALYTICS = {
-  token: 'phc_kGkjPiqYGb26eVePAafopxpr74UWhUE5VJFwmhLeZECw',
+  token: 'phc_uc6PDn8dWEUGtN2eCg8emWEd7TDeWuragZNaFyKn89kG',
   host: 'https://eu.i.posthog.com',
   /** The sites that send, and the `env` each one's events carry. Anywhere else (localhost, the test rig) sends nothing. */
   sites: { 'nitro-carnage.helloshep.com': 'prod', 'dev.nitro-carnage.helloshep.com': 'dev' } as Record<string, string>,
